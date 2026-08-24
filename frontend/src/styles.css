@@ -203,6 +203,22 @@ button:disabled {
   margin: 0;
 }
 
+.settings-section {
+  margin: 0 0 40px;
+}
+
+.settings-section > h2 {
+  margin: 0 0 18px;
+}
+
+.settings-section h3 {
+  margin: 0;
+}
+
+.settings-content {
+  white-space: pre-wrap;
+}
+
 .workspace-tabs {
   display: flex;
   flex-wrap: wrap;
