@@ -29,7 +29,7 @@
 
 ## T3 Alembic 初始迁移与真实 PostgreSQL 验证
 
-- [ ] 建立 Alembic 配置和单一初始 revision，使空 PostgreSQL 升级到与 metadata 一致的 head。
+- [x] 建立 Alembic 配置和单一初始 revision，使空 PostgreSQL 升级到与 metadata 一致的 head。
   - **R：** 无；对应 PRD §4、§10、§11 M0、§12.4。
   - **前置门槛：** 需求方提供可连接的专用 PostgreSQL DSN 与建表权限；`.env.example` 示例、SQLite、mock 或仅离线 SQL 均不满足。
   - **范围：** migration 只创建/逆序删除 spec §4 schema；不 seed 数据、不加入业务级联代码、不创建额外基础设施表。
