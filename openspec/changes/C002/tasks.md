@@ -29,7 +29,7 @@
 
 ## T3 风格 CRUD API 与引用删除保护
 
-- [ ] 实现 Style 输入输出 schema、service 和 `GET/POST /api/styles`、`GET/PATCH/DELETE /api/styles/{id}`，包含实际变化更新时间、名称唯一冲突与被项目引用时 409。
+- [x] 实现 Style 输入输出 schema、service 和 `GET/POST /api/styles`、`GET/PATCH/DELETE /api/styles/{id}`，包含实际变化更新时间、名称唯一冲突与被项目引用时 409。
   - **R：** 无；对应 PRD §2.1(2)、§3.2“风格/模板编辑语义”、§3.3“编辑风格/模板”、§5 项目与设置、§11 M1。
   - **范围：** 只做风格 API；不做项目 API、风格版本化、默认风格、hash、生成副作用或自动测试。只捕获预期 not-found/完整性冲突。
   - **验收方式：**
