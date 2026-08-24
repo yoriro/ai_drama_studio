@@ -59,6 +59,21 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+async function throwApiError(response: Response): Promise<never> {
+  const payload = await readJson(response);
+  if (!isErrorResponse(payload)) {
+    throw new ApiProtocolError(
+      response.status,
+      "API error response did not match the error protocol",
+    );
+  }
+  throw new ApiError(
+    response.status,
+    payload.detail.code,
+    payload.detail.message,
+  );
+}
+
 export async function requestJson<T>(
   path: string,
   init?: RequestInit,
@@ -72,20 +87,30 @@ export async function requestJson<T>(
     headers,
   });
 
-  const payload = await readJson(response);
   if (!response.ok) {
-    if (!isErrorResponse(payload)) {
-      throw new ApiProtocolError(
-        response.status,
-        "API error response did not match the error protocol",
-      );
-    }
-    throw new ApiError(
-      response.status,
-      payload.detail.code,
-      payload.detail.message,
-    );
+    return await throwApiError(response);
   }
 
-  return payload as T;
+  return (await readJson(response)) as T;
+}
+
+export async function requestNoContent(
+  path: string,
+  init?: RequestInit,
+): Promise<void> {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const headers = new Headers(init?.headers);
+  headers.set("Accept", "application/json");
+
+  const response = await fetch(`${API_BASE_PATH}${normalizedPath}`, {
+    ...init,
+    headers,
+  });
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+  if (response.status !== 204) {
+    throw new ApiProtocolError(response.status, "Expected a 204 response");
+  }
 }

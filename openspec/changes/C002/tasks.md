@@ -80,7 +80,7 @@
 
 ## T7 C002 前端 API 客户端与真实 ID 工作区路由
 
-- [ ] 增加 Style/Project/PromptTemplate/Episode 类型化客户端、JSON mutation 与 DELETE 204 处理，并建立 spec §7.1 的项目/剧集/四选项卡路由壳。
+- [x] 增加 Style/Project/PromptTemplate/Episode 类型化客户端、JSON mutation 与 DELETE 204 处理，并建立 spec §7.1 的项目/剧集/四选项卡路由壳。
   - **R：** R11；对应 PRD §2.1(1-4)、§5 项目与剧集、§9、§11 M1；本 task 仅构建模板客户端。
   - **范围：** 只做传输层、路由和无业务数据的工作区壳；不实现 CRUD 页面、前端业务裁决、自动重试、WS、生成按钮或资产/分镜/导演台能力。
   - **验收方式：**
