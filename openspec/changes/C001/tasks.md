@@ -17,7 +17,7 @@
 
 ## T2 SQLAlchemy 2 全量 metadata
 
-- [ ] 按 spec §4 声明全部 13 张表、字段、约束、外键动作和部分唯一索引，并建立单一 metadata 导入入口。
+- [x] 按 spec §4 声明全部 13 张表、字段、约束、外键动作和部分唯一索引，并建立单一 metadata 导入入口。
   - **R：** 无；对应 PRD §4、§0 范围围栏、§11 M0。
   - **范围：** 只写 ORM/schema 声明；不创建迁移、不连接数据库、不添加 repository/service、seed 或删除逻辑。
   - **验收方式：**
