@@ -1,6 +1,15 @@
 from pathlib import Path
 
-from pydantic import AnyHttpUrl, Field, PostgresDsn, field_validator, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    Field,
+    PostgresDsn,
+    SecretStr,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,9 +18,10 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
+        hide_input_in_errors=True,
     )
 
-    DATABASE_URL: PostgresDsn = (
+    DATABASE_URL: SecretStr = SecretStr(
         "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_drama_studio"
     )
     DATA_DIR: Path = Path("./data")
@@ -27,12 +37,21 @@ class Settings(BaseSettings):
     TRASH_RETENTION_HOURS: int = Field(default=24, gt=0)
     DEBUG_PROMPTS: bool = False
 
-    @field_validator("DATABASE_URL")
+    @field_validator("DATABASE_URL", mode="before")
     @classmethod
-    def require_asyncpg_dsn(cls, value: PostgresDsn) -> PostgresDsn:
-        if not str(value).startswith("postgresql+asyncpg://"):
+    def require_asyncpg_dsn(cls, value: object) -> SecretStr:
+        raw_value = (
+            value.get_secret_value() if isinstance(value, SecretStr) else value
+        )
+        if not isinstance(raw_value, str):
+            raise ValueError("DATABASE_URL must be a PostgreSQL DSN")
+        try:
+            parsed = TypeAdapter(PostgresDsn).validate_python(raw_value)
+        except ValidationError as exc:
+            raise ValueError("DATABASE_URL must be a valid PostgreSQL DSN") from exc
+        if parsed.scheme != "postgresql+asyncpg":
             raise ValueError("DATABASE_URL must use the postgresql+asyncpg scheme")
-        return value
+        return SecretStr(str(parsed))
 
     @field_validator("DEBUG_PROMPTS", mode="before")
     @classmethod

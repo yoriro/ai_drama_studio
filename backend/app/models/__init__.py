@@ -177,9 +177,7 @@ class Shot(Base):
     camera: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     dialogue: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String, server_default=text("'normal'"), nullable=False
-    )
+    status: Mapped[str] = mapped_column(String, nullable=False)
     revision: Mapped[int] = mapped_column(
         Integer, server_default=text("1"), nullable=False
     )
@@ -336,9 +334,7 @@ class Task(Base):
     target_id: Mapped[int] = mapped_column(Integer, nullable=False)
     request_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String, server_default=text("'queued'"), nullable=False
-    )
+    status: Mapped[str] = mapped_column(String, nullable=False)
     progress: Mapped[float] = mapped_column(DOUBLE_PRECISION, nullable=False)
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
     heartbeat_at: Mapped[datetime | None] = mapped_column(

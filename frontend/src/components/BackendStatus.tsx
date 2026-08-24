@@ -3,7 +3,7 @@ import type { HealthResponse } from "../api/health";
 export type BackendState =
   | { status: "loading" }
   | { status: "connected"; health: HealthResponse }
-  | { status: "error"; message: string };
+  | { status: "error"; code: string; message: string };
 
 interface BackendStatusProps {
   state: BackendState;
@@ -25,7 +25,7 @@ export function BackendStatus({ state }: BackendStatusProps) {
         className="backend-status backend-status-error"
         role="alert"
       >
-        后端连接失败：{state.message}
+        后端连接失败（{state.code}）：{state.message}
       </section>
     );
   }

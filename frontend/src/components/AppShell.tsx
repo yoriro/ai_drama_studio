@@ -26,10 +26,7 @@ export function AppShell() {
       },
       (error: unknown) => {
         if (!disposed) {
-          setBackendState({
-            status: "error",
-            message: getConnectionErrorMessage(error),
-          });
+          setBackendState({ status: "error", ...getConnectionError(error) });
         }
       },
     );
@@ -68,15 +65,15 @@ export function AppShell() {
   );
 }
 
-function getConnectionErrorMessage(error: unknown): string {
+function getConnectionError(error: unknown): { code: string; message: string } {
   if (error instanceof ApiError) {
-    return error.message;
+    return { code: error.code, message: error.message };
   }
   if (error instanceof TypeError) {
-    return "无法连接后端";
+    return { code: "connection_error", message: "无法连接后端" };
   }
   if (error instanceof Error && error.message.length > 0) {
-    return error.message;
+    return { code: "client_error", message: error.message };
   }
-  return "无法连接后端";
+  return { code: "connection_error", message: "无法连接后端" };
 }

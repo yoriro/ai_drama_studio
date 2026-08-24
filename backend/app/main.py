@@ -2,7 +2,9 @@ import logging
 import sys
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from starlette.datastructures import Headers
+from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse, Response
 
 from app.api.system import router as system_router
 from app.core.config import settings
@@ -11,12 +13,33 @@ from app.core.errors import register_exception_handlers
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
 
+class StructuredCORSMiddleware(CORSMiddleware):
+    def preflight_response(self, request_headers: Headers) -> Response:
+        response = super().preflight_response(request_headers)
+        if response.status_code != 400:
+            return response
+
+        headers = dict(response.headers)
+        headers.pop("content-length", None)
+        headers.pop("content-type", None)
+        return JSONResponse(
+            content={
+                "detail": {
+                    "code": "validation_error",
+                    "message": response.body.decode("utf-8"),
+                }
+            },
+            status_code=400,
+            headers=headers,
+        )
+
+
 def create_app() -> FastAPI:
     application = FastAPI(title="AI Drama Studio API")
     application.state.settings = settings
     application.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"^https?://(?:localhost|127\.0\.0\.1)(?::[0-9]+)?$",
+        StructuredCORSMiddleware,
+        allow_origin_regex=r"^http://(?:localhost|127\.0\.0\.1)(?::[0-9]+)?$",
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
