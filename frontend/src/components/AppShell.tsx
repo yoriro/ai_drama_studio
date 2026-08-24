@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+
+import { ApiError, getHealth } from "../api";
+import { BackendStatus, type BackendState } from "./BackendStatus";
 
 const navigation = [
   { label: "项目", to: "/" },
@@ -7,6 +11,34 @@ const navigation = [
 ];
 
 export function AppShell() {
+  const [backendState, setBackendState] = useState<BackendState>({
+    status: "loading",
+  });
+
+  useEffect(() => {
+    let disposed = false;
+
+    void getHealth().then(
+      (health) => {
+        if (!disposed) {
+          setBackendState({ status: "connected", health });
+        }
+      },
+      (error: unknown) => {
+        if (!disposed) {
+          setBackendState({
+            status: "error",
+            message: getConnectionErrorMessage(error),
+          });
+        }
+      },
+    );
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -28,9 +60,23 @@ export function AppShell() {
           ))}
         </nav>
       </header>
+      <BackendStatus state={backendState} />
       <main className="page-container">
         <Outlet />
       </main>
     </div>
   );
+}
+
+function getConnectionErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+  if (error instanceof TypeError) {
+    return "无法连接后端";
+  }
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+  return "无法连接后端";
 }

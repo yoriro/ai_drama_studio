@@ -56,7 +56,7 @@
 
 ## T5 API/WS 客户端、前后端互通与 C001 收口
 
-- [ ] 建立相对路径 JSON API 客户端、统一错误解析、WS URL/生命周期薄封装和 Vite proxy；用 health 请求驱动 AppShell 的 loading/connected/error 状态并完成全 change 验收。
+- [x] 建立相对路径 JSON API 客户端、统一错误解析、WS URL/生命周期薄封装和 Vite proxy；用 health 请求驱动 AppShell 的 loading/connected/error 状态并完成全 change 验收。
   - **R：** 无；对应 PRD §5 通用与系统接口、§9、§10、§11 M0、§12.4。
   - **前置门槛：** T1-T4 完成，且 T3 已在真实 PostgreSQL 上取得成功证据。
   - **范围：** 不打开任务 WS、不自动重连/重试、不实现任务协议、诊断探测或任何业务 API client。
