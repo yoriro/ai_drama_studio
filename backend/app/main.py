@@ -1,5 +1,7 @@
 import logging
 import sys
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.datastructures import Headers
@@ -9,6 +11,7 @@ from starlette.responses import JSONResponse, Response
 from app.api.system import router as system_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
+from app.db.session import dispose_engine
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
@@ -34,8 +37,14 @@ class StructuredCORSMiddleware(CORSMiddleware):
         )
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
+    await dispose_engine()
+
+
 def create_app() -> FastAPI:
-    application = FastAPI(title="AI Drama Studio API")
+    application = FastAPI(title="AI Drama Studio API", lifespan=lifespan)
     application.state.settings = settings
     application.add_middleware(
         StructuredCORSMiddleware,
