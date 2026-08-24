@@ -118,6 +118,91 @@ nav {
   margin: 0;
 }
 
+.panel,
+.entity-card {
+  background: rgb(255 255 255 / 65%);
+  border: 1px solid #ded5c8;
+  border-radius: 18px;
+  margin: 0 0 24px;
+  padding: 24px;
+}
+
+.panel h2,
+.entity-card h2 {
+  margin-top: 0;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+  max-width: 680px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
+  background: #fffdf9;
+  border: 1px solid #b8aea0;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.form-grid textarea {
+  resize: vertical;
+}
+
+button {
+  background: #1d2925;
+  border: 0;
+  border-radius: 8px;
+  color: #f5f1ea;
+  cursor: pointer;
+  font: inherit;
+  padding: 10px 14px;
+  width: fit-content;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.entity-list {
+  display: grid;
+  gap: 16px;
+}
+
+.entity-card p {
+  color: #746c61;
+}
+
+.error-message {
+  background: #f3dfd9;
+  border: 1px solid #d09a8e;
+  border-radius: 10px;
+  color: #8a3028;
+  padding: 12px 14px;
+}
+
+.field-hint {
+  color: #746c61;
+  margin: 0;
+}
+
 .workspace-tabs {
   display: flex;
   flex-wrap: wrap;
