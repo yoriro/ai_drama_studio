@@ -4,6 +4,7 @@
 
 | 规则 / 场景 | 计划测试层级 | 用例 ID（待填） |
 |---|---|---|
+| C001 基础设施 smoke：FastAPI 应用可启动，`/docs` 可访问，`/api/system/health` 返回明确的未检查骨架且不调用外部服务，通用 API 错误体符合约定 | API 集成 | `backend/tests/api/test_system.py::test_infrastructure_smoke` |
 | R1 无资产禁止生成分镜：项目资产为 0 时 `generate-shots` 返回 409 | API 集成 | 待填 |
 | R2 生成资产增量合并：只插入 `existing_id=null` 项，既有资产不改不删，成功后记录剧本修订 | 任务系统 mock + API 集成 | 待填 |
 | R3 生成分镜覆盖：impact/token 校验；新分镜成功后才删除旧数据并移入 trash；LLM 失败旧数据不动 | 任务系统 mock + API 集成 | 待填 |
@@ -30,4 +31,3 @@
 | §6.1 重启恢复：遗留 running 任务变为 failed("server restarted")，queued 任务保留并继续消费 | 任务系统 mock | 待填 |
 | §6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断 | 任务系统 mock + API 集成 | 待填 |
 | §6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务 | API 集成 | 待填 |
-
