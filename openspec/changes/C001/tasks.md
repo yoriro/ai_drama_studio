@@ -43,7 +43,7 @@
 
 ## T4 React/Vite/TS 路由与组件壳
 
-- [ ] 建立 React 18 + Vite + TypeScript strict 工程、AppShell、共享空态组件，以及 `/`、`/settings`、`/tasks` 三条真实空路由。
+- [x] 建立 React 18 + Vite + TypeScript strict 工程、AppShell、共享空态组件，以及 `/`、`/settings`、`/tasks` 三条真实空路由。
   - **R：** 无；对应 PRD §9、§10、§11 M0。
   - **范围：** 只做布局、导航和真实空态；不创建 CRUD 表单、项目工作区、诊断面板、业务状态或 mock 数据。
   - **验收方式：**
