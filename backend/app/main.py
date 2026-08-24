@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse, Response
 
 from app.api.styles import router as styles_router
 from app.api.system import router as system_router
+from app.api.episodes import router as episodes_router
 from app.api.projects import router as projects_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     application.include_router(system_router, prefix="/api")
     application.include_router(styles_router, prefix="/api")
     application.include_router(projects_router, prefix="/api")
+    application.include_router(episodes_router, prefix="/api")
     register_exception_handlers(application)
     return application
 

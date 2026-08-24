@@ -18,7 +18,7 @@
 | R10 缺图即失败：任一启用槽位无可用图时任务失败并指出槽位与原因 | 任务系统 mock | 待填 |
 | R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot | API 集成 | 待填 |
 | R12 删除资产后的槽位：asset_id 置 NULL、快照和槽位号保留、片段 stale，不停用或无 override 时再次生成触发 R10 | API 集成 + 任务系统 mock | 待填 |
-| §3.3 编辑剧本：分镜、片段、文件均不动，只出现集级旧剧本角标 | API 集成 | 待填 |
+| §3.3 编辑剧本：分镜、片段、文件均不动，只出现集级旧剧本角标 | API 集成 | `backend/tests/api/test_c002_script.py::test_script_revision_preserves_downstream_rows`（C002 覆盖 API 语义；旧剧本角标待 C005/C006） |
 | §3.3 重新生成资产（增量）：分镜、片段、文件均不动 | 任务系统 mock | 待填 |
 | §3.3 重新生成分镜：成功后覆盖本集分镜、删除本集片段并将文件移入 trash | 任务系统 mock + API 集成 | 待填 |
 | §3.3 编辑资产或换当前图：绑定分镜 changed、相关片段 stale、文件不删 | API 集成 | 待填 |

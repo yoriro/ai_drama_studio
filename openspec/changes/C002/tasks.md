@@ -54,7 +54,7 @@
 
 ## T5 剧集 CRUD、剧本修订与授权测试
 
-- [ ] 实现 Episode 输入输出 schema、service 和剧集全部路由，落实 seq 冲突、字数上限、同值 PATCH、实际剧本变化原子 revision+1 及下游完全不动；添加唯一对应“编辑剧本”追溯行的 API 集成测试并回填 node ID。
+- [x] 实现 Episode 输入输出 schema、service 和剧集全部路由，落实 seq 冲突、字数上限、同值 PATCH、实际剧本变化原子 revision+1 及下游完全不动；添加唯一对应“编辑剧本”追溯行的 API 集成测试并回填 node ID。
   - **R：** 无；对应 PRD §2.1(3-4)、§3.2“剧本编辑语义”、§3.3“编辑剧本”、§4 episodes、§5 剧集、§10 `SCRIPT_CHAR_LIMIT`、§11 M1。
   - **范围：** 只做剧集/剧本 API 与该追溯场景；不加旧剧本角标、生成按钮、资产/分镜逻辑、其他 CRUD 测试或任务系统 mock。
   - **验收方式：**
