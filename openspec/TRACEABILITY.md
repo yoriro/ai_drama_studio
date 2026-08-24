@@ -16,7 +16,7 @@
 | R8 数量提示：候选或选择超过 9 阻止创建，启用槽位超过 4 只给软提示 | API 集成 | 待填 |
 | R9 槽位取图优先级：override 图优先于资产当前图 | 纯函数 + API 集成 | 待填 |
 | R10 缺图即失败：任一启用槽位无可用图时任务失败并指出槽位与原因 | 任务系统 mock | 待填 |
-| R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot | API 集成 | 待填 |
+| R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot | API 集成 | `backend/tests/api/test_c002_prompt_templates.py::test_prompt_templates_and_edits_preserve_downstream_rows`（C002 覆盖模板可见可编辑及默认响应无中间字段；DEBUG_PROMPTS 详情待 C007/C009） |
 | R12 删除资产后的槽位：asset_id 置 NULL、快照和槽位号保留、片段 stale，不停用或无 override 时再次生成触发 R10 | API 集成 + 任务系统 mock | 待填 |
 | §3.3 编辑剧本：分镜、片段、文件均不动，只出现集级旧剧本角标 | API 集成 | `backend/tests/api/test_c002_script.py::test_script_revision_preserves_downstream_rows`（C002 覆盖 API 语义；旧剧本角标待 C005/C006） |
 | §3.3 重新生成资产（增量）：分镜、片段、文件均不动 | 任务系统 mock | 待填 |
@@ -24,7 +24,7 @@
 | §3.3 编辑资产或换当前图：绑定分镜 changed、相关片段 stale、文件不删 | API 集成 | 待填 |
 | §3.3 删除资产：解绑并 changed、相关片段 stale、槽位按 R12 处置、资产图片入 trash | API 集成 | 待填 |
 | §3.3 编辑分镜文本或绑定：该分镜 changed、包含它的片段 stale、文件不删 | API 集成 | 待填 |
-| §3.3 编辑风格或模板：分镜与片段不动、文件不删，下次生成因 hash 失配重建 prompt | API 集成 + 任务系统 mock | 待填 |
+| §3.3 编辑风格或模板：分镜与片段不动、文件不删，下次生成因 hash 失配重建 prompt | API 集成 + 任务系统 mock | `backend/tests/api/test_c002_prompt_templates.py::test_prompt_templates_and_edits_preserve_downstream_rows`（C002 覆盖 API 即时可读及下游不变；hash 失配与任务 mock 待 C007/C009） |
 | §3.3 删除片段：其分镜释放、片段删除、视频移入 trash | API 集成 | 待填 |
 | §3.3 片段生成成功且修订未变：相关分镜 normal、片段 ready + fresh、新 take 落盘 | 任务系统 mock | 待填 |
 | §3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且 ready，但不得覆盖 stale/changed | 任务系统 mock | 待填 |

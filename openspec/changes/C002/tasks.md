@@ -67,7 +67,7 @@
 
 ## T6 固定模板 API、R11 与编辑不追溯测试
 
-- [ ] 实现 `GET /api/prompt-templates` 与 `PATCH /api/prompt-templates/{key}`，固定顺序/固定 key/实际变化更新时间；添加一个同时覆盖模板可见可编辑及风格/模板不追溯的 API 集成测试，并准确回填两行追溯。
+- [x] 实现 `GET /api/prompt-templates` 与 `PATCH /api/prompt-templates/{key}`，固定顺序/固定 key/实际变化更新时间；添加一个同时覆盖模板可见可编辑及风格/模板不追溯的 API 集成测试，并准确回填两行追溯。
   - **R：** R11；对应 PRD §2.1(2)、§3.2“风格/模板编辑语义”、§3.3“编辑风格/模板”、§3.5、§4、§5、§11 M1、§12.2。
   - **范围：** 不提供模板单项 GET/POST/DELETE/改 key，不实现 DEBUG_PROMPTS 产物详情、hash、prompt 渲染、生成、版本化或任务系统 mock。
   - **验收方式：**
