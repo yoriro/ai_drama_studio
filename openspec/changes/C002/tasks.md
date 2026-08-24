@@ -42,7 +42,7 @@
 
 ## T4 项目 CRUD API 与当前级联
 
-- [ ] 实现 Project 输入输出 schema、service 和 `GET/POST /api/projects`、`GET/PATCH/DELETE /api/projects/{id}`，校验 style_id，并在一个事务内级联删除当前项目的 C002 剧集。
+- [x] 实现 Project 输入输出 schema、service 和 `GET/POST /api/projects`、`GET/PATCH/DELETE /api/projects/{id}`，校验 style_id，并在一个事务内级联删除当前项目的 C002 剧集。
   - **R：** 无；对应 PRD §2.1(1)、§4 projects、§5 项目与设置、§11 通用级联原则及 M1。
   - **范围：** 只做项目 API 与 project→episodes 当前级联；不删除 style，不实现资产/分镜/片段/任务/media/trash 级联，不增加分页、搜索或自动测试。
   - **验收方式：**
