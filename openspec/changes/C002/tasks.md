@@ -16,7 +16,7 @@
 
 ## T2 四个占位模板的数据迁移
 
-- [ ] 在 C001 head 后新增一条 Alembic 数据 revision，精确插入 spec §3.2 的四个 key/content，并提供对称删除；不得修改 schema 或运行时补数据。
+- [x] 在 C001 head 后新增一条 Alembic 数据 revision，精确插入 spec §3.2 的四个 key/content，并提供对称删除；不得修改 schema 或运行时补数据。
   - **R：** R11；对应 PRD §3.5、§4 `prompt_templates`、§5 模板接口、§11 M1、§12.2。
   - **范围：** 只新增一条数据迁移；不 seed 风格/项目/剧集，不上正式模板，不用 upsert/fallback 吞掉冲突。
   - **验收方式：**
