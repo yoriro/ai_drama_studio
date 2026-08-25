@@ -17,6 +17,12 @@ def _invalid_style() -> HTTPException:
     )
 
 
+def _style_conflict() -> HTTPException:
+    return HTTPException(
+        status_code=409, detail="Project style reference conflict"
+    )
+
+
 async def _require_style(session: AsyncSession, style_id: int) -> None:
     if await session.get(Style, style_id) is None:
         raise _invalid_style()
@@ -37,29 +43,35 @@ async def get_project(session: AsyncSession, project_id: int) -> Project:
 async def create_project(
     session: AsyncSession, payload: ProjectCreate
 ) -> Project:
-    async with session.begin():
-        await _require_style(session, payload.style_id)
-        project = Project(name=payload.name, style_id=payload.style_id)
-        session.add(project)
-        await session.flush()
+    try:
+        async with session.begin():
+            await _require_style(session, payload.style_id)
+            project = Project(name=payload.name, style_id=payload.style_id)
+            session.add(project)
+            await session.flush()
+    except IntegrityError as exc:
+        raise _style_conflict() from exc
     return project
 
 
 async def update_project(
     session: AsyncSession, project_id: int, payload: ProjectPatch
 ) -> Project:
-    async with session.begin():
-        project = await get_project(session, project_id)
-        if "style_id" in payload.model_fields_set:
-            await _require_style(session, payload.style_id)
-        if "name" in payload.model_fields_set and payload.name != project.name:
-            project.name = payload.name
-        if (
-            "style_id" in payload.model_fields_set
-            and payload.style_id != project.style_id
-        ):
-            project.style_id = payload.style_id
-        await session.flush()
+    try:
+        async with session.begin():
+            project = await get_project(session, project_id)
+            if "style_id" in payload.model_fields_set:
+                await _require_style(session, payload.style_id)
+            if "name" in payload.model_fields_set and payload.name != project.name:
+                project.name = payload.name
+            if (
+                "style_id" in payload.model_fields_set
+                and payload.style_id != project.style_id
+            ):
+                project.style_id = payload.style_id
+            await session.flush()
+    except IntegrityError as exc:
+        raise _style_conflict() from exc
     return project
 
 
