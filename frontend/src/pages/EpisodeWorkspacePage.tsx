@@ -137,6 +137,7 @@ interface ScriptEditorProps {
 
 function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
   const [scriptText, setScriptText] = useState(episode.script_text);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -153,6 +154,7 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
     try {
       const updated = await updateEpisode(episode.id, { script_text: scriptText });
       onUpdated(updated);
+      setEditing(false);
       setSuccessMessage(`剧本已保存，当前修订：${updated.script_revision}`);
     } catch (requestError: unknown) {
       setError(requestError);
@@ -160,6 +162,19 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleStartEditing() {
+    setEditing(true);
+    setError(null);
+    setSuccessMessage(null);
+  }
+
+  function handleCancelEditing() {
+    setEditing(false);
+    setScriptText(episode.script_text);
+    setError(null);
+    setSuccessMessage(null);
   }
 
   return (
@@ -171,25 +186,48 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           {successMessage}
         </p>
       )}
-      <form className="form-grid" onSubmit={handleSubmit}>
-        <label>
-          剧本内容
-          <textarea
-            rows={16}
-            value={scriptText}
-            onChange={(event) => {
-              setScriptText(event.target.value);
-              setSuccessMessage(null);
-            }}
-          />
-        </label>
-        <p className="field-hint">
-          当前字符数：{Array.from(scriptText).length}
-        </p>
-        <button disabled={saving} type="submit">
-          {saving ? "保存中…" : "保存剧本"}
-        </button>
-      </form>
+      {!editing ? (
+        <>
+          <p className="field-hint">剧本修订：{episode.script_revision}</p>
+          {episode.script_text.length === 0 ? (
+            <EmptyState message="尚未保存剧本内容" />
+          ) : (
+            <div className="script-content">{episode.script_text}</div>
+          )}
+          <button type="button" onClick={handleStartEditing}>
+            编辑剧本
+          </button>
+        </>
+      ) : (
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label>
+            剧本内容
+            <textarea
+              rows={16}
+              value={scriptText}
+              onChange={(event) => {
+                setScriptText(event.target.value);
+                setSuccessMessage(null);
+              }}
+            />
+          </label>
+          <p className="field-hint">
+            当前字符数：{Array.from(scriptText).length}
+          </p>
+          <div className="action-row">
+            <button disabled={saving} type="submit">
+              {saving ? "保存中…" : "保存剧本"}
+            </button>
+            <button
+              disabled={saving}
+              type="button"
+              onClick={handleCancelEditing}
+            >
+              取消编辑
+            </button>
+          </div>
+        </form>
+      )}
     </section>
   );
 }

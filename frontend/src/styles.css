@@ -221,6 +221,16 @@ button:disabled {
   padding: 12px 14px;
 }
 
+.script-content {
+  background: #fffdf9;
+  border: 1px solid #ded5c8;
+  border-radius: 8px;
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+  padding: 14px;
+  white-space: pre-wrap;
+}
+
 .field-hint {
   color: #746c61;
   margin: 0;

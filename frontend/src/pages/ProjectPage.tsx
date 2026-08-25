@@ -196,7 +196,7 @@ export function ProjectPage() {
                 <Link
                   to={`/projects/${project.id}/episodes/${episode.id}/script`}
                 >
-                  编辑剧本
+                  进入集工作区
                 </Link>
                 <button
                   type="button"
