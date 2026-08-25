@@ -60,6 +60,18 @@ def asset_image_trash_path(
     )
 
 
+def move_asset_image_to_trash(
+    data_dir: Path, project_id: int, asset_id: int, image_id: int, extension: str
+) -> Path:
+    source = asset_image_path(data_dir, project_id, asset_id, image_id, extension)
+    destination = asset_image_trash_path(
+        data_dir, project_id, asset_id, image_id, extension
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    source.replace(destination)
+    return destination
+
+
 def resolve_data_path(data_dir: Path, relative_path: str | Path) -> Path:
     root = data_dir.resolve()
     candidate = (root / relative_path).resolve()

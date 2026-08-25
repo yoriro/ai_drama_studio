@@ -28,7 +28,7 @@
 
 ## T3 原子图片上传、图片列表与首图 current
 
-- [ ] 实现 `GET/POST /api/assets/{id}/images`：multipart `file` 流式写临时文件，执行大小/MIME/完整解码校验，保留原始字节、计算 sha256、取得 image id 后原子改名并落库；首图自动 current 且资产 revision+1，后续图非 current。
+- [x] 实现 `GET/POST /api/assets/{id}/images`：multipart `file` 流式写临时文件，执行大小/MIME/完整解码校验，保留原始字节、计算 sha256、取得 image id 后原子改名并落库；首图自动 current 且资产 revision+1，后续图非 current。
   - **R：** 无；对应 PRD §2.1(5,12)、§3.2 资产当前版本修订、§4 asset_images、§5 上传、§6.4、§10、§11 M1；采用用户裁决 1B、2A。
   - **范围：** 本 task 不实现 current PUT、图片/资产 DELETE、媒体 GET、trash 定时清理或前端；失败不重试，临时文件必须清理，rename 后数据库失败产生的无引用正式文件须在同一请求内移入 trash；不创建补偿队列或 generation_runs。
   - **验收方式：**

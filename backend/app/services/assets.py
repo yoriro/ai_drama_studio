@@ -1,11 +1,22 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
+from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Asset, Project
+from app.core.config import settings
+from app.models import Asset, AssetImage, Project
 from app.schemas.assets import AssetCreate, AssetPatch
+from app.services.asset_files import (
+    asset_image_path,
+    asset_image_relative_path,
+    image_storage_format,
+    move_asset_image_to_trash,
+    sha256_file,
+    temporary_asset_image_path,
+)
 
 
 _VISIBLE_ASSET_TYPES = ("character", "scene")
@@ -89,3 +100,144 @@ async def update_asset(
             asset.updated_at = datetime.now(timezone.utc)
         await session.flush()
     return asset
+
+
+async def list_asset_images(
+    session: AsyncSession, asset_id: int
+) -> list[AssetImage]:
+    await get_asset(session, asset_id)
+    result = await session.execute(
+        select(AssetImage)
+        .where(AssetImage.asset_id == asset_id)
+        .order_by(AssetImage.id)
+    )
+    return list(result.scalars().all())
+
+
+def _invalid_upload(message: str) -> HTTPException:
+    return HTTPException(status_code=422, detail=message)
+
+
+def _validate_decoded_image(path: Path, declared_mime: str) -> tuple[str, str]:
+    try:
+        with Image.open(path) as image:
+            detected_format = image.format
+            image.verify()
+        with Image.open(path) as image:
+            image.load()
+    except (OSError, SyntaxError, ValueError) as exc:
+        raise _invalid_upload("file is not a complete PNG, JPEG, or WebP image") from exc
+
+    if not isinstance(detected_format, str):
+        raise _invalid_upload("file is not a complete PNG, JPEG, or WebP image")
+    try:
+        storage_format = image_storage_format(detected_format)
+    except ValueError as exc:
+        raise _invalid_upload("file format is not PNG, JPEG, or WebP") from exc
+    if storage_format.mime_type != declared_mime:
+        raise _invalid_upload("declared MIME type does not match the image format")
+    return storage_format.extension, storage_format.mime_type
+
+
+async def upload_asset_image(
+    session: AsyncSession, asset_id: int, upload: UploadFile
+) -> AssetImage:
+    declared_mime = upload.content_type
+    if declared_mime not in {"image/png", "image/jpeg", "image/webp"}:
+        raise _invalid_upload("MIME type must be image/png, image/jpeg, or image/webp")
+
+    temp_path = temporary_asset_image_path(settings.DATA_DIR)
+    formal_path: Path | None = None
+    project_id_for_file: int | None = None
+    stored_image_id: int | None = None
+    extension_for_file: str | None = None
+    transaction_committed = False
+    try:
+        temp_path.parent.mkdir(parents=True, exist_ok=True)
+        bytes_written = 0
+        with temp_path.open("wb") as file_handle:
+            while True:
+                chunk = await upload.read(1024 * 1024)
+                if not chunk:
+                    break
+                bytes_written += len(chunk)
+                if bytes_written > settings.UPLOAD_MAX_MB * 1024 * 1024:
+                    raise _invalid_upload(
+                        f"file exceeds UPLOAD_MAX_MB ({settings.UPLOAD_MAX_MB})"
+                    )
+                file_handle.write(chunk)
+
+        extension, _ = _validate_decoded_image(temp_path, declared_mime)
+        digest = sha256_file(temp_path)
+
+        async with session.begin():
+            result = await session.execute(
+                select(Asset).where(Asset.id == asset_id).with_for_update()
+            )
+            asset = result.scalar_one_or_none()
+            if asset is None or not _is_visible_asset(asset):
+                raise _asset_not_found()
+            project_id_for_file = asset.project_id
+
+            current_result = await session.execute(
+                select(AssetImage.id)
+                .where(
+                    AssetImage.asset_id == asset_id,
+                    AssetImage.is_current.is_(True),
+                )
+                .limit(1)
+            )
+            has_current = current_result.scalar_one_or_none() is not None
+            is_current = not has_current
+
+            image = AssetImage(
+                asset_id=asset.id,
+                file_path="pending",
+                sha256=digest,
+                seed=None,
+                source="uploaded",
+                is_current=is_current,
+            )
+            session.add(image)
+            await session.flush()
+            stored_image_id = image.id
+            extension_for_file = extension
+
+            relative_path = asset_image_relative_path(
+                asset.project_id, asset.id, image.id, extension
+            )
+            formal_path = asset_image_path(
+                settings.DATA_DIR,
+                asset.project_id,
+                asset.id,
+                image.id,
+                extension,
+            )
+            image.file_path = relative_path.as_posix()
+            formal_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path.replace(formal_path)
+
+            if is_current:
+                asset.revision += 1
+                asset.updated_at = datetime.now(timezone.utc)
+            await session.flush()
+
+        transaction_committed = True
+        return image
+    finally:
+        if formal_path is not None and not transaction_committed and formal_path.exists():
+            if (
+                project_id_for_file is None
+                or stored_image_id is None
+                or extension_for_file is None
+            ):
+                raise RuntimeError("asset image storage state is incomplete")
+            move_asset_image_to_trash(
+                settings.DATA_DIR,
+                project_id_for_file,
+                asset_id,
+                stored_image_id,
+                extension_for_file,
+            )
+        if temp_path.exists():
+            temp_path.unlink()

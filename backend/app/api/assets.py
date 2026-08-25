@@ -1,12 +1,19 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.schemas.assets import AssetCreate, AssetPatch, AssetResponse
+from app.schemas.assets import (
+    AssetCreate,
+    AssetImageResponse,
+    AssetPatch,
+    AssetResponse,
+)
 from app.services.assets import (
     create_asset,
     get_asset,
     list_assets,
+    list_asset_images,
+    upload_asset_image,
     update_asset,
 )
 
@@ -52,3 +59,24 @@ async def update_asset_route(
     session: AsyncSession = Depends(get_session),
 ) -> AssetResponse:
     return await update_asset(session, asset_id, payload)
+
+
+@router.get("/assets/{asset_id}/images", response_model=list[AssetImageResponse])
+async def read_asset_images(
+    asset_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> list[AssetImageResponse]:
+    return await list_asset_images(session, asset_id)
+
+
+@router.post(
+    "/assets/{asset_id}/images",
+    response_model=AssetImageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_asset_image(
+    asset_id: int,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+) -> AssetImageResponse:
+    return await upload_asset_image(session, asset_id, file)
