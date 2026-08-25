@@ -139,3 +139,39 @@
   - **计划测试层级：** 不新增自动测试
   - **追溯行：** §3.3 编辑资产或换当前图：绑定分镜 changed、相关片段 stale、文件不删；§3.3 删除资产：解绑并 changed、相关片段 stale、槽位按 R12 处置、资产图片入 trash
   - **覆盖说明：** 本 task 只运行 T5/T6 已授权用例，不增加新用例；两行的下游部分继续保留待后续 change 回填。
+
+## T12 修复资产页媒体转发
+
+- [x] 补齐前端开发/验收环境对 `/media` 的转发，使 `getAssetImageMediaUrl(id)` 继续生成 spec 规定的 `/media/asset-images/{id}`，且当前图与版本画廊从真实后端媒体端点取得图片而不是 Vite HTML。
+  - **R：** 无；对应 PRD §2.1(12)、§5“媒体”、§9、§11 M1；对应 C003 spec §4.3、§8.2、§10。
+  - **范围：** 只修复现有 ID 媒体 URL 在前端开发/验收环境的可达性；不得改为暴露 `file_path`、任意路径参数、base64 内嵌、占位图、fallback、重试或新增媒体 API，不实现 clip video 媒体。
+  - **验收方式：**
+    1. 同时启动现有后端与 Vite 前端，通过后端 API 创建资产并上传 PNG/JPEG/WebP；分别运行 `Invoke-WebRequest http://127.0.0.1:5173/media/asset-images/$imageId`，确认状态 200、Content-Type 分别为 `image/png`、`image/jpeg`、`image/webp`，下载字节 sha256 与上传响应一致且响应不是 `text/html`。
+    2. 在真实浏览器进入资产页，核对当前图片和画廊各版本均真实显示；用页面只读检查确认每张图片 `complete=true` 且 `naturalWidth>0`，图片 `src` 仍为同源 `/media/asset-images/{id}`，未知 ID 不显示占位图或伪成功。
+    3. 在 `frontend/` 运行 `npm run build`，在 `backend/` 运行 `python -m pytest -q tests`，在仓库根运行 `git diff --check`；确认没有新增或修改测试、migration 或后续媒体能力。
+  - **计划测试层级：** 不新增自动测试
+  - **追溯行：** 不适用
+
+## T13 修复上传路径资产的校验顺序
+
+- [x] 按 spec §5.2 调整 `POST /api/assets/{id}/images`：先确认并锁定路径资产，未知或 C003 不可见资产立即返回 404；只有路径资产有效时才校验声明 MIME、写入临时文件、执行大小限制、完整解码、sha256、首图 current 判定与正式 rename。
+  - **R：** 无；对应 PRD §5“上传约束/资产图片”、§6.4、§11 M1；对应 C003 spec §5.1-§5.2、§7、§10。
+  - **范围：** 只调整既有上传流程的顺序与锁持有边界；不得改变有效资产上传的 201 行为、文件格式、sha256、首图 current/revision 或并发唯一性，不新增重试、fallback、补偿队列、表、migration 或自动测试。
+  - **验收方式：**
+    1. 使用隔离 `DATA_DIR` 和 C003 专用 PostgreSQL 对同一未知 asset ID 分别上传有效 PNG、声明为 `text/plain` 的有效 PNG、损坏 PNG 及超限内容；四个请求均须优先返回 404 / `not_found`，且没有临时文件、正式文件或 AssetImage 行。不得只验证“未知资产 + 有效文件”。
+    2. 对已存在资产重复上述无效 MIME、损坏和超限请求，确认仍分别返回 422 / `validation_error`；再上传有效 PNG/JPEG/WebP，确认 201、原字节/hash/扩展名不变。该矩阵明确区分：**路径资源不存在为 404，路径资源存在但上传内容非法为 422**。
+    3. 并发向一个无图资产上传两张有效图片，确认两请求均成功时只有一个 current、资产 revision 只增加一次且没有自动重试；运行 `python -m pytest -q tests` 与 `git diff --check`，确认没有新增或修改测试及 migration。
+  - **计划测试层级：** 不新增自动测试
+  - **追溯行：** 不适用
+
+## T14 C003 增量修复复审收口
+
+- [x] 在 T12、T13 完成后重新执行 C003 全链路验收，证明资产媒体在真实页面可见、上传 404/422 优先级符合 spec，并确认增量修复未破坏既有文件生命周期、错误协议、追溯和范围围栏。
+  - **R：** 无；对应 PRD §0、§2.1(5,12)、§3.2、§3.3 资产相关行、§4-§6.4、§9-§12；对应 C003 spec 全文，重点为 §4.3、§5.2、§7-§10。
+  - **范围：** 本 task 只复跑验收与范围审查，不新增业务能力、自动测试或 migration；不得借复审实现后续 change。
+  - **验收方式：**
+    1. 在 C003 专用 PostgreSQL 环境运行 `python -m alembic current`、`python -m alembic check`、`python -m pytest -q tests/api/test_c003_assets.py::test_asset_edit_and_current_image_preserve_downstream_rows tests/api/test_c003_assets.py::test_delete_asset_moves_all_images_to_trash` 和 `python -m pytest -q tests`；确认仍为 C002 head、无 schema 漂移且全部通过。
+    2. 在 `frontend/` 运行 `npm run build`；通过 HTTP/文件检查复跑 T12、T13 的 Content-Type/hash 与 404/422 矩阵，并在真实浏览器完成“创建→编辑→上传→显示当前图/画廊→切 current→删非 current→删资产”，确认所有图片 `naturalWidth>0`。
+    3. 运行 `git diff --check`、测试文件清单与范围扫描；确认相对 C003 首次审计只存在 T12/T13 授权的实现和本 task 文档变化，`openspec/TRACEABILITY.md` 不新增用例 ID，无重试/fallback、后续媒体、任务/WS、生成、分镜/片段或范围围栏能力。
+  - **计划测试层级：** 不新增自动测试
+  - **追溯行：** 不适用
