@@ -6,6 +6,7 @@ import type { Episode, Project } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
+import { AssetPage } from "./AssetPage";
 
 type WorkspaceTab = "script" | "assets" | "shots" | "director";
 
@@ -121,6 +122,8 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
           episode={context.episode}
           onUpdated={(episode) => setContext({ ...context, episode })}
         />
+      ) : activeTab === "assets" ? (
+        <AssetPage projectId={context.project.id} />
       ) : (
         <EmptyState
           message={`${tabs.find((tab) => tab.key === activeTab)?.label}页暂未交付`}
