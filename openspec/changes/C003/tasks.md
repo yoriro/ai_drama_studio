@@ -91,7 +91,7 @@
 
 ## T8 启动与每日 trash 清理生命周期
 
-- [ ] 在 FastAPI lifespan 中加入启动清理和每 24 小时清理协程，按 `TRASH_RETENTION_HOURS` 与文件 mtime 删除过期 trash、清理空目录，并在关闭时取消且等待协程；清理异常显式记录，不重试、不吞错。
+- [x] 在 FastAPI lifespan 中加入启动清理和每 24 小时清理协程，按 `TRASH_RETENTION_HOURS` 与文件 mtime 删除过期 trash、清理空目录，并在关闭时取消且等待协程；清理异常显式记录，不重试、不吞错。
   - **R：** 无；对应 PRD §6.4 trash 生命周期、§10 `TRASH_RETENTION_HOURS`、§11 M1/M6。
   - **范围：** 只清理 `DATA_DIR/trash`；不扫描正式目录、不清理数据库、不建立任务表记录、重试、锁文件、registry 或审计机制。M6 自动回归仍属 C012。
   - **验收方式：**

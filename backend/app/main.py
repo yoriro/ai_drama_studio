@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 from collections.abc import AsyncIterator
@@ -18,6 +19,7 @@ from app.api.prompt_templates import router as prompt_templates_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.db.session import dispose_engine
+from app.services.trash import cleanup_expired_trash, run_trash_cleanup_loop
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
@@ -45,8 +47,27 @@ class StructuredCORSMiddleware(CORSMiddleware):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    yield
-    await dispose_engine()
+    try:
+        try:
+            cleanup_expired_trash(settings.DATA_DIR, settings.TRASH_RETENTION_HOURS)
+        except OSError:
+            logging.getLogger("app.trash").exception(
+                "Initial trash cleanup failed"
+            )
+            raise
+        cleanup_task = asyncio.create_task(
+            run_trash_cleanup_loop(settings.DATA_DIR, settings.TRASH_RETENTION_HOURS)
+        )
+        try:
+            yield
+        finally:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
+    finally:
+        await dispose_engine()
 
 
 def create_app() -> FastAPI:
