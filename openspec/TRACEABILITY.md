@@ -22,7 +22,7 @@
 | §3.3 重新生成资产（增量）：分镜、片段、文件均不动 | 任务系统 mock | 待填 |
 | §3.3 重新生成分镜：成功后覆盖本集分镜、删除本集片段并将文件移入 trash | 任务系统 mock + API 集成 | 待填 |
 | §3.3 编辑资产或换当前图：绑定分镜 changed、相关片段 stale、文件不删 | API 集成 | `backend/tests/api/test_c003_assets.py::test_asset_edit_and_current_image_preserve_downstream_rows`（C003 部分覆盖：资产名称/描述与当前图 revision、同值不增、文件不删；绑定分镜 changed 与片段 stale 待 C006/C008-C009） |
-| §3.3 删除资产：解绑并 changed、相关片段 stale、槽位按 R12 处置、资产图片入 trash | API 集成 | 待填 |
+| §3.3 删除资产：解绑并 changed、相关片段 stale、槽位按 R12 处置、资产图片入 trash | API 集成 | `backend/tests/api/test_c003_assets.py::test_delete_asset_moves_all_images_to_trash`（C003 部分覆盖：资产/图片行删除与全部图片入 trash；changed/stale、槽位快照与完整 R12 待 C006/C008-C009） |
 | §3.3 编辑分镜文本或绑定：该分镜 changed、包含它的片段 stale、文件不删 | API 集成 | 待填 |
 | §3.3 编辑风格或模板：分镜与片段不动、文件不删，下次生成因 hash 失配重建 prompt | API 集成 + 任务系统 mock | `backend/tests/api/test_c002_prompt_templates.py::test_prompt_templates_and_edits_preserve_downstream_rows`（C002 覆盖 API 即时可读及下游不变；hash 失配与任务 mock 待 C007/C009） |
 | §3.3 删除片段：其分镜释放、片段删除、视频移入 trash | API 集成 | 待填 |

@@ -3,7 +3,8 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 from PIL import Image
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -335,3 +336,42 @@ async def delete_asset_image(session: AsyncSession, image_id: int) -> None:
         )
         await session.delete(image)
         await session.flush()
+
+
+async def delete_asset(session: AsyncSession, asset_id: int) -> None:
+    try:
+        async with session.begin():
+            asset_result = await session.execute(
+                select(Asset).where(Asset.id == asset_id).with_for_update()
+            )
+            asset = asset_result.scalar_one_or_none()
+            if asset is None or not _is_visible_asset(asset):
+                raise _asset_not_found()
+
+            image_result = await session.execute(
+                select(AssetImage)
+                .where(AssetImage.asset_id == asset_id)
+                .order_by(AssetImage.id)
+                .with_for_update()
+            )
+            images = list(image_result.scalars().all())
+            for image in images:
+                extension = _stored_image_extension(asset, image)
+                move_asset_image_to_trash(
+                    settings.DATA_DIR,
+                    asset.project_id,
+                    asset.id,
+                    image.id,
+                    extension,
+                )
+
+            await session.execute(
+                delete(AssetImage).where(AssetImage.asset_id == asset_id)
+            )
+            await session.delete(asset)
+            await session.flush()
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Asset cannot be deleted because it has dependent data",
+        ) from exc

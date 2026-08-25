@@ -11,6 +11,7 @@ from app.schemas.assets import (
 )
 from app.services.assets import (
     create_asset,
+    delete_asset,
     get_asset,
     list_assets,
     list_asset_images,
@@ -62,6 +63,15 @@ async def update_asset_route(
     session: AsyncSession = Depends(get_session),
 ) -> AssetResponse:
     return await update_asset(session, asset_id, payload)
+
+
+@router.delete("/assets/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_asset_route(
+    asset_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await delete_asset(session, asset_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/assets/{asset_id}/images", response_model=list[AssetImageResponse])
