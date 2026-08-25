@@ -103,7 +103,7 @@
 
 ## T9 前端资产类型与 API 客户端
 
-- [ ] 增加 Asset/AssetImage 类型和 create/list/get/patch/delete、图片 list/upload/current/delete 的客户端，以及 ID 媒体 URL 构造；复用统一 ApiError 与 204 处理。
+- [x] 增加 Asset/AssetImage 类型和 create/list/get/patch/delete、图片 list/upload/current/delete 的客户端，以及 ID 媒体 URL 构造；复用统一 ApiError 与 204 处理。
   - **R：** 无；对应 PRD §2.1(5,12)、§5 资产/媒体、§9、§11 M1。
   - **范围：** 只做类型化传输层；不实现页面、前端业务裁决、上传重试/进度任务、生成、WS、prop 或任意路径媒体客户端。
   - **验收方式：**

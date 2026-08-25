@@ -14,6 +14,27 @@ export {
 export type { Episode, EpisodeCreate, EpisodePatch } from "./episodes";
 export { getHealth } from "./health";
 export {
+  createAsset,
+  deleteAsset,
+  deleteAssetImage,
+  getAsset,
+  getAssetImageMediaUrl,
+  listAssetImages,
+  listAssets,
+  setCurrentAssetImage,
+  updateAsset,
+  uploadAssetImage,
+} from "./assets";
+export type {
+  Asset,
+  AssetCreate,
+  AssetImage,
+  AssetImageSource,
+  AssetPatch,
+  AssetSource,
+  AssetType,
+} from "./assets";
+export {
   createProject,
   deleteProject,
   getProject,
