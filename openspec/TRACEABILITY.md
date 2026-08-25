@@ -28,6 +28,6 @@
 | §3.3 删除片段：其分镜释放、片段删除、视频移入 trash | API 集成 | 待填 |
 | §3.3 片段生成成功且修订未变：相关分镜 normal、片段 ready + fresh、新 take 落盘 | 任务系统 mock | 待填 |
 | §3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且 ready，但不得覆盖 stale/changed | 任务系统 mock | 待填 |
-| §6.1 重启恢复：遗留 running 任务变为 failed("server restarted")，queued 任务保留并继续消费 | 任务系统 mock | 待填 |
-| §6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断 | 任务系统 mock + API 集成 | 待填 |
+| §6.1 重启恢复：遗留 running 任务变为 failed("server restarted")，queued 任务保留并继续消费 | 任务系统 mock | `backend/tests/task_system/test_task_queue.py::test_restart_fails_running_and_continues_queued` |
+| §6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断 | 任务系统 mock + API 集成 | `backend/tests/task_system/test_task_queue.py::test_queued_cancel_is_terminal`; `backend/tests/task_system/test_task_queue.py::test_running_cancel_stops_at_safe_point`; `backend/tests/api/test_tasks.py::test_cancel_task_states` |
 | §6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务 | API 集成 | 待填 |

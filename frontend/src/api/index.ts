@@ -50,6 +50,8 @@ export type {
   PromptTemplate,
   PromptTemplatePatch,
 } from "./promptTemplates";
+export { listTasks } from "./tasks";
+export type { Task, TaskEvent, TaskStatus, TaskType } from "./tasks";
 export {
   createStyle,
   deleteStyle,

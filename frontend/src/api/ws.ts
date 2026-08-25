@@ -1,3 +1,5 @@
+import type { TaskEvent } from "./tasks";
+
 export function buildWebSocketUrl(
   path: string,
   pageLocation: Location = window.location,
@@ -12,6 +14,16 @@ export function openWebSocket(
   pageLocation: Location = window.location,
 ): WebSocket {
   return new WebSocket(buildWebSocketUrl(path, pageLocation));
+}
+
+export function openTaskWebSocket(
+  pageLocation: Location = window.location,
+): WebSocket {
+  return openWebSocket("/ws/tasks", pageLocation);
+}
+
+export function parseTaskEvent(data: string): TaskEvent {
+  return JSON.parse(data) as TaskEvent;
 }
 
 export function closeWebSocket(socket: WebSocket): void {
