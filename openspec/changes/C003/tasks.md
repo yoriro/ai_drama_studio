@@ -16,7 +16,7 @@
 
 ## T2 手动资产创建、列表、读取与编辑 API
 
-- [ ] 实现 Asset create/list/item/PATCH schema、service 与 route：创建固定 `source=manual, revision=1`，只接受 character/scene，类型不可 PATCH，名称/描述实际变化时原子 revision+1，同值不增。
+- [x] 实现 Asset create/list/item/PATCH schema、service 与 route：创建固定 `source=manual, revision=1`，只接受 character/scene，类型不可 PATCH，名称/描述实际变化时原子 revision+1，同值不增。
   - **R：** 无；对应 PRD §2.1(5)、§3.2 资产修订、§4 assets、§5 资产 API、§11 M1；采用用户裁决 3A。
   - **范围：** 只实现 `GET/POST /api/projects/{id}/assets`、`GET/PATCH /api/assets/{id}`；DELETE、图片、媒体、trash、前端和下游 changed/stale 均留给后续 task。不得读写 prompt cache/hash 或 prop。
   - **验收方式：**

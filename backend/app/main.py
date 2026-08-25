@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse, Response
 from app.api.styles import router as styles_router
 from app.api.system import router as system_router
 from app.api.episodes import router as episodes_router
+from app.api.assets import router as assets_router
 from app.api.projects import router as projects_router
 from app.api.prompt_templates import router as prompt_templates_router
 from app.core.config import settings
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     application.include_router(styles_router, prefix="/api")
     application.include_router(projects_router, prefix="/api")
     application.include_router(episodes_router, prefix="/api")
+    application.include_router(assets_router, prefix="/api")
     application.include_router(prompt_templates_router, prefix="/api")
     register_exception_handlers(application)
     return application
