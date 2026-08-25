@@ -41,7 +41,7 @@
 
 ## T4 AssetImage ID 媒体服务
 
-- [ ] 实现 `GET /media/asset-images/{id}`，只按数据库 ID 解析受控相对路径并流式返回原始字节与正确图片 Content-Type；JSON API 不暴露 `file_path`。
+- [x] 实现 `GET /media/asset-images/{id}`，只按数据库 ID 解析受控相对路径并流式返回原始字节与正确图片 Content-Type；JSON API 不暴露 `file_path`。
   - **R：** 无；对应 PRD §2.1(12)、§5 媒体、§6.4、§10、§11 M1。
   - **范围：** 只交付资产图片媒体读取；不实现 clip video/slot override 媒体、不接受用户路径、不返回占位图、不做缓存/CDN/ETag 或 fallback。
   - **验收方式：**
