@@ -144,6 +144,11 @@ export function ProjectPage() {
   return (
     <>
       <PageTitle>项目详情</PageTitle>
+      <p>
+        <Link className="button-link" to="/">
+          返回项目首页
+        </Link>
+      </p>
       <p>项目 ID：{project.id} · 风格 ID：{project.style_id}</p>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
       <section className="panel">

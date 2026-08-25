@@ -98,7 +98,9 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
         {context.project.name} · 第 {context.episode.seq} 集 · {context.episode.title}
       </p>
       <p>
-        <Link to={`/projects/${context.project.id}`}>返回项目</Link>
+        <Link className="button-link" to={`/projects/${context.project.id}`}>
+          返回项目
+        </Link>
       </p>
       <nav aria-label="集工作区选项卡" className="workspace-tabs">
         {tabs.map((tab) => (

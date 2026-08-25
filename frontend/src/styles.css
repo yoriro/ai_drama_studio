@@ -170,6 +170,21 @@ button {
   width: fit-content;
 }
 
+.button-link {
+  background: #1d2925;
+  border-radius: 8px;
+  color: #f5f1ea;
+  display: inline-block;
+  font: inherit;
+  padding: 10px 14px;
+}
+
+.button-link:hover,
+.button-link:focus-visible {
+  background: #d4a373;
+  color: #1d2925;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.6;
