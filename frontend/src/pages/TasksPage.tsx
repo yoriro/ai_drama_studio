@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { listTasks } from "../api/tasks";
+import { getTask, listTasks } from "../api/tasks";
 import type { Task, TaskEvent, TaskStatus, TaskType } from "../api/tasks";
 import {
   closeWebSocket,
@@ -46,35 +46,29 @@ function sortTasks(tasks: TaskListItem[]): TaskListItem[] {
   return [...tasks].sort((left, right) => right.id - left.id);
 }
 
-function applyTaskEvent(
-  current: TaskListItem[],
-  event: TaskEvent,
-): TaskListItem[] {
-  const index = current.findIndex((task) => task.id === event.task_id);
-  if (index === -1) {
-    return sortTasks([
-      ...current,
-      {
-        id: event.task_id,
-        type: event.type,
-        target_id: null,
-        request_id: null,
-        status: event.status,
-        progress: event.progress,
-        error_msg:
-          event.status === "failed" ? errorMessageFromEvent(event) : null,
-        heartbeat_at: null,
-        cancel_requested_at: null,
-        created_at: null,
-        started_at: null,
-        finished_at: null,
-      },
-    ]);
-  }
+function taskFromEvent(event: TaskEvent): TaskListItem {
+  return {
+    id: event.task_id,
+    type: event.type,
+    target_id: null,
+    request_id: null,
+    status: event.status,
+    progress: event.progress,
+    error_msg:
+      event.status === "failed" ? errorMessageFromEvent(event) : null,
+    heartbeat_at: null,
+    cancel_requested_at: null,
+    created_at: null,
+    started_at: null,
+    finished_at: null,
+  };
+}
 
-  const existing = current[index];
-  const next = [...current];
-  next[index] = {
+function applyEventToTask(
+  existing: TaskListItem,
+  event: TaskEvent,
+): TaskListItem {
+  return {
     ...existing,
     type: event.type,
     status: event.status,
@@ -86,11 +80,33 @@ function applyTaskEvent(
           ? null
           : existing.error_msg,
   };
+}
+
+function applyTaskEvent(
+  current: TaskListItem[],
+  event: TaskEvent,
+): TaskListItem[] {
+  const index = current.findIndex((task) => task.id === event.task_id);
+  if (index === -1) {
+    return sortTasks([...current, taskFromEvent(event)]);
+  }
+
+  const existing = current[index];
+  const next = [...current];
+  next[index] = applyEventToTask(existing, event);
   return sortTasks(next);
 }
 
 function formatTaskTime(value: string | null): string {
   return value === null ? "—" : new Date(value).toLocaleString();
+}
+
+function isTerminalTaskEvent(event: TaskEvent): boolean {
+  return (
+    event.status === "done" ||
+    event.status === "failed" ||
+    event.status === "canceled"
+  );
 }
 
 export function TasksPage() {
@@ -137,6 +153,56 @@ export function TasksPage() {
       let synchronized = false;
       let synchronizationFailed = false;
       const bufferedEvents: TaskEvent[] = [];
+      const knownTaskIds = new Set<number>();
+      const latestEvents = new Map<number, TaskEvent>();
+      const detailRequests = new Map<number, Promise<void>>();
+
+      function hydrateTaskDetails(taskId: number): void {
+        if (detailRequests.has(taskId)) {
+          return;
+        }
+
+        const detailRequest = getTask(taskId)
+          .then((task) => {
+            if (!isActive(socket)) {
+              return;
+            }
+
+            const latestEvent = latestEvents.get(taskId);
+            const mergedTask = latestEvent
+              ? applyEventToTask(toTaskListItem(task), latestEvent)
+              : toTaskListItem(task);
+            setTasks((current) => {
+              const index = current.findIndex((item) => item.id === taskId);
+              if (index === -1) {
+                return sortTasks([...current, mergedTask]);
+              }
+
+              const next = [...current];
+              next[index] = mergedTask;
+              return sortTasks(next);
+            });
+          })
+          .catch((error: unknown) => {
+            if (!isActive(socket)) {
+              return;
+            }
+            setRestError(error);
+            setRestState("error");
+          });
+        detailRequests.set(taskId, detailRequest);
+      }
+
+      function processEvent(event: TaskEvent): void {
+        latestEvents.set(event.task_id, event);
+        if (!knownTaskIds.has(event.task_id)) {
+          knownTaskIds.add(event.task_id);
+          hydrateTaskDetails(event.task_id);
+        } else if (isTerminalTaskEvent(event)) {
+          hydrateTaskDetails(event.task_id);
+        }
+        setTasks((current) => applyTaskEvent(current, event));
+      }
 
       async function synchronize(): Promise<void> {
         try {
@@ -146,13 +212,11 @@ export function TasksPage() {
           }
 
           const events = bufferedEvents.splice(0);
-          const synchronizedTasks = events.reduce(
-            (current, event) => applyTaskEvent(current, event),
-            snapshot.map(toTaskListItem),
-          );
+          snapshot.forEach((task) => knownTaskIds.add(task.id));
           synchronized = true;
           reconnectAttempt = 0;
-          setTasks(synchronizedTasks);
+          setTasks(snapshot.map(toTaskListItem));
+          events.forEach(processEvent);
           setRestError(null);
           setRestState("ready");
           setConnectionState("connected");
@@ -189,7 +253,7 @@ export function TasksPage() {
           bufferedEvents.push(event);
           return;
         }
-        setTasks((current) => applyTaskEvent(current, event));
+        processEvent(event);
       };
 
       socket.onerror = () => {

@@ -39,3 +39,7 @@ export interface TaskEvent {
 export function listTasks(): Promise<Task[]> {
   return requestJson<Task[]>("/tasks");
 }
+
+export function getTask(taskId: number): Promise<Task> {
+  return requestJson<Task>(`/tasks/${taskId}`);
+}

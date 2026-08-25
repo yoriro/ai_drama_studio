@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,9 +19,9 @@ from app.api.prompt_templates import router as prompt_templates_router
 from app.api.tasks import router as tasks_router, ws_router as tasks_ws_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
-from app.db.session import async_session_factory, dispose_engine
+from app.db.session import async_session_factory, dispose_engine, engine
 from app.tasks.events import EventBus
-from app.tasks.queue import AdvisoryLockNotAcquired, TaskQueue
+from app.tasks.queue import AdvisoryLockNotAcquired, TaskHandler, TaskQueue
 from app.services.trash import cleanup_expired_trash, run_trash_cleanup_loop
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -53,7 +53,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     event_bus = EventBus()
     application.state.task_event_bus = event_bus
     queue = TaskQueue(async_session_factory, publisher=event_bus.publish)
-    lock_session = async_session_factory()
+    lock_connection = None
     worker_stop = asyncio.Event()
     worker_task: asyncio.Task[None] | None = None
     cleanup_task: asyncio.Task[None] | None = None
@@ -62,8 +62,9 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     application.state.task_runtime = None
     application.state.task_worker_stop = worker_stop
     try:
+        lock_connection = await engine.connect()
         try:
-            lock_acquired = await queue.acquire_advisory_lock(lock_session)
+            lock_acquired = await queue.acquire_advisory_lock(lock_connection)
             if not lock_acquired:
                 raise AdvisoryLockNotAcquired(
                     "task worker advisory lock is already held"
@@ -73,6 +74,8 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
                 "Application startup rejected: project worker advisory lock is held"
             )
             raise
+        if application.state.startup_prepare is not None:
+            await application.state.startup_prepare()
         try:
             cleanup_expired_trash(settings.DATA_DIR, settings.TRASH_RETENTION_HOURS)
         except OSError:
@@ -90,7 +93,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         )
         worker_task = asyncio.create_task(
             queue.run_worker(
-                handlers={},
+                handlers=application.state.task_handlers,
                 stop_event=worker_stop,
                 poll_interval=0.25,
             )
@@ -113,17 +116,24 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         finally:
             try:
                 if lock_acquired:
-                    await queue.release_advisory_lock(lock_session)
+                    await queue.release_advisory_lock(lock_connection)
             finally:
                 try:
-                    await lock_session.close()
+                    if lock_connection is not None:
+                        await lock_connection.close()
                 finally:
                     await dispose_engine()
 
 
-def create_app() -> FastAPI:
+def create_app(
+    *,
+    task_handlers: Mapping[str, TaskHandler] | None = None,
+    startup_prepare: Callable[[], Awaitable[None]] | None = None,
+) -> FastAPI:
     application = FastAPI(title="AI Drama Studio API", lifespan=lifespan)
     application.state.settings = settings
+    application.state.task_handlers = dict(task_handlers or {})
+    application.state.startup_prepare = startup_prepare
     application.add_middleware(
         StructuredCORSMiddleware,
         allow_origin_regex=r"^http://(?:localhost|127\.0\.0\.1)(?::[0-9]+)?$",

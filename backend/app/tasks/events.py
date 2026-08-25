@@ -67,6 +67,12 @@ class EventBus:
 
         self._subscribers.discard(queue)
 
+    @property
+    def subscriber_count(self) -> int:
+        """Return the number of currently connected event consumers."""
+
+        return len(self._subscribers)
+
     async def publish(self, event: TaskEvent | Mapping[str, Any]) -> None:
         """Publish one already-committed event to current subscribers."""
 

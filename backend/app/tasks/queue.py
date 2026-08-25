@@ -10,9 +10,9 @@ keeps WS/event publication after the database commit.
 
 The main public methods are:
 
-* ``acquire_advisory_lock(session) -> bool`` and
-  ``release_advisory_lock(session) -> bool``; use a dedicated session held for
-  the whole process lifetime.
+* ``acquire_advisory_lock(connection) -> bool`` and
+  ``release_advisory_lock(connection) -> bool``; use a dedicated physical
+  connection held for the whole process lifetime.
 * ``recover_running_tasks(session) -> list[TaskChange]``
 * ``claim_next(session) -> TaskChange | None``
 * ``heartbeat(session, task_id, progress=None) -> TaskChange``
@@ -44,8 +44,9 @@ from typing import Any, Literal, TypeAlias
 
 from sqlalchemy import and_, case, delete, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
+from app.db.session import engine
 from app.models import Task
 from app.tasks.events import TaskEvent, TaskEventPublisher
 
@@ -326,31 +327,32 @@ class TaskQueue:
         self.publisher = publisher
         self.lock_key = lock_key
 
-    async def acquire_advisory_lock(self, session: AsyncSession) -> bool:
+    async def acquire_advisory_lock(self, connection: AsyncConnection) -> bool:
         """Try the stable session advisory lock; return false when busy.
 
-        ``session`` must be a dedicated session held by the application for
-        the full worker lifetime.  This method commits only the lock session's
-        implicit transaction so later queue work uses a clean transaction.
+        ``connection`` must stay checked out from the pool for the full worker
+        lifetime.  Committing the implicit transaction does not release a
+        PostgreSQL session advisory lock while the physical connection stays
+        open.
         """
 
-        result = await session.execute(
+        result = await connection.execute(
             text("SELECT pg_try_advisory_lock(:lock_key)"),
             {"lock_key": self.lock_key},
         )
         acquired = bool(result.scalar_one())
-        await session.commit()
+        await connection.commit()
         return acquired
 
-    async def release_advisory_lock(self, session: AsyncSession) -> bool:
-        """Release the session advisory lock and commit the lock session."""
+    async def release_advisory_lock(self, connection: AsyncConnection) -> bool:
+        """Release the session advisory lock on its owning connection."""
 
-        result = await session.execute(
+        result = await connection.execute(
             text("SELECT pg_advisory_unlock(:lock_key)"),
             {"lock_key": self.lock_key},
         )
         released = bool(result.scalar_one())
-        await session.commit()
+        await connection.commit()
         return released
 
     async def recover_running_tasks(
@@ -710,6 +712,9 @@ class TaskQueue:
                 continue
             if claimed.task is None:
                 raise TaskQueueError("claim returned no task")
+            if not claimed.changed:
+                continue
+            await self.publish_committed(claimed)
             await self._execute_claimed(claimed.task, handlers)
 
     async def run_with_lock(
@@ -723,10 +728,10 @@ class TaskQueue:
         """Acquire lock, recover, then run one worker and release in order."""
 
         factory = self._require_factory()
-        lock_session = factory()
+        lock_connection = await engine.connect()
         acquired = False
         try:
-            acquired = await self.acquire_advisory_lock(lock_session)
+            acquired = await self.acquire_advisory_lock(lock_connection)
             if not acquired:
                 raise AdvisoryLockNotAcquired(
                     "task worker advisory lock is already held"
@@ -744,8 +749,8 @@ class TaskQueue:
             )
         finally:
             if acquired:
-                await self.release_advisory_lock(lock_session)
-            await lock_session.close()
+                await self.release_advisory_lock(lock_connection)
+            await lock_connection.close()
 
     async def _find_active_target(
         self, session: AsyncSession, task_type: TaskType, target_id: int

@@ -13,10 +13,11 @@ import json
 import time
 from collections.abc import Awaitable, Callable
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 
 from app.db.session import async_session_factory, engine
 from app.models import Task
+from app.tasks.events import EventBus
 from app.tasks.queue import (
     HEARTBEAT_INTERVAL_SECONDS,
     TASK_STATUSES,
@@ -44,6 +45,68 @@ async def clear_tasks() -> None:
     async with async_session_factory() as session:
         async with session.begin():
             await session.execute(delete(Task))
+
+
+async def command_lock_lifecycle() -> None:
+    queue = TaskQueue(async_session_factory)
+    owner = await engine.connect()
+    probe = await engine.connect()
+    owner_acquired = False
+    probe_acquired = False
+    try:
+        owner_pid_result = await owner.execute(text("SELECT pg_backend_pid()"))
+        probe_pid_result = await probe.execute(text("SELECT pg_backend_pid()"))
+        owner_pid = int(owner_pid_result.scalar_one())
+        probe_pid = int(probe_pid_result.scalar_one())
+        assert owner_pid != probe_pid
+
+        owner_acquired = await queue.acquire_advisory_lock(owner)
+        assert owner_acquired
+        blocked_result = await probe.execute(
+            text("SELECT pg_try_advisory_lock(:lock_key)"),
+            {"lock_key": queue.lock_key},
+        )
+        blocked = not bool(blocked_result.scalar_one())
+        await probe.commit()
+        assert blocked
+
+        owner_released = await queue.release_advisory_lock(owner)
+        owner_acquired = False
+        assert owner_released
+        after_release_result = await probe.execute(
+            text("SELECT pg_try_advisory_lock(:lock_key)"),
+            {"lock_key": queue.lock_key},
+        )
+        probe_acquired = bool(after_release_result.scalar_one())
+        await probe.commit()
+        assert probe_acquired
+        probe_released = await probe.execute(
+            text("SELECT pg_advisory_unlock(:lock_key)"),
+            {"lock_key": queue.lock_key},
+        )
+        probe_acquired = False
+        await probe.commit()
+        assert bool(probe_released.scalar_one())
+        print(
+            json.dumps(
+                {
+                    "owner_backend_pid": owner_pid,
+                    "probe_backend_pid": probe_pid,
+                    "owner_acquired": True,
+                    "probe_blocked_while_owner_holds": blocked,
+                    "probe_acquired_after_owner_release": True,
+                    "probe_released": True,
+                },
+                ensure_ascii=False,
+            )
+        )
+    finally:
+        if probe_acquired:
+            await queue.release_advisory_lock(probe)
+        if owner_acquired:
+            await queue.release_advisory_lock(owner)
+        await probe.close()
+        await owner.close()
 
 
 async def insert_task(
@@ -277,6 +340,21 @@ async def success_handler(task: ClaimedTask, context: WorkerContext) -> None:
     await asyncio.sleep(0.05)
 
 
+async def demo_success_handler(
+    task: ClaimedTask, context: WorkerContext
+) -> None:
+    del task
+    await context.heartbeat(0.5)
+    await asyncio.sleep(1.0)
+
+
+async def event_success_handler(
+    task: ClaimedTask, context: WorkerContext
+) -> None:
+    del task, context
+    await asyncio.sleep(0.02)
+
+
 async def cancel_handler(task: ClaimedTask, context: WorkerContext) -> None:
     del task
     while not await context.cancel_requested():
@@ -304,6 +382,87 @@ async def run_worker_until(
     await asyncio.gather(*(wait_for_terminal(task_id) for task_id in task_ids))
     stop.set()
     await worker
+
+
+async def collect_task_events(
+    event_queue: asyncio.Queue[dict[str, object]], task_id: int
+) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    while True:
+        event = await asyncio.wait_for(event_queue.get(), timeout=5)
+        if event["task_id"] != task_id:
+            raise AssertionError(f"unexpected event for task {task_id}: {event}")
+        assert set(event) == {"task_id", "type", "status", "progress", "message"}
+        events.append(event)
+        if event["status"] in {"done", "failed", "canceled"}:
+            return events
+
+
+async def command_events() -> None:
+    await clear_tasks()
+    event_bus = EventBus()
+    event_queue = event_bus.subscribe_queue()
+    queue = TaskQueue(async_session_factory, publisher=event_bus.publish)
+    stop = asyncio.Event()
+    worker = asyncio.create_task(
+        queue.run_worker(
+            handlers={
+                "gen_assets": event_success_handler,
+                "gen_shots": failing_handler,
+            },
+            stop_event=stop,
+            poll_interval=0.01,
+        )
+    )
+    try:
+        success, _ = await commit_enqueue(
+            queue, "gen_assets", 1, payload("events-success")
+        )
+        success_events = await collect_task_events(event_queue, success.id)
+        failure, _ = await commit_enqueue(
+            queue, "gen_shots", 2, payload("events-failure")
+        )
+        failure_events = await collect_task_events(event_queue, failure.id)
+
+        assert [event["status"] for event in success_events] == [
+            "queued",
+            "running",
+            "done",
+        ]
+        assert [event["status"] for event in failure_events] == [
+            "queued",
+            "running",
+            "failed",
+        ]
+        assert success_events[0]["message"] == "任务已排队"
+        assert success_events[1]["message"] == "任务执行中"
+        assert success_events[2]["message"] == "任务完成"
+        assert failure_events[0]["message"] == "任务已排队"
+        assert failure_events[1]["message"] == "任务执行中"
+        assert str(failure_events[2]["message"]).startswith("任务失败：")
+
+        assert await commit_claim(queue) is None
+        heartbeat_task = await insert_task("gen_assets", 3, status="running")
+        heartbeat_change = await commit_transition(
+            queue, "heartbeat", heartbeat_task.id
+        )
+        assert heartbeat_change.changed
+        assert event_queue.empty()
+        print(
+            json.dumps(
+                {
+                    "success_events": success_events,
+                    "failure_events": failure_events,
+                    "unsuccessful_claim_published": False,
+                    "heartbeat_only_published": False,
+                },
+                ensure_ascii=False,
+            )
+        )
+    finally:
+        stop.set()
+        await worker
+        event_bus.unsubscribe(event_queue)
 
 
 async def command_fail_once() -> None:
@@ -461,19 +620,67 @@ async def command_dedupe_request_conflicts() -> None:
     print(json.dumps({"results": output, "tasks": await show_tasks()}, ensure_ascii=False))
 
 
-async def command_demo() -> None:
-    await clear_tasks()
-    queue = TaskQueue(async_session_factory)
-    tasks = [
-        await insert_task("gen_assets", 1),
-        await insert_task("gen_shots", 2),
-    ]
-    await run_worker_until(
+async def drive_demo(application) -> None:
+    while not hasattr(application.state, "task_event_bus"):
+        await asyncio.sleep(0.05)
+    event_bus: EventBus = application.state.task_event_bus
+    while event_bus.subscriber_count == 0:
+        await asyncio.sleep(0.05)
+    await asyncio.sleep(2.0)
+
+    queue: TaskQueue = application.state.task_queue
+    success, _ = await commit_enqueue(
         queue,
-        {"gen_assets": success_handler, "gen_shots": failing_handler},
-        [task.id for task in tasks],
+        "gen_assets",
+        910001,
+        payload("explicit-demo-success"),
     )
-    print(json.dumps({"tasks": await show_tasks()}, ensure_ascii=False))
+    failure, _ = await commit_enqueue(
+        queue,
+        "gen_shots",
+        910002,
+        payload("explicit-demo-failure"),
+    )
+    print(
+        json.dumps(
+            {
+                "ws_subscribers_confirmed": event_bus.subscriber_count,
+                "task_ids": [success.id, failure.id],
+                "message": "demo tasks enqueued; service remains active until stopped",
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
+
+
+async def command_demo(host: str, port: int) -> None:
+    import uvicorn
+
+    from app.main import create_app
+
+    async def prepare_demo() -> None:
+        await clear_tasks()
+
+    demo_app = create_app(
+        task_handlers={
+            "gen_assets": demo_success_handler,
+            "gen_shots": failing_handler,
+        },
+        startup_prepare=prepare_demo,
+    )
+    driver = asyncio.create_task(drive_demo(demo_app))
+    server = uvicorn.Server(
+        uvicorn.Config(demo_app, host=host, port=port, log_level="info")
+    )
+    try:
+        await server.serve()
+    finally:
+        if not driver.done():
+            driver.cancel()
+            await driver
+        else:
+            driver.result()
 
 
 def parser() -> argparse.ArgumentParser:
@@ -500,7 +707,11 @@ def parser() -> argparse.ArgumentParser:
     request.add_argument("--concurrency", type=int, default=2)
     request.add_argument("--states", choices=("all",), default="all")
     subparsers.add_parser("dedupe-request-conflicts")
-    subparsers.add_parser("demo")
+    subparsers.add_parser("events")
+    subparsers.add_parser("lock-lifecycle")
+    demo = subparsers.add_parser("demo")
+    demo.add_argument("--host", default="127.0.0.1")
+    demo.add_argument("--port", type=int, default=8000)
     return argument_parser
 
 
@@ -513,7 +724,8 @@ async def run(arguments: argparse.Namespace) -> None:
         "snapshot": command_snapshot,
         "cancel-race": command_cancel_race,
         "dedupe-request-conflicts": command_dedupe_request_conflicts,
-        "demo": command_demo,
+        "events": command_events,
+        "lock-lifecycle": command_lock_lifecycle,
     }
     if arguments.command == "claim":
         await command_claim(arguments.count, arguments.claimers)
@@ -527,6 +739,8 @@ async def run(arguments: argparse.Namespace) -> None:
         await command_worker(arguments.tasks)
     elif arguments.command == "dedupe-request":
         await command_dedupe_request(arguments.concurrency, arguments.states)
+    elif arguments.command == "demo":
+        await command_demo(arguments.host, arguments.port)
     else:
         await commands[arguments.command]()
 

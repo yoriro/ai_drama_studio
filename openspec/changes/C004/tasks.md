@@ -1,6 +1,6 @@
 # C004 M2 队列与 WS 基建 Tasks
 
-以下 T1-T13 按依赖顺序执行。Luna 一次只领取一个 checkbox；每项完成其全部验收并运行完整 pytest 后才能勾选和 commit。C004 不创建或修改 migration。原 OQ-1 至 OQ-4 已全部裁决并写入 spec，当前没有裁决阻塞 task。
+T1-T12 已完成第一轮实现；2026-08-25 Sol 审计发现验收缺口，因此 T13 重新打开，并追加 T14-T18。实际执行顺序为 T14→T15/T16→T17→T18→T13。Luna 一次只领取一个 checkbox；每项完成其全部验收并运行完整 pytest 后才能勾选和 commit。Luna 在增量修复中不得创建或修改 migration、任何测试文件、proposal、spec 或前置依赖清单；proposal 与前置依赖证据由 Sol 在复审时维护。原 OQ-1 至 OQ-4 已全部裁决并写入 spec，当前没有裁决阻塞 task。
 
 ## 按依赖排序的可执行 tasks
 
@@ -178,20 +178,98 @@
   - **计划测试层级：** 不新增自动测试；理由：TRACEABILITY 没有 WS/UI 独立行，使用真实浏览器、WS frame、计时记录和生产构建验收。
   - **追溯行：** 不适用。
 
-### T13 C004 全链路与范围收口
+## 2026-08-25 审计增量修复 tasks
 
-- [x] 完成 C004 专用 PostgreSQL、队列并发、授权测试、REST/WS 自动重连、任务中心和范围围栏的全链路验收，只回填实际覆盖的追溯行。
-  - **前置 task：** T1-T12。
+### T14 将 advisory lock 固定在独立数据库连接的完整 lifespan
+
+- [x] 修复 advisory lock 所有权：从应用启动取得锁起，到 worker 停止并显式解锁为止，始终由同一条独占、未归还连接池的 PostgreSQL 物理连接持有；同时为既有非生产验收入口增加 `lock-lifecycle` 场景。
+  - **前置 task：** T2、T8。
+  - **R：** 无；对应 PRD §6.1 第 1 条、§10“单进程 + advisory lock”、§11 M2。
+  - **范围：** 只修复锁连接的取得、持有和关闭顺序，并增加显式验收场景；不建锁表/锁文件、不新增配置、不增加 HTTP endpoint、不改变任务状态机、worker 并发度或错误码。
+  - **覆盖 AC：** AC-02、AC-10。
+  - **验收方式：**
+    1. 在 `backend/` 为 `DATABASE_URL` 注入 C004 专用 DSN，运行 `python -m app.tasks.acceptance lock-lifecycle`；输出必须证明锁 owner 与独立 probe 使用不同 PostgreSQL backend PID，owner 持锁期间 probe 获取失败，owner 释放后 probe 获取成功。
+    2. 终端 A 运行 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`；终端 B 用同一 DSN 运行 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8002`。B 必须明确拒绝启动并非零退出，A 在队列数据库操作后仍持锁且正常服务。
+    3. 正常停止 A 后重跑 B，必须成功启动；日志顺序须证明先停止 worker/后台任务，再解锁并关闭专属连接。
+    4. 运行 `python -m compileall -q app`、`python -m pytest -q tests`、`git diff --check`；均须成功。
+  - **计划测试层级：** 不新增自动测试；理由：TRACEABILITY 没有 advisory lock 独立行，且本轮 AGENTS 明确禁止修改测试文件；以双真实进程、独立数据库连接和原始日志验收。
+  - **追溯行：** 不适用。
+
+### T15 补齐 claim 提交后的 running WS 事件
+
+- [x] 在 queued→running 的 claim 事务成功提交后广播一次 `running` 事件；提交失败或条件 claim 失败不得广播，heartbeat-only 仍不得广播，并为非生产验收入口增加 `events` 场景。
+  - **前置 task：** T8、T12。
+  - **R：** 无；对应 PRD §5 WS `/ws/tasks`、§6.1 claim/heartbeat、§9、§11 M2/M5。
+  - **范围：** 只补 claim 后事件发布与显式验收场景；事件仍严格只有 spec §7.2 的五个字段和固定中文 message，不改变状态机、WS 路径、重连策略或 heartbeat 频率，不新增数据库字段或事件表。
+  - **覆盖 AC：** AC-15。
+  - **验收方式：**
+    1. 运行 `python -m app.tasks.acceptance events`，成功路径必须依次记录已提交的 queued、running、done；失败路径必须依次记录 queued、running、failed，且每个 frame 精确为五字段、message 符合 spec §7.2。
+    2. 场景中制造一次未成功 claim 和一次 heartbeat-only 更新，输出必须证明两者均没有新增 WS 事件；不得用 sleep 后补发或伪造状态。
+    3. 运行 `python -m compileall -q app`、`python -m pytest -q tests`、`git diff --check`；均须成功。
+  - **计划测试层级：** 不新增自动测试；理由：TRACEABILITY 没有 WS 事件独立行，且本轮 AGENTS 明确禁止修改测试文件；以显式验收命令和 T17 的真实 WS frame 验收。
+  - **追溯行：** 不适用。
+
+### T16 让 WS 首次出现的新任务补齐任务卡字段
+
+- [x] 当前端已完成首次同步后收到列表中不存在的 `task_id` 时，使用既有 `GET /api/tasks/{id}` 一次补齐该任务的 target、error 与时间字段，并与补齐期间收到的最新 WS 状态合并，禁止较旧 REST 结果覆盖较新事件。
+  - **前置 task：** T10、T12。
+  - **R：** 无；对应 PRD §5 任务读取与 WS `/ws/tasks`、§9、§11 M2/M5。
+  - **范围：** 只修复未知任务的前端补齐与合并；不得扩展五字段 WS schema、不得增加轮询或列表定时刷新、不得伪造占位数据、不得发送 mutation、不得增加任务中心后续 C011 的取消/过滤/分页功能。
+  - **覆盖 AC：** AC-15。
+  - **验收方式：**
+    1. 打开已完成首次 REST+WS 同步且当前为空的任务中心，再通过 T17 的真实验收链路创建新任务；浏览器 Network 必须对该未知 `task_id` 发起既有详情 GET，成功后卡片显示 type、status、progress、target、error 和时间，不再以永久“—”代替可取得字段。
+    2. 在详情 GET 返回前让同一任务继续收到 running/progress/terminal 事件；最终页面状态必须等于最新已提交事件和详情的合并结果，较旧详情不得把终态回退为 queued/running。
+    3. 对同一未知 id 的密集事件只允许一个在途详情请求；确认没有轮询、重复列表 GET 或 POST/PATCH/PUT/DELETE。
+    4. 在 `frontend/` 运行 `npm run build`；在 `backend/` 运行 `python -m pytest -q tests`；最后运行 `git diff --check`，均须成功。
+  - **计划测试层级：** 不新增自动测试；理由：TRACEABILITY 没有任务中心/WS UI 独立行，且本轮 AGENTS 明确禁止修改测试文件；以真实浏览器 Network、页面状态和生产构建验收。
+  - **追溯行：** 不适用。
+
+### T17 修复非生产 demo 的锁、worker 与真实 WS 拓扑
+
+- [x] 将既有 `demo` 改为显式、仅非生产的服务模式：同一进程必须复用正式 REST/WS 路由、EventBus、T14 锁生命周期和单 worker，并仅在该命令下注入受控 handler、一次性驱动 PRD 已有 task type；不得再由无 publisher、无 lock 的第二个队列进程直接消费任务。
+  - **前置 task：** T14、T15、T16。
+  - **R：** 无；对应 PRD §5 任务与 WS `/ws/tasks`、§6.1、§9、§10“单进程”、§11 M2/M5。
+  - **范围：** 只修复 C004 显式验收驱动及其接线；正常 `app.main:app` 不加载受控 handler、不自动创建 demo task、不暴露验收 HTTP endpoint；不增加测试 task type、数据库事件通道、第二 worker、生产 mock、payload 特判、自动重试或 fallback。
+  - **覆盖 AC：** AC-02、AC-10、AC-11、AC-15。
+  - **验收方式：**
+    1. 用 C004 专用 DSN 运行 `python -m app.tasks.acceptance demo --host 127.0.0.1 --port 8000`，该命令须独占 advisory lock、提供正式任务 REST/WS 表面，并在确认真实 WS 客户端已连接后一次性驱动至少一条 done 与一条 failed 任务；命令保持服务直到人工停止。
+    2. 启动前端并打开任务中心，在浏览器 Network/WS 保存真实 queued→running→progress/terminal frames；任务卡须通过正式 REST/WS 链路显示完整字段和完整失败原因，不得由 CLI 伪造浏览器输出。
+    3. demo 服务运行时，以同一 DSN 启动 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8002`，必须因同一 advisory lock 非零退出；停止 demo 后该普通应用必须能启动。
+    4. 普通应用启动后运行 `rg -n "acceptance|mock|demo" app/main.py app/api app/models` 并人工审查全部命中，确认没有验收 endpoint、生产受控 handler、测试 type 或按 payload/test data 分支；普通应用无后续 handler 时不得产生伪成功。
+    5. 运行 `python -m compileall -q app`、`python -m pytest -q tests`、`npm run build` 和 `git diff --check`；均须成功。
+  - **计划测试层级：** 不新增自动测试；理由：TRACEABILITY 没有验收驱动/WS 拓扑独立行，且本轮 AGENTS 明确禁止修改测试文件；以真实进程、浏览器 WS frame、数据库状态和构建验收。
+  - **追溯行：** 不适用。
+
+### T18 审计修复专项回归与证据包
+
+- [x] 只复跑并汇总 T14-T17 的原始证据，确认四项审计缺口均由真实链路关闭，且相对被审计实现基线 `fe8e076` 没有任何测试文件改动；失败项必须保持未完成并原样报告。
+  - **前置 task：** T14、T15、T16、T17。
+  - **R：** 无；对应 PRD §0、§5 任务与 WS、§6.1、§9-§11。
+  - **范围：** 只收集专项回归证据；不新增实现、测试、migration、配置、生成 handler 或临时修复，不修改 TRACEABILITY、proposal、spec 或前置依赖清单。
+  - **覆盖 AC：** AC-02、AC-10、AC-11、AC-15、AC-16。
+  - **验收方式：**
+    1. 复跑 `python -m app.tasks.acceptance lock-lifecycle`、双进程启动/释放、`python -m app.tasks.acceptance events`，保存完整 stdout/stderr、退出码和数据库连接证据。
+    2. 运行显式 demo 服务与前端，保存浏览器 WS frames、未知任务详情 GET、完整任务卡、断线重连后单次列表快照和无 mutation 重提的证据。
+    3. 在 `backend/` 对同一 C004 专用 DSN 运行 `python -m alembic current`、`python -m alembic check`、`python -m pytest -q tests`；在 `frontend/` 运行 `npm run build`；全部须成功。
+    4. 在仓库根运行 `git diff --exit-code fe8e076 -- backend/tests`，必须无输出且退出码 0；运行 `git diff --check` 与 `git status --short`，逐项说明实际变更和未跟踪文件。
+  - **计划测试层级：** 不新增自动测试；理由：本 task 只复跑既有授权测试和人工/命令验收，本轮 AGENTS 禁止修改测试文件，也没有新的 TRACEABILITY 行可回填。
+  - **追溯行：** 不适用。
+
+### T13 C004 全链路与范围收口（审计后重开）
+
+- [x] 完成 C004 专用 PostgreSQL、队列并发、授权测试、REST/WS 自动重连、任务中心和范围围栏的全链路验收，只回填实际覆盖的追溯行；2026-08-25 第一轮证据因 T14-T17 所列缺口作废，不得复用为通过结论。
+  - **前置 task：** T1-T12、T18。
   - **R：** 无；对应 PRD §0、§3.2、§4 tasks、§5 任务、§6.1、§6.4、§9-§12。
-  - **范围：** 只收集和复核证据；不新增业务能力、自动测试、migration、生成 handler 或临时修复。
+  - **范围：** 只收集和复核证据；不新增业务能力、自动测试、migration、生成 handler 或临时修复。Luna 只提交证据并勾选 task，proposal 与前置依赖清单由 Sol 复审后维护。
   - **覆盖 AC：** AC-01 至 AC-16。
   - **验收方式：**
     1. 在 `backend/` 对 C004 专用 DSN 运行 `python -m alembic current` 与 `python -m alembic check`；须保持 C003 head 且无新操作。
     2. 运行 `python -m pytest -q tests/task_system/test_task_queue.py`、`python -m pytest -q tests/api/test_tasks.py` 和 `python -m pytest -q tests`，全部通过并保存原始输出。
-    3. 在 `frontend/` 运行 `npm run build`；启动前后端并运行 `python -m app.tasks.acceptance demo`，浏览器核对任务列表、WS frame、progress、failed error、断线节奏、REST 补状态和无 mutation 重提。
+    3. 在 `frontend/` 运行 `npm run build`；启动 T17 的显式非生产 demo 服务与前端，浏览器核对任务列表、真实 WS frame、progress、failed error、断线节奏、REST 补状态和无 mutation 重提。
     4. 重跑双进程 advisory lock、启动恢复、两 claimant、target/request_id 并发、queued/running 取消与 fail-once 场景，保存数据库查询和日志证据。
     5. 在仓库根运行 `git diff --check`、`git status --short`，并运行 `rg -n -i "generation_runs|continuity|context_loop|fl2v|audio|音频|候选分镜|资产别名|版本化|retry|重试|POST.*/tasks" backend frontend`，逐项审查合法命中；WS transport reconnect 只允许出现在已裁决的观察通道实现中。
-  - **计划测试层级：** 不新增自动测试；理由：本 task 只复跑授权用例和人工/命令验收，不得扩张 TRACEABILITY。
+    6. 复核 TRACEABILITY 只保留真实通过的既有用例 ID；本轮没有新增或修改测试文件，故不得为 T14-T18 新增用例 ID。
+  - **计划测试层级：** 不新增自动测试；理由：本 task 只复跑授权用例和人工/命令验收，不得扩张 TRACEABILITY，且本轮 AGENTS 明确禁止修改测试文件。
   - **追溯行：** 不适用。
 
 ## 外部依赖阻塞 tasks
