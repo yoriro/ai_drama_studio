@@ -137,6 +137,7 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
   const [scriptText, setScriptText] = useState(episode.script_text);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setScriptText(episode.script_text);
@@ -146,11 +147,14 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
     event.preventDefault();
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       const updated = await updateEpisode(episode.id, { script_text: scriptText });
       onUpdated(updated);
+      setSuccessMessage(`剧本已保存，当前修订：${updated.script_revision}`);
     } catch (requestError: unknown) {
       setError(requestError);
+      setSuccessMessage(null);
     } finally {
       setSaving(false);
     }
@@ -160,13 +164,21 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
     <section className="panel">
       <h2>剧本</h2>
       {error !== null && <ApiErrorMessage error={error} />}
+      {successMessage !== null && (
+        <p className="success-message" role="status">
+          {successMessage}
+        </p>
+      )}
       <form className="form-grid" onSubmit={handleSubmit}>
         <label>
           剧本内容
           <textarea
             rows={16}
             value={scriptText}
-            onChange={(event) => setScriptText(event.target.value)}
+            onChange={(event) => {
+              setScriptText(event.target.value);
+              setSuccessMessage(null);
+            }}
           />
         </label>
         <p className="field-hint">
