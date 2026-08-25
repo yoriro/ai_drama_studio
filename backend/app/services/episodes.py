@@ -77,6 +77,20 @@ async def get_episode(session: AsyncSession, episode_id: int) -> Episode:
     return episode
 
 
+async def _get_episode_for_update(
+    session: AsyncSession, episode_id: int
+) -> Episode:
+    result = await session.execute(
+        select(Episode)
+        .where(Episode.id == episode_id)
+        .with_for_update()
+    )
+    episode = result.scalar_one_or_none()
+    if episode is None:
+        raise _episode_not_found()
+    return episode
+
+
 async def update_episode(
     session: AsyncSession, episode_id: int, payload: EpisodePatch
 ) -> Episode:
@@ -84,7 +98,7 @@ async def update_episode(
         _validate_script_length(payload.script_text)
     try:
         async with session.begin():
-            episode = await get_episode(session, episode_id)
+            episode = await _get_episode_for_update(session, episode_id)
             changed = False
             if "seq" in payload.model_fields_set and payload.seq != episode.seq:
                 episode.seq = payload.seq
