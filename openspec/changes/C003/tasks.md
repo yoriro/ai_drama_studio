@@ -53,7 +53,7 @@
 
 ## T5 当前版本切换、直接图片删除与编辑/换图追溯测试
 
-- [ ] 实现 current-image PUT 与 AssetImage DELETE：资产级串行化地先清后设，切换到新 current 时资产 revision+1、同值不增且文件不删；current 直接删除 409，非 current 删除后文件入 trash。新增且仅新增一条覆盖“编辑资产或换当前图”C003 部分语义的 API 集成用例并回填追溯行。
+- [x] 实现 current-image PUT 与 AssetImage DELETE：资产级串行化地先清后设，切换到新 current 时资产 revision+1、同值不增且文件不删；current 直接删除 409，非 current 删除后文件入 trash。新增且仅新增一条覆盖“编辑资产或换当前图”C003 部分语义的 API 集成用例并回填追溯行。
   - **R：** 无；对应 PRD §3.2 资产修订、§3.3“编辑资产 / 换当前图”、§4 current 约束、§5 current-image/asset-images、§6.4、§11 M1。
   - **范围：** 自动测试只覆盖名称/描述与 current 切换造成的 revision、同值不增和文件不删；current 删除 409、非 current 删除/trash 用 HTTP 命令人工验收，不把无独立追溯行的删除约束写入新测试。不得实现 Shot changed、Clip stale、生成或重试。
   - **验收方式：**

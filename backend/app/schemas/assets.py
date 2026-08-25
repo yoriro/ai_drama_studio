@@ -86,3 +86,9 @@ class AssetImageResponse(BaseModel):
     source: str
     is_current: bool
     created_at: datetime
+
+
+class CurrentImagePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    image_id: int

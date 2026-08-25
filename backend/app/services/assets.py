@@ -14,6 +14,7 @@ from app.services.asset_files import (
     asset_image_relative_path,
     image_storage_format,
     move_asset_image_to_trash,
+    resolve_data_path,
     sha256_file,
     temporary_asset_image_path,
 )
@@ -241,3 +242,96 @@ async def upload_asset_image(
             )
         if temp_path.exists():
             temp_path.unlink()
+
+
+def _image_not_found() -> HTTPException:
+    return HTTPException(status_code=404, detail="Asset image not found")
+
+
+def _image_validation_error() -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail="image_id does not reference an image of this asset",
+    )
+
+
+def _current_image_conflict() -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail="Current asset image cannot be deleted directly",
+    )
+
+
+def _stored_image_extension(asset: Asset, image: AssetImage) -> str:
+    relative_path = Path(image.file_path)
+    expected_path = asset_image_relative_path(
+        asset.project_id,
+        asset.id,
+        image.id,
+        relative_path.suffix.removeprefix(".").lower(),
+    )
+    if relative_path.as_posix() != expected_path.as_posix():
+        raise HTTPException(status_code=500, detail="Asset image file is unavailable")
+    extension = relative_path.suffix.removeprefix(".").lower()
+    resolve_data_path(settings.DATA_DIR, relative_path)
+    return extension
+
+
+async def set_current_asset_image(
+    session: AsyncSession, asset_id: int, image_id: int
+) -> AssetImage:
+    async with session.begin():
+        asset_result = await session.execute(
+            select(Asset).where(Asset.id == asset_id).with_for_update()
+        )
+        asset = asset_result.scalar_one_or_none()
+        if asset is None or not _is_visible_asset(asset):
+            raise _asset_not_found()
+
+        image = await session.get(AssetImage, image_id)
+        if image is None:
+            raise _image_validation_error()
+        if image.asset_id != asset_id:
+            raise _image_validation_error()
+        if not image.is_current:
+            await session.execute(
+                AssetImage.__table__.update()
+                .where(
+                    AssetImage.asset_id == asset_id,
+                    AssetImage.is_current.is_(True),
+                )
+                .values(is_current=False)
+            )
+            await session.flush()
+            image.is_current = True
+            asset.revision += 1
+            asset.updated_at = datetime.now(timezone.utc)
+            await session.flush()
+    return image
+
+
+async def delete_asset_image(session: AsyncSession, image_id: int) -> None:
+    async with session.begin():
+        image = await session.get(AssetImage, image_id)
+        if image is None:
+            raise _image_not_found()
+
+        asset_result = await session.execute(
+            select(Asset).where(Asset.id == image.asset_id).with_for_update()
+        )
+        asset = asset_result.scalar_one_or_none()
+        if asset is None or not _is_visible_asset(asset):
+            raise _image_not_found()
+        if image.is_current:
+            raise _current_image_conflict()
+
+        extension = _stored_image_extension(asset, image)
+        move_asset_image_to_trash(
+            settings.DATA_DIR,
+            asset.project_id,
+            asset.id,
+            image.id,
+            extension,
+        )
+        await session.delete(image)
+        await session.flush()

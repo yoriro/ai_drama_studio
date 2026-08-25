@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.schemas.assets import (
     AssetCreate,
+    CurrentImagePatch,
     AssetImageResponse,
     AssetPatch,
     AssetResponse,
@@ -13,6 +14,8 @@ from app.services.assets import (
     get_asset,
     list_assets,
     list_asset_images,
+    delete_asset_image,
+    set_current_asset_image,
     upload_asset_image,
     update_asset,
 )
@@ -80,3 +83,25 @@ async def create_asset_image(
     session: AsyncSession = Depends(get_session),
 ) -> AssetImageResponse:
     return await upload_asset_image(session, asset_id, file)
+
+
+@router.put(
+    "/assets/{asset_id}/current-image", response_model=AssetImageResponse
+)
+async def update_current_asset_image(
+    asset_id: int,
+    payload: CurrentImagePatch,
+    session: AsyncSession = Depends(get_session),
+) -> AssetImageResponse:
+    return await set_current_asset_image(session, asset_id, payload.image_id)
+
+
+@router.delete(
+    "/asset-images/{image_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_asset_image_route(
+    image_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await delete_asset_image(session, image_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
