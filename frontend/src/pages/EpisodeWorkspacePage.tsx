@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { NavLink, useParams } from "react-router-dom";
+import { Link, NavLink, useParams } from "react-router-dom";
 
 import { getEpisode, getProject, updateEpisode } from "../api";
 import type { Episode, Project } from "../api";
@@ -96,6 +96,9 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
       <PageTitle>集工作区</PageTitle>
       <p>
         {context.project.name} · 第 {context.episode.seq} 集 · {context.episode.title}
+      </p>
+      <p>
+        <Link to={`/projects/${context.project.id}`}>返回项目</Link>
       </p>
       <nav aria-label="集工作区选项卡" className="workspace-tabs">
         {tabs.map((tab) => (

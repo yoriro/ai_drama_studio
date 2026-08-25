@@ -188,6 +188,11 @@ export function ProjectPage() {
                 <button type="button" onClick={() => startEditingEpisode(episode)}>
                   编辑集信息
                 </button>
+                <Link
+                  to={`/projects/${project.id}/episodes/${episode.id}/script`}
+                >
+                  编辑剧本
+                </Link>
                 <button
                   type="button"
                   onClick={() => void handleDeleteEpisode(episode)}
