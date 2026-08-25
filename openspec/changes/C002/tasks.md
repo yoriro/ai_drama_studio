@@ -148,7 +148,7 @@
 
 ## T12 剧本字符计数口径修复
 
-- [ ] 让剧本页字符数使用与后端 Python `len(script_text)` 一致的 Unicode code point 口径，不再使用 JavaScript UTF-16 code unit 数量。
+- [x] 让剧本页字符数使用与后端 Python `len(script_text)` 一致的 Unicode code point 口径，不再使用 JavaScript UTF-16 code unit 数量。
   - **R：** 无；对应 PRD §2.1(4)、§10 `SCRIPT_CHAR_LIMIT`；C002 spec §3.3、§7.1、§7.2。
   - **范围：** 只修改字符数展示算法；不得在前端替代后端最终校验、硬编码动态上限或增加新的校验 API。
   - **验收方式：**

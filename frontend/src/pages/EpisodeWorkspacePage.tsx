@@ -166,7 +166,9 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
             onChange={(event) => setScriptText(event.target.value)}
           />
         </label>
-        <p className="field-hint">当前字符数：{scriptText.length}</p>
+        <p className="field-hint">
+          当前字符数：{Array.from(scriptText).length}
+        </p>
         <button disabled={saving} type="submit">
           {saving ? "保存中…" : "保存剧本"}
         </button>
