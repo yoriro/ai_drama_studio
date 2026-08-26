@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     DATA_DIR: Path = Path("./data")
     VLLM_BASE_URL: AnyHttpUrl = "http://localhost:8001"
     VLLM_MODEL: str = Field(default="Qwen/Qwen2.5-7B-Instruct", min_length=1)
+    VLLM_TEMPERATURE: float = Field(default=0.2, ge=0, le=2)
     COMFY_BASE_URL: AnyHttpUrl = "http://localhost:8188"
     SCRIPT_CHAR_LIMIT: int = Field(default=2000, gt=0)
     CLIP_MAX_SECONDS: int = Field(default=15, gt=0)

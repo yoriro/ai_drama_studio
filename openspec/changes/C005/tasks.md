@@ -26,7 +26,7 @@ Luna 一次只领取一个 checkbox；每项只允许实现本 task 明列范围
 
 ### T2 配置与最小 vLLM 结构化客户端
 
-- [ ] 增加 `VLLM_TEMPERATURE` 配置及 `.env.example` 中文说明，默认 `0.2`、非法范围启动失败；建立只承担 wake 和一次 OpenAI-compatible structured chat 的最小 vLLM 边界，调用方必须显式提供消息、模型、温度与封闭 schema。
+- [x] 增加 `VLLM_TEMPERATURE` 配置及 `.env.example` 中文说明，默认 `0.2`、非法范围启动失败；建立只承担 wake 和一次 OpenAI-compatible structured chat 的最小 vLLM 边界，调用方必须显式提供消息、模型、温度与封闭 schema。
   - **前置 task：** T1。
   - **R：** 无；对应 PRD §6.2、§6.3、§7、§10。
   - **范围：** 不实现 gen_assets 业务 handler、模板渲染、输出合并或 API；不接 Comfy，不实现 sleep/free、重试、fallback、通用 provider registry、gen_shots schema 或后续模型能力。
