@@ -6,7 +6,7 @@
 |---|---|---|
 | C001 基础设施 smoke：FastAPI 应用可启动，`/docs` 可访问，`/api/system/health` 返回明确的未检查骨架且不调用外部服务，通用 API 错误体符合约定 | API 集成 | `backend/tests/api/test_system.py::test_infrastructure_smoke` |
 | R1 无资产禁止生成分镜：项目资产为 0 时 `generate-shots` 返回 409 | API 集成 | 待填 |
-| R2 生成资产增量合并：现有资产按项目快照注入；`existing_id=null` 项新增，真实属于本项目的非 null 项不改不删，伪造/跨项目非 null id 降级新增并记录 warning；成功后记录入队快照剧本修订，运行中改剧本仍保留旧剧本角标 | 任务系统 mock + API 集成 | `backend/tests/api/test_c005_generate_assets.py::test_generate_assets_enqueues_exact_snapshot_and_errors`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_uses_snapshot_prompt_and_closed_schema`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_incremental_merge_handles_existing_and_invalid_ids`（C005 T3 覆盖入队快照与渲染，T4 覆盖 claimed 快照、单 user message、wake 与封闭 schema，T5 覆盖三路增量合并、warning、marker 与无图片；失败竞态与旧剧本角标待 T6-T8） |
+| R2 生成资产增量合并：现有资产按项目快照注入；`existing_id=null` 项新增，真实属于本项目的非 null 项不改不删，伪造/跨项目非 null id 降级新增并记录 warning；成功后记录入队快照剧本修订，运行中改剧本仍保留旧剧本角标 | 任务系统 mock + API 集成 | `backend/tests/api/test_c005_generate_assets.py::test_generate_assets_enqueues_exact_snapshot_and_errors`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_uses_snapshot_prompt_and_closed_schema`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_incremental_merge_handles_existing_and_invalid_ids`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_failure_rolls_back_and_preserves_downstream`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_uses_enqueued_script_revision_after_edit`（C005 T3 覆盖入队快照与渲染，T4 覆盖 claimed 快照、单 user message、wake 与封闭 schema，T5 覆盖三路增量合并、warning、marker 与无图片，T6 覆盖失败原子性与队列修订快照；旧剧本角标待 T7-T8） |
 | R3 生成分镜覆盖：impact/token 校验；新分镜成功后才删除旧数据并移入 trash；LLM 失败旧数据不动 | 任务系统 mock + API 集成 | 待填 |
 | R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存 | 纯函数 + 任务系统 mock | 待填 |
 | R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422 | 纯函数 + API 集成 | 待填 |
@@ -19,7 +19,7 @@
 | R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot | API 集成 | `backend/tests/api/test_c002_prompt_templates.py::test_prompt_templates_and_edits_preserve_downstream_rows`（C002 覆盖模板可见可编辑及默认响应无中间字段；DEBUG_PROMPTS 详情待 C007/C009） |
 | R12 删除资产后的槽位：asset_id 置 NULL、快照和槽位号保留、片段 stale，不停用或无 override 时再次生成触发 R10 | API 集成 + 任务系统 mock | 待填 |
 | §3.3 编辑剧本：分镜、片段、文件均不动，只出现集级旧剧本角标 | API 集成 | `backend/tests/api/test_c002_script.py::test_script_revision_preserves_downstream_rows`（C002 覆盖 API 语义；旧剧本角标待 C005/C006） |
-| §3.3 重新生成资产（增量）：分镜、片段、文件均不动 | 任务系统 mock | 待填 |
+| §3.3 重新生成资产（增量）：分镜、片段、文件均不动 | 任务系统 mock | `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_failure_rolls_back_and_preserves_downstream`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_uses_enqueued_script_revision_after_edit`（C005 T6 覆盖失败时既有资产/marker 无损与空输出成功按快照修订写 marker；完整下游成功重生成呈现待 T7-T8） |
 | §3.3 重新生成分镜：成功后覆盖本集分镜、删除本集片段并将文件移入 trash | 任务系统 mock + API 集成 | 待填 |
 | §3.3 编辑资产或换当前图：绑定分镜 changed、相关片段 stale、文件不删 | API 集成 | `backend/tests/api/test_c003_assets.py::test_asset_edit_and_current_image_preserve_downstream_rows`（C003 部分覆盖：资产名称/描述与当前图 revision、同值不增、文件不删；绑定分镜 changed 与片段 stale 待 C006/C008-C009） |
 | §3.3 删除资产：解绑并 changed、相关片段 stale、槽位按 R12 处置、资产图片入 trash | API 集成 | `backend/tests/api/test_c003_assets.py::test_delete_asset_moves_all_images_to_trash`（C003 部分覆盖：资产/图片行删除与全部图片入 trash；changed/stale、槽位快照与完整 R12 待 C006/C008-C009） |
@@ -29,5 +29,5 @@
 | §3.3 片段生成成功且修订未变：相关分镜 normal、片段 ready + fresh、新 take 落盘 | 任务系统 mock | 待填 |
 | §3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且 ready，但不得覆盖 stale/changed | 任务系统 mock | 待填 |
 | §6.1 重启恢复：遗留 running 任务变为 failed("server restarted")，queued 任务保留并继续消费 | 任务系统 mock | `backend/tests/task_system/test_task_queue.py::test_restart_fails_running_and_continues_queued` |
-| §6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断 | 任务系统 mock + API 集成 | `backend/tests/task_system/test_task_queue.py::test_queued_cancel_is_terminal`; `backend/tests/task_system/test_task_queue.py::test_running_cancel_stops_at_safe_point`; `backend/tests/api/test_tasks.py::test_cancel_task_states` |
+| §6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断 | 任务系统 mock + API 集成 | `backend/tests/task_system/test_task_queue.py::test_queued_cancel_is_terminal`; `backend/tests/task_system/test_task_queue.py::test_running_cancel_stops_at_safe_point`; `backend/tests/api/test_tasks.py::test_cancel_task_states`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_cancel_before_commit_writes_no_assets` |
 | §6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务 | API 集成 | `backend/tests/api/test_c005_generate_assets.py::test_generate_assets_active_conflict`（C005 T3 覆盖 gen_assets 同目标并发 active 冲突与终态后新建；其他任务类型与 request_id 待后续 change） |
