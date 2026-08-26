@@ -41,7 +41,7 @@ Luna 一次只领取一个 checkbox；每项只允许实现本 task 明列范围
 
 ### T3 生成 API、一次渲染与完整入队快照
 
-- [ ] 实现无 body 的 `POST /api/episodes/{id}/generate-assets`：验证 episode/项目风格/模板前置条件，按 spec §4-§5 构造一次渲染的不可变 payload，以 `request_id=null` 入队，并落实 202/404/409/422 与并发 active 去重。
+- [x] 实现无 body 的 `POST /api/episodes/{id}/generate-assets`：验证 episode/项目风格/模板前置条件，按 spec §4-§5 构造一次渲染的不可变 payload，以 `request_id=null` 入队，并落实 202/404/409/422 与并发 active 去重。
   - **前置 task：** T2。
   - **R：** R2；对应 PRD §2.1(4)、§3.1、§3.2、§5 生成动作、§6.1、§7、§11 M2。
   - **范围：** 只交付 API 到 queued task；不调用 vLLM、不注册 handler、不写资产/marker、不接受 request_id/If-Match、不新增表或 endpoint。

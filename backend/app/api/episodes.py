@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.schemas.episodes import EpisodeCreate, EpisodePatch, EpisodeResponse
+from app.schemas.generation import GenerateAssetsResponse
 from app.services.episodes import (
     create_episode,
     delete_episode,
@@ -10,6 +11,8 @@ from app.services.episodes import (
     list_episodes,
     update_episode,
 )
+from app.services.generate_assets import enqueue_generate_assets
+from app.tasks.queue import TaskConflictError, TaskQueue
 
 
 router = APIRouter(tags=["episodes"])
@@ -44,6 +47,31 @@ async def read_episode(
     session: AsyncSession = Depends(get_session),
 ) -> EpisodeResponse:
     return await get_episode(session, episode_id)
+
+
+@router.post(
+    "/episodes/{episode_id}/generate-assets",
+    response_model=GenerateAssetsResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_assets_route(
+    episode_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> GenerateAssetsResponse:
+    body = await request.body()
+    if body.strip():
+        raise HTTPException(
+            status_code=422, detail="Generate-assets request body must be empty"
+        )
+
+    queue: TaskQueue = request.app.state.task_queue
+    try:
+        result = await enqueue_generate_assets(session, queue, episode_id)
+    except TaskConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await queue.publish_committed(result)
+    return GenerateAssetsResponse(task_id=result.task.id)
 
 
 @router.patch("/episodes/{episode_id}", response_model=EpisodeResponse)
