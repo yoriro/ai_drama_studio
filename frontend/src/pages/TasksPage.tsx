@@ -204,6 +204,7 @@ export function TasksPage() {
           return;
         }
 
+        const isTerminalRefresh = terminalRefresh;
         let detailRequest: Promise<void>;
         detailRequest = getTask(taskId)
           .then((task) => {
@@ -241,6 +242,15 @@ export function TasksPage() {
           .finally(() => {
             if (detailRequests.get(taskId) === detailRequest) {
               detailRequests.delete(taskId);
+            }
+            if (
+              !isTerminalRefresh &&
+              detailRequestStates.get(taskId) === "succeeded" &&
+              terminalDetailRequests.has(taskId) &&
+              isActive(socket)
+            ) {
+              terminalDetailRequests.delete(taskId);
+              hydrateTaskDetails(taskId, true);
             }
           });
         detailRequests.set(taskId, detailRequest);
