@@ -7,11 +7,17 @@ export {
 export {
   createEpisode,
   deleteEpisode,
+  generateAssets,
   getEpisode,
   listEpisodes,
   updateEpisode,
 } from "./episodes";
-export type { Episode, EpisodeCreate, EpisodePatch } from "./episodes";
+export type {
+  Episode,
+  EpisodeCreate,
+  EpisodePatch,
+  GenerateAssetsResponse,
+} from "./episodes";
 export { getHealth } from "./health";
 export {
   createAsset,

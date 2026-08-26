@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 
-import { getEpisode, getProject, updateEpisode } from "../api";
+import { generateAssets, getEpisode, getProject, updateEpisode } from "../api";
 import type { Episode, Project } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
@@ -142,6 +142,9 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
   const [scriptText, setScriptText] = useState(episode.script_text);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generationTaskId, setGenerationTaskId] = useState<number | null>(null);
+  const [generationError, setGenerationError] = useState<unknown>(null);
   const [error, setError] = useState<unknown>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -173,6 +176,20 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
     setSuccessMessage(null);
   }
 
+  async function handleGenerateAssets() {
+    setGenerating(true);
+    setGenerationError(null);
+    setGenerationTaskId(null);
+    try {
+      const result = await generateAssets(episode.id);
+      setGenerationTaskId(result.task_id);
+    } catch (requestError: unknown) {
+      setGenerationError(requestError);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   function handleCancelEditing() {
     setEditing(false);
     setScriptText(episode.script_text);
@@ -197,9 +214,27 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           ) : (
             <div className="script-content">{episode.script_text}</div>
           )}
-          <button type="button" onClick={handleStartEditing}>
-            编辑剧本
-          </button>
+          <div className="action-row">
+            <button type="button" onClick={handleStartEditing}>
+              编辑剧本
+            </button>
+            <button
+              disabled={generating}
+              type="button"
+              onClick={() => void handleGenerateAssets()}
+            >
+              {generating ? "提交生成任务…" : "生成资产"}
+            </button>
+          </div>
+          {generationError !== null && (
+            <ApiErrorMessage error={generationError} />
+          )}
+          {generationTaskId !== null && (
+            <p className="success-message" role="status">
+              资产生成任务已提交：#{generationTaskId}。{" "}
+              <Link to="/tasks">前往任务中心</Link>
+            </p>
+          )}
         </>
       ) : (
         <form className="form-grid" onSubmit={handleSubmit}>

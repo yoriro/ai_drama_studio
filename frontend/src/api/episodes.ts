@@ -25,6 +25,10 @@ export interface EpisodePatch {
   script_text?: string;
 }
 
+export interface GenerateAssetsResponse {
+  task_id: number;
+}
+
 const jsonHeaders = { "Content-Type": "application/json" };
 
 export function listEpisodes(projectId: number): Promise<Episode[]> {
@@ -52,6 +56,13 @@ export function updateEpisode(id: number, input: EpisodePatch): Promise<Episode>
     headers: jsonHeaders,
     body: JSON.stringify(input),
   });
+}
+
+export function generateAssets(id: number): Promise<GenerateAssetsResponse> {
+  return requestJson<GenerateAssetsResponse>(
+    `/episodes/${id}/generate-assets`,
+    { method: "POST" },
+  );
 }
 
 export function deleteEpisode(id: number): Promise<void> {
