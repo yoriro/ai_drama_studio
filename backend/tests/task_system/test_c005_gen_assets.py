@@ -1,4 +1,6 @@
 import asyncio
+import json
+import logging
 import os
 from typing import Any
 from uuid import uuid4
@@ -137,6 +139,215 @@ def test_gen_assets_uses_snapshot_prompt_and_closed_schema() -> None:
             assert len(controlled.chat_calls) == 6
         finally:
             await _delete_task(task_id)
+            await engine.dispose()
+
+    asyncio.run(run())
+
+
+async def _cleanup_merge(
+    task_id: int,
+    episode_id: int,
+    project_ids: list[int],
+    style_id: int,
+) -> None:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        await connection.execute("DELETE FROM tasks WHERE id = $1", task_id)
+        await connection.execute(
+            "DELETE FROM assets WHERE project_id = ANY($1::int[])", project_ids
+        )
+        await connection.execute("DELETE FROM episodes WHERE id = $1", episode_id)
+        await connection.execute(
+            "DELETE FROM projects WHERE id = ANY($1::int[])", project_ids
+        )
+        await connection.execute("DELETE FROM styles WHERE id = $1", style_id)
+    finally:
+        await connection.close()
+
+
+def test_gen_assets_incremental_merge_handles_existing_and_invalid_ids(
+    caplog,
+) -> None:
+    async def run() -> None:
+        from app.services.gen_assets import GeneratedAsset, GeneratedAssetsResponse
+        from app.tasks.gen_assets import merge_generated_assets
+
+        connection = await asyncpg.connect(_database_url())
+        style_id = project_id = other_project_id = episode_id = task_id = None
+        current_asset_id = other_asset_id = None
+        try:
+            style_id = await connection.fetchval(
+                """
+                INSERT INTO styles(name, prompt_fragment)
+                VALUES ($1, 'merge style') RETURNING id
+                """,
+                "C005 merge style " + uuid4().hex,
+            )
+            project_id = await connection.fetchval(
+                """
+                INSERT INTO projects(name, style_id)
+                VALUES ($1, $2) RETURNING id
+                """,
+                "C005 merge project " + uuid4().hex,
+                style_id,
+            )
+            other_project_id = await connection.fetchval(
+                """
+                INSERT INTO projects(name, style_id)
+                VALUES ($1, $2) RETURNING id
+                """,
+                "C005 other project " + uuid4().hex,
+                style_id,
+            )
+            episode_id = await connection.fetchval(
+                """
+                INSERT INTO episodes(project_id, seq, title, script_text)
+                VALUES ($1, 1, 'Merge episode', 'snapshot') RETURNING id
+                """,
+                project_id,
+            )
+            current_asset_id = await connection.fetchval(
+                """
+                INSERT INTO assets(project_id, type, name, description, source)
+                VALUES ($1, 'character', '原角色', '原描述', 'manual')
+                RETURNING id
+                """,
+                project_id,
+            )
+            other_asset_id = await connection.fetchval(
+                """
+                INSERT INTO assets(project_id, type, name, description, source)
+                VALUES ($1, 'scene', '别的场景', '别的描述', 'manual')
+                RETURNING id
+                """,
+                other_project_id,
+            )
+            task_id = await connection.fetchval(
+                """
+                INSERT INTO tasks(type, target_id, payload, status, progress)
+                VALUES ('gen_assets', $1, $2::jsonb, 'running', 0.2)
+                RETURNING id
+                """,
+                episode_id,
+                json.dumps(
+                    {
+                        "input_snapshot": {
+                            "episode_id": episode_id,
+                            "project_id": project_id,
+                            "script_revision": 3,
+                        },
+                        "input_hash": None,
+                        "source_revisions": {},
+                    }
+                ),
+            )
+        finally:
+            await connection.close()
+
+        assert all(
+            value is not None
+            for value in (
+                style_id,
+                project_id,
+                other_project_id,
+                episode_id,
+                task_id,
+                current_asset_id,
+                other_asset_id,
+            )
+        )
+        task = ClaimedTask(
+            id=task_id,
+            type="gen_assets",
+            target_id=episode_id,
+            request_id=None,
+            payload={
+                "input_snapshot": {
+                    "episode_id": episode_id,
+                    "project_id": project_id,
+                    "script_revision": 3,
+                },
+                "input_hash": None,
+                "source_revisions": {},
+            },
+        )
+        result = GeneratedAssetsResponse(
+            assets=[
+                GeneratedAsset(
+                    existing_id=None,
+                    type="scene",
+                    name="新场景",
+                    description="新场景描述",
+                ),
+                GeneratedAsset(
+                    existing_id=current_asset_id,
+                    type="scene",
+                    name="不得覆盖",
+                    description="不得覆盖",
+                ),
+                GeneratedAsset(
+                    existing_id=2147483647,
+                    type="character",
+                    name="伪造角色",
+                    description="伪造描述",
+                ),
+                GeneratedAsset(
+                    existing_id=other_asset_id,
+                    type="scene",
+                    name="跨项目场景",
+                    description="跨项目描述",
+                ),
+            ]
+        )
+        try:
+            with caplog.at_level(logging.WARNING, logger="app.tasks.gen_assets"):
+                await merge_generated_assets(task, result)
+            connection = await asyncpg.connect(_database_url())
+            try:
+                rows = await connection.fetch(
+                    """
+                    SELECT id, project_id, type, name, description, source, revision
+                    FROM assets WHERE project_id = $1 ORDER BY id
+                    """,
+                    project_id,
+                )
+                marker = await connection.fetchval(
+                    "SELECT assets_generated_script_revision FROM episodes WHERE id = $1",
+                    episode_id,
+                )
+                image_count = await connection.fetchval(
+                    """
+                    SELECT count(*) FROM asset_images
+                    WHERE asset_id = ANY($1::int[])
+                    """,
+                    [row["id"] for row in rows],
+                )
+            finally:
+                await connection.close()
+            assert marker == 3
+            assert image_count == 0
+            assert [row["name"] for row in rows] == [
+                "原角色",
+                "新场景",
+                "伪造角色",
+                "跨项目场景",
+            ]
+            assert all(row["source"] == "manual" for row in rows[:1])
+            assert all(row["source"] == "generated" for row in rows[1:])
+            assert rows[0]["description"] == "原描述"
+            warning = caplog.text
+            assert f"task_id={task_id}" in warning
+            assert f"episode_id={episode_id}" in warning
+            assert f"project_id={project_id}" in warning
+            assert "existing_id=2147483647" in warning
+            assert f"existing_id={other_asset_id}" in warning
+        finally:
+            await _cleanup_merge(
+                task_id,
+                episode_id,
+                [project_id, other_project_id],
+                style_id,
+            )
             await engine.dispose()
 
     asyncio.run(run())

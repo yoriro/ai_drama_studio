@@ -71,7 +71,7 @@ Luna 一次只领取一个 checkbox；每项只允许实现本 task 明列范围
 
 ### T5 R2 三路增量合并与 warning
 
-- [ ] 在 T4 handler 中落实 R2 合并：null id 新增 generated 资产；当前项目合法非 null id 不增不改不删；不存在/跨项目 id 降级新增并记录带 task/episode/project/id 的 warning；输出为空时允许只写 marker。
+- [x] 在 T4 handler 中落实 R2 合并：null id 新增 generated 资产；当前项目合法非 null id 不增不改不删；不存在/跨项目 id 降级新增并记录带 task/episode/project/id 的 warning；输出为空时允许只写 marker。
   - **前置 task：** T4。
   - **R：** R2；对应 PRD §3.1 R2、§4 assets、§6.2 gen_assets、§7。
   - **范围：** 只新增 character/scene 资产并更新 episode marker；不创建图片、不更新既有资产、不做别名/合并/语义去重、不修改 shots/clips/files，不改变数据库 schema。
