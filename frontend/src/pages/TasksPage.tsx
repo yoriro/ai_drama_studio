@@ -82,6 +82,29 @@ function applyEventToTask(
   };
 }
 
+function mergeTaskDetails(
+  existing: TaskListItem,
+  task: Task,
+  latestEvent: TaskEvent | undefined,
+): TaskListItem {
+  const merged: TaskListItem = {
+    ...existing,
+    target_id: existing.target_id ?? task.target_id,
+    request_id: existing.request_id ?? task.request_id,
+    heartbeat_at: existing.heartbeat_at ?? task.heartbeat_at,
+    cancel_requested_at:
+      existing.cancel_requested_at ?? task.cancel_requested_at,
+    created_at: existing.created_at ?? task.created_at,
+    started_at: existing.started_at ?? task.started_at,
+    finished_at: existing.finished_at ?? task.finished_at,
+    error_msg: existing.error_msg ?? task.error_msg,
+  };
+
+  return latestEvent === undefined
+    ? merged
+    : applyEventToTask(merged, latestEvent);
+}
+
 function applyTaskEvent(
   current: TaskListItem[],
   event: TaskEvent,
@@ -156,24 +179,48 @@ export function TasksPage() {
       const knownTaskIds = new Set<number>();
       const latestEvents = new Map<number, TaskEvent>();
       const detailRequests = new Map<number, Promise<void>>();
+      const detailRequestStates = new Map<number, "succeeded" | "failed">();
+      const terminalDetailRequests = new Set<number>();
 
-      function hydrateTaskDetails(taskId: number): void {
+      function hydrateTaskDetails(
+        taskId: number,
+        terminalRefresh = false,
+      ): void {
         if (detailRequests.has(taskId)) {
+          if (terminalRefresh) {
+            terminalDetailRequests.add(taskId);
+          }
+          return;
+        }
+        if (detailRequestStates.get(taskId) === "failed") {
+          return;
+        }
+        if (terminalRefresh) {
+          if (terminalDetailRequests.has(taskId)) {
+            return;
+          }
+          terminalDetailRequests.add(taskId);
+        } else if (detailRequestStates.has(taskId)) {
           return;
         }
 
-        const detailRequest = getTask(taskId)
+        let detailRequest: Promise<void>;
+        detailRequest = getTask(taskId)
           .then((task) => {
+            detailRequestStates.set(taskId, "succeeded");
             if (!isActive(socket)) {
               return;
             }
 
-            const latestEvent = latestEvents.get(taskId);
-            const mergedTask = latestEvent
-              ? applyEventToTask(toTaskListItem(task), latestEvent)
-              : toTaskListItem(task);
             setTasks((current) => {
               const index = current.findIndex((item) => item.id === taskId);
+              const existing =
+                index === -1 ? toTaskListItem(task) : current[index];
+              const mergedTask = mergeTaskDetails(
+                existing,
+                task,
+                latestEvents.get(taskId),
+              );
               if (index === -1) {
                 return sortTasks([...current, mergedTask]);
               }
@@ -184,22 +231,29 @@ export function TasksPage() {
             });
           })
           .catch((error: unknown) => {
+            detailRequestStates.set(taskId, "failed");
             if (!isActive(socket)) {
               return;
             }
             setRestError(error);
             setRestState("error");
+          })
+          .finally(() => {
+            if (detailRequests.get(taskId) === detailRequest) {
+              detailRequests.delete(taskId);
+            }
           });
         detailRequests.set(taskId, detailRequest);
       }
 
       function processEvent(event: TaskEvent): void {
         latestEvents.set(event.task_id, event);
-        if (!knownTaskIds.has(event.task_id)) {
+        const isUnknownTask = !knownTaskIds.has(event.task_id);
+        if (isUnknownTask) {
           knownTaskIds.add(event.task_id);
-          hydrateTaskDetails(event.task_id);
+          hydrateTaskDetails(event.task_id, isTerminalTaskEvent(event));
         } else if (isTerminalTaskEvent(event)) {
-          hydrateTaskDetails(event.task_id);
+          hydrateTaskDetails(event.task_id, true);
         }
         setTasks((current) => applyTaskEvent(current, event));
       }
