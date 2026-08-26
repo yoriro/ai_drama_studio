@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.db.session import async_session_factory, dispose_engine, engine
 from app.tasks.events import EventBus
+from app.tasks.gen_assets import gen_assets_handler
 from app.tasks.queue import AdvisoryLockNotAcquired, TaskHandler, TaskQueue
 from app.services.trash import cleanup_expired_trash, run_trash_cleanup_loop
 
@@ -132,7 +133,9 @@ def create_app(
 ) -> FastAPI:
     application = FastAPI(title="AI Drama Studio API", lifespan=lifespan)
     application.state.settings = settings
-    application.state.task_handlers = dict(task_handlers or {})
+    handlers: dict[str, TaskHandler] = {"gen_assets": gen_assets_handler}
+    handlers.update(task_handlers or {})
+    application.state.task_handlers = handlers
     application.state.startup_prepare = startup_prepare
     application.add_middleware(
         StructuredCORSMiddleware,

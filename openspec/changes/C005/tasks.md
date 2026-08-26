@@ -56,7 +56,7 @@ Luna 一次只领取一个 checkbox；每项只允许实现本 task 明列范围
 
 ### T4 gen_assets handler 与真实 guided_json 请求
 
-- [ ] 注册正常应用唯一的 `gen_assets` handler：只读 claimed payload，按安全点执行 wake，使用一条完整 user message、快照模型/温度和 spec §6.2 封闭 schema调用 vLLM，严格解析单一 JSON object；所有外部/解析错误向 worker 抛出。
+- [x] 注册正常应用唯一的 `gen_assets` handler：只读 claimed payload，按安全点执行 wake，使用一条完整 user message、快照模型/温度和 spec §6.2 封闭 schema调用 vLLM，严格解析单一 JSON object；所有外部/解析错误向 worker 抛出。
   - **前置 task：** T3。
   - **R：** R2；对应 PRD §3.1、§3.2、§6.2-§6.4、§7、§11 M2。
   - **范围：** 本 task 只把任务执行到通过 schema 校验的内存结果；落库合并由 T5；不回读当前剧本/风格/模板/资产重建 prompt，不实现自由文本解析、重试、system 业务规则、gen_shots 或 Comfy 调用。

@@ -6,7 +6,7 @@
 |---|---|---|
 | C001 基础设施 smoke：FastAPI 应用可启动，`/docs` 可访问，`/api/system/health` 返回明确的未检查骨架且不调用外部服务，通用 API 错误体符合约定 | API 集成 | `backend/tests/api/test_system.py::test_infrastructure_smoke` |
 | R1 无资产禁止生成分镜：项目资产为 0 时 `generate-shots` 返回 409 | API 集成 | 待填 |
-| R2 生成资产增量合并：现有资产按项目快照注入；`existing_id=null` 项新增，真实属于本项目的非 null 项不改不删，伪造/跨项目非 null id 降级新增并记录 warning；成功后记录入队快照剧本修订，运行中改剧本仍保留旧剧本角标 | 任务系统 mock + API 集成 | `backend/tests/api/test_c005_generate_assets.py::test_generate_assets_enqueues_exact_snapshot_and_errors`（C005 T3 覆盖入队快照、现有资产与渲染；任务执行合并与旧剧本角标待 T4-T8） |
+| R2 生成资产增量合并：现有资产按项目快照注入；`existing_id=null` 项新增，真实属于本项目的非 null 项不改不删，伪造/跨项目非 null id 降级新增并记录 warning；成功后记录入队快照剧本修订，运行中改剧本仍保留旧剧本角标 | 任务系统 mock + API 集成 | `backend/tests/api/test_c005_generate_assets.py::test_generate_assets_enqueues_exact_snapshot_and_errors`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_uses_snapshot_prompt_and_closed_schema`（C005 T3 覆盖入队快照与渲染，T4 覆盖 claimed 快照、单 user message、wake 与封闭 schema；合并与旧剧本角标待 T5-T8） |
 | R3 生成分镜覆盖：impact/token 校验；新分镜成功后才删除旧数据并移入 trash；LLM 失败旧数据不动 | 任务系统 mock + API 集成 | 待填 |
 | R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存 | 纯函数 + 任务系统 mock | 待填 |
 | R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422 | 纯函数 + API 集成 | 待填 |
