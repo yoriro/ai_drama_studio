@@ -17,11 +17,13 @@ import type {
   AssetImage,
   AssetPatch,
   AssetType,
+  Episode,
 } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 
 interface AssetPageProps {
+  episode: Episode;
   projectId: number;
 }
 
@@ -32,7 +34,7 @@ interface AssetEntry {
 
 type LoadState = "loading" | "error" | "ready";
 
-export function AssetPage({ projectId }: AssetPageProps) {
+export function AssetPage({ episode, projectId }: AssetPageProps) {
   const [entries, setEntries] = useState<AssetEntry[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -103,6 +105,9 @@ export function AssetPage({ projectId }: AssetPageProps) {
           <div>
             <h2>资产</h2>
             <p className="field-hint">项目级角色与场景资产</p>
+            {isAssetsStale(episode) && (
+              <p className="field-hint">资产提取基于旧剧本</p>
+            )}
           </div>
           {!createOpen && loadState === "ready" && (
             <button
@@ -161,6 +166,13 @@ export function AssetPage({ projectId }: AssetPageProps) {
         </div>
       )}
     </section>
+  );
+}
+
+function isAssetsStale(episode: Episode): boolean {
+  return (
+    episode.assets_generated_script_revision !== null &&
+    episode.assets_generated_script_revision < episode.script_revision
   );
 }
 

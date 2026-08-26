@@ -72,7 +72,7 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
     return () => {
       disposed = true;
     };
-  }, [numericEpisodeId, numericProjectId]);
+  }, [activeTab, numericEpisodeId, numericProjectId]);
 
   if (loadState === "loading") {
     return (
@@ -123,7 +123,7 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
           onUpdated={(episode) => setContext({ ...context, episode })}
         />
       ) : activeTab === "assets" ? (
-        <AssetPage projectId={context.project.id} />
+        <AssetPage episode={context.episode} projectId={context.project.id} />
       ) : (
         <EmptyState
           message={`${tabs.find((tab) => tab.key === activeTab)?.label}页暂未交付`}
@@ -206,6 +206,9 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           {successMessage}
         </p>
       )}
+      {isAssetsStale(episode) && (
+        <p className="field-hint">资产提取基于旧剧本</p>
+      )}
       {!editing ? (
         <>
           <p className="field-hint">剧本修订：{episode.script_revision}</p>
@@ -267,5 +270,12 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
         </form>
       )}
     </section>
+  );
+}
+
+function isAssetsStale(episode: Episode): boolean {
+  return (
+    episode.assets_generated_script_revision !== null &&
+    episode.assets_generated_script_revision < episode.script_revision
   );
 }
