@@ -97,7 +97,7 @@
 
 ### T7 分镜 GET/PATCH 与编辑级联
 
-- [ ] 增加 spec §3.3-§3.4 的 Shot schema、GET 列表和 PATCH：固定排序/字段/封闭枚举，五类字段部分更新，资产 id 项目归属与去重校验，no-op 不增 revision；实际变化 changed/revision+1 并把相关 Clip stale。0/多场景合法。
+- [x] 增加 spec §3.3-§3.4 的 Shot schema、GET 列表和 PATCH：固定排序/字段/封闭枚举，五类字段部分更新，资产 id 项目归属与去重校验，no-op 不增 revision；实际变化 changed/revision+1 并把相关 Clip stale。0/多场景合法。
   - **前置 task：** T6。
   - **R：** 无；对应 PRD §2.1(6)、§3.2 修订、§3.3“编辑分镜”、§5 分镜 API、§9 场景角标；零场景边界关联 R5a。
   - **范围：** 只提供查看及文本/绑定编辑，不提供 DELETE/POST、duration/order 编辑、拆分/合并/排序、clip 预检或 If-Match。
