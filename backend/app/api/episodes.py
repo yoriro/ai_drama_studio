@@ -60,7 +60,7 @@ async def generate_assets_route(
     session: AsyncSession = Depends(get_session),
 ) -> GenerateAssetsResponse:
     body = await request.body()
-    if body.strip():
+    if body:
         raise HTTPException(
             status_code=422, detail="Generate-assets request body must be empty"
         )
