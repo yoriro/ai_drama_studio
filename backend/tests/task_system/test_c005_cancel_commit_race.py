@@ -293,7 +293,7 @@ def test_cancel_and_gen_assets_commit_have_one_atomic_winner(
                     cancel_fixture[0],
                     cancel_fixture[1],
                     cancel_fixture[2],
-                    cancel_fixture[3],
+                    cancel_fixture[4],
                 )
 
             done_fixture = await _create_fixture(marker=9)
@@ -338,7 +338,7 @@ def test_cancel_and_gen_assets_commit_have_one_atomic_winner(
                     done_fixture[0],
                     done_fixture[1],
                     done_fixture[2],
-                    done_fixture[3],
+                    done_fixture[4],
                 )
         finally:
             await engine.dispose()
