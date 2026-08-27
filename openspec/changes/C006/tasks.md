@@ -125,7 +125,7 @@
 
 ### T9 episode/project 既有删除的 C006 数据兼容
 
-- [ ] 扩展现有 episode/project DELETE 的当前可达删除顺序，使存在 C006 Shot/ShotAsset 时仍可删除；对夹具中属于目标 episode 的现有 Clip/媒体复用 R3 trash 清理；外部注入的未授权后续实体仍按既有 409 回滚。
+- [x] 扩展现有 episode/project DELETE 的当前可达删除顺序，使存在 C006 Shot/ShotAsset 时仍可删除；对夹具中属于目标 episode 的现有 Clip/媒体复用 R3 trash 清理；外部注入的未授权后续实体仍按既有 409 回滚。
   - **前置 task：** T5、T8。
   - **R：** 无；对应 PRD §2.1(1,5,12)、§3.3、§5 项目/剧集 DELETE、§6.4、§11 M1“已有实体级联”。
   - **范围：** 只维护既有 DELETE 在 C006 数据可达后的正确性；不新增删除 API、不实现后续实体级联、不修改数据库 schema。

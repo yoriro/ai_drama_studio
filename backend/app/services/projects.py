@@ -14,6 +14,10 @@ from app.services.asset_files import (
     move_asset_image_to_trash,
     resolve_data_path,
 )
+from app.services.episodes import (
+    delete_episode_cascade_data,
+    move_episode_media_to_trash,
+)
 
 
 def _not_found() -> HTTPException:
@@ -121,16 +125,31 @@ async def delete_project(session: AsyncSession, project_id: int) -> None:
                 resolve_data_path(settings.DATA_DIR, relative_path)
                 image_moves.append((asset.project_id, asset.id, image.id, extension))
 
+            episode_result = await session.execute(
+                select(Episode)
+                .where(Episode.project_id == project_id)
+                .order_by(Episode.id)
+                .with_for_update()
+            )
+            episodes = list(episode_result.scalars().all())
+            episode_media_moves: list[tuple[Path, Path]] = []
+            for episode in episodes:
+                episode_media_moves.extend(
+                    await delete_episode_cascade_data(session, episode.id)
+                )
+
             image_ids = [image.id for image in images]
+            episode_ids = [episode.id for episode in episodes]
+            if episode_ids:
+                await session.execute(
+                    delete(Episode).where(Episode.id.in_(episode_ids))
+                )
             if image_ids:
                 await session.execute(
                     delete(AssetImage).where(AssetImage.id.in_(image_ids))
                 )
             if asset_ids:
                 await session.execute(delete(Asset).where(Asset.id.in_(asset_ids)))
-            await session.execute(
-                delete(Episode).where(Episode.project_id == project_id)
-            )
             await session.delete(project)
             await session.flush()
             for project_id_for_file, asset_id, image_id, extension in image_moves:
@@ -141,6 +160,7 @@ async def delete_project(session: AsyncSession, project_id: int) -> None:
                     image_id,
                     extension,
                 )
+            move_episode_media_to_trash(episode_media_moves)
     except IntegrityError as exc:
         raise HTTPException(
             status_code=409,
