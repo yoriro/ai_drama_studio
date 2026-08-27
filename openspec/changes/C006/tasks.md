@@ -55,7 +55,7 @@
 
 ### T4 gen_shots 外部调用与严格输出校验
 
-- [ ] 注册应用唯一 `gen_shots` handler：只读 claimed payload，在规定安全点 wake，以快照的一条 user message、模型、温度和动态 schema 调用 vLLM；严格解析 JSON、字段/枚举/时长/order/唯一 asset_ids，并在最终提交前做实时项目归属校验。0/多场景不得失败。
+- [x] 注册应用唯一 `gen_shots` handler：只读 claimed payload，在规定安全点 wake，以快照的一条 user message、模型、温度和动态 schema 调用 vLLM；严格解析 JSON、字段/枚举/时长/order/唯一 asset_ids，并在最终提交前做实时项目归属校验。0/多场景不得失败。
   - **前置 task：** T3。
   - **R：** R3；对应 PRD §3.1、§6.1-§6.2、§7、§9；R5a 仅对应“零场景合法/多场景留待修正”的 C006 输入边界。
   - **范围：** 只实现模型调用与硬校验，不在此 task 删除旧结构/文件，不实现 NLP 质量修补、重试或自由文本 fallback。
