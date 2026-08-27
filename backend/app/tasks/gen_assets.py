@@ -16,6 +16,9 @@ from app.tasks.queue import ClaimedTask, WorkerContext
 
 logger = logging.getLogger("app.tasks.gen_assets")
 
+_POSTGRES_INTEGER_MIN = -(2**31)
+_POSTGRES_INTEGER_MAX = 2**31 - 1
+
 
 async def _merge_generated_assets(
     session: AsyncSession,
@@ -58,10 +61,15 @@ async def _merge_generated_assets(
         raise ValueError("gen_assets target episode no longer exists")
 
     existing_by_id: dict[int, Asset] = {}
-    if existing_ids:
+    queryable_existing_ids = {
+        existing_id
+        for existing_id in existing_ids
+        if _POSTGRES_INTEGER_MIN <= existing_id <= _POSTGRES_INTEGER_MAX
+    }
+    if queryable_existing_ids:
         asset_result = await session.execute(
             select(Asset)
-            .where(Asset.id.in_(existing_ids))
+            .where(Asset.id.in_(queryable_existing_ids))
             .with_for_update()
         )
         existing_by_id = {
