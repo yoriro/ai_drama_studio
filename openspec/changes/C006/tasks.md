@@ -69,7 +69,7 @@
 
 ### T5 R3 成功替换与 trash 原子业务提交
 
-- [ ] 实现 spec §7.1 的最终提交：锁定并复核替换快照，在取消/提交条件裁决后删除本集 clip videos/关系/槽位/clips 和旧 shot assets/shots、移动 clip video/override 文件到 trash、写入新分镜/绑定与快照剧本 marker，并让业务变化与 task done 同事务胜出。
+- [x] 实现 spec §7.1 的最终提交：锁定并复核替换快照，在取消/提交条件裁决后删除本集 clip videos/关系/槽位/clips 和旧 shot assets/shots、移动 clip video/override 文件到 trash、写入新分镜/绑定与快照剧本 marker，并让业务变化与 task done 同事务胜出。
   - **前置 task：** T4。
   - **R：** R3；对应 PRD §3.1、§3.3“重新生成分镜”、§6.2、§6.4。
   - **范围：** 只做 gen_shots 的成功替换；不创建 clip、不保留候选/历史、不实现后台补偿任务或自动重试。
