@@ -5,7 +5,9 @@ from app.db.session import get_session
 from app.schemas.episodes import EpisodeCreate, EpisodePatch, EpisodeResponse
 from app.schemas.generation import (
     GenerateAssetsResponse,
+    GenerateShotsRequest,
     GenerateShotsImpactResponse,
+    GenerateShotsResponse,
 )
 from app.services.episodes import (
     create_episode,
@@ -15,7 +17,10 @@ from app.services.episodes import (
     update_episode,
 )
 from app.services.generate_assets import enqueue_generate_assets
-from app.services.generate_shots import read_generate_shots_impact
+from app.services.generate_shots import (
+    enqueue_generate_shots,
+    read_generate_shots_impact,
+)
 from app.tasks.queue import TaskConflictError, TaskQueue
 
 
@@ -94,6 +99,31 @@ async def generate_shots_impact_route(
             detail="Generate-shots impact request body must be empty",
         )
     return await read_generate_shots_impact(session, episode_id)
+
+
+@router.post(
+    "/episodes/{episode_id}/generate-shots",
+    response_model=GenerateShotsResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_shots_route(
+    episode_id: int,
+    payload: GenerateShotsRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> GenerateShotsResponse:
+    queue: TaskQueue = request.app.state.task_queue
+    try:
+        result = await enqueue_generate_shots(
+            session,
+            queue,
+            episode_id,
+            payload.confirm_token,
+        )
+    except TaskConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await queue.publish_committed(result)
+    return GenerateShotsResponse(task_id=result.task.id)
 
 
 @router.patch("/episodes/{episode_id}", response_model=EpisodeResponse)

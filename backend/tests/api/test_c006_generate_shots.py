@@ -1,5 +1,7 @@
 import asyncio
+import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import asyncpg
@@ -340,3 +342,607 @@ def test_generate_shots_impact_token_binds_current_snapshot() -> None:
                 raise AssertionError("cross-episode impact token accepted")
     finally:
         asyncio.run(_cleanup_fixture(fixture))
+
+
+async def _create_generate_fixture(*, with_assets: bool) -> dict[str, object]:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        style_id = await connection.fetchval(
+            """
+            INSERT INTO styles (name, prompt_fragment)
+            VALUES ($1, $2)
+            RETURNING id
+            """,
+            "C006 generate style " + uuid4().hex,
+            "冷峻写实",
+        )
+        project_id = await connection.fetchval(
+            """
+            INSERT INTO projects (name, style_id)
+            VALUES ($1, $2)
+            RETURNING id
+            """,
+            "C006 generate project " + uuid4().hex,
+            style_id,
+        )
+        episode_id = await connection.fetchval(
+            """
+            INSERT INTO episodes (project_id, seq, title, script_text)
+            VALUES ($1, 1, $2, $3)
+            RETURNING id
+            """,
+            project_id,
+            "C006 generate episode",
+            "剧本 {{style}}",
+        )
+        asset_ids: list[int] = []
+        valid_asset_ids: list[int] = []
+        if with_assets:
+            for asset_type, name, description in (
+                ("character", "林夏", "短发，穿蓝色外套"),
+                ("scene", "旧车站", "雨夜的空旷站台"),
+                ("prop", "旧伞", "一把黑色雨伞"),
+            ):
+                asset_id = await connection.fetchval(
+                    """
+                    INSERT INTO assets
+                        (project_id, type, name, description, source)
+                    VALUES ($1, $2, $3, $4, 'manual')
+                    RETURNING id
+                    """,
+                    project_id,
+                    asset_type,
+                    name,
+                    description,
+                )
+                asset_ids.append(asset_id)
+                if asset_type != "prop":
+                    valid_asset_ids.append(asset_id)
+
+        shot_ids: list[int] = []
+        shot_snapshot: list[dict[str, int]] = []
+        clip_ids: list[int] = []
+        clip_snapshot: list[dict[str, int]] = []
+        video_media: list[dict[str, object]] = []
+        override_media: list[dict[str, object]] = []
+        if with_assets:
+            for order, revision in ((1, 2), (2, 1)):
+                shot_id = await connection.fetchval(
+                    """
+                    INSERT INTO shots
+                        (episode_id, order_index, duration_est, shot_type,
+                         camera, description, dialogue, status, revision)
+                    VALUES ($1, $2, 2.5, '近景', '固定', $3, '', 'changed', $4)
+                    RETURNING id
+                    """,
+                    episode_id,
+                    order,
+                    f"旧镜头 {order}",
+                    revision,
+                )
+                shot_ids.append(shot_id)
+                shot_snapshot.append({"id": shot_id, "revision": revision})
+
+            for video_count in (2, 1):
+                clip_id = await connection.fetchval(
+                    """
+                    INSERT INTO clips (episode_id, requested_duration)
+                    VALUES ($1, 5)
+                    RETURNING id
+                    """,
+                    episode_id,
+                )
+                clip_ids.append(clip_id)
+                clip_snapshot.append({"id": clip_id, "revision": 1})
+                for video_no in range(1, video_count + 1):
+                    path = (
+                        f"projects/{project_id}/episodes/{episode_id}/"
+                        f"clips/{clip_id}/{video_no}.mp4"
+                    )
+                    video_id = await connection.fetchval(
+                        """
+                        INSERT INTO clip_videos
+                            (clip_id, file_path, sha256, seed, requested_duration)
+                        VALUES ($1, $2, $3, $4, 5)
+                        RETURNING id
+                        """,
+                        clip_id,
+                        path,
+                        uuid4().hex,
+                        video_no,
+                    )
+                    video_media.append(
+                        {"kind": "clip_video", "id": video_id, "path": path}
+                    )
+                for slot_no, override_path in (
+                    (1, f"projects/{project_id}/episodes/{episode_id}/clips/{clip_id}/slots/{clip_id}.png"),
+                    (2, None),
+                ):
+                    slot_id = await connection.fetchval(
+                        """
+                        INSERT INTO clip_ref_slots
+                            (clip_id, slot_no, asset_id, asset_name_snapshot,
+                             asset_type_snapshot, override_image_path,
+                             override_sha256)
+                        VALUES ($1, $2, $3, '林夏', 'character', $4, $5)
+                        RETURNING id
+                        """,
+                        clip_id,
+                        slot_no,
+                        valid_asset_ids[0] if valid_asset_ids else None,
+                        override_path,
+                        uuid4().hex if override_path is not None else None,
+                    )
+                    if override_path is not None:
+                        override_media.append(
+                            {
+                                "kind": "slot_override",
+                                "id": slot_id,
+                                "path": override_path,
+                            }
+                        )
+        return {
+            "style_id": style_id,
+            "project_id": project_id,
+            "episode_id": episode_id,
+            "asset_ids": asset_ids,
+            "valid_asset_ids": valid_asset_ids,
+            "shot_ids": shot_ids,
+            "shot_snapshot": shot_snapshot,
+            "clip_ids": clip_ids,
+            "clip_snapshot": clip_snapshot,
+            "video_media": video_media,
+            "override_media": override_media,
+        }
+    finally:
+        await connection.close()
+
+
+async def _cleanup_generate_fixture(
+    fixture: dict[str, object], task_ids: list[int] | None = None
+) -> None:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        if task_ids:
+            await connection.execute(
+                "DELETE FROM tasks WHERE id = ANY($1::int[])", task_ids
+            )
+        clip_ids = fixture["clip_ids"]
+        shot_ids = fixture["shot_ids"]
+        asset_ids = fixture["asset_ids"]
+        assert isinstance(clip_ids, list)
+        assert isinstance(shot_ids, list)
+        assert isinstance(asset_ids, list)
+        if clip_ids:
+            await connection.execute(
+                "DELETE FROM clip_ref_slots WHERE clip_id = ANY($1::int[])",
+                clip_ids,
+            )
+            await connection.execute(
+                "DELETE FROM clip_videos WHERE clip_id = ANY($1::int[])",
+                clip_ids,
+            )
+            await connection.execute(
+                "DELETE FROM clips WHERE id = ANY($1::int[])", clip_ids
+            )
+        if shot_ids:
+            await connection.execute(
+                "DELETE FROM shot_assets WHERE shot_id = ANY($1::int[])",
+                shot_ids,
+            )
+            await connection.execute(
+                "DELETE FROM shots WHERE id = ANY($1::int[])", shot_ids
+            )
+        if asset_ids:
+            await connection.execute(
+                "DELETE FROM assets WHERE id = ANY($1::int[])", asset_ids
+            )
+        await connection.execute(
+            "DELETE FROM episodes WHERE id = $1", fixture["episode_id"]
+        )
+        await connection.execute(
+            "DELETE FROM projects WHERE id = $1", fixture["project_id"]
+        )
+        await connection.execute(
+            "DELETE FROM styles WHERE id = $1", fixture["style_id"]
+        )
+    finally:
+        await connection.close()
+
+
+async def _read_script2shots_template() -> str:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        content = await connection.fetchval(
+            "SELECT content FROM prompt_templates WHERE key = 'script2shots'"
+        )
+        assert isinstance(content, str)
+        return content
+    finally:
+        await connection.close()
+
+
+async def _write_script2shots_template(content: str) -> None:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        await connection.execute(
+            "UPDATE prompt_templates SET content = $1 WHERE key = 'script2shots'",
+            content,
+        )
+    finally:
+        await connection.close()
+
+
+async def _read_task(task_id: int) -> dict[str, object]:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        row = await connection.fetchrow(
+            """
+            SELECT type, target_id, request_id, status, progress, payload
+            FROM tasks
+            WHERE id = $1
+            """,
+            task_id,
+        )
+        assert row is not None
+        payload = row["payload"]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        assert isinstance(payload, dict)
+        return {
+            "type": row["type"],
+            "target_id": row["target_id"],
+            "request_id": row["request_id"],
+            "status": row["status"],
+            "progress": row["progress"],
+            "payload": payload,
+        }
+    finally:
+        await connection.close()
+
+
+async def _task_count() -> int:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        return await connection.fetchval("SELECT count(*) FROM tasks")
+    finally:
+        await connection.close()
+
+
+async def _active_generate_tasks(episode_id: int) -> list[asyncpg.Record]:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        return await connection.fetch(
+            """
+            SELECT id, type, target_id, request_id, status, progress
+            FROM tasks
+            WHERE type = 'gen_shots' AND target_id = $1
+              AND status IN ('queued', 'running')
+            ORDER BY id
+            """,
+            episode_id,
+        )
+    finally:
+        await connection.close()
+
+
+async def _mark_generate_task_done(task_id: int) -> None:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        await connection.execute(
+            """
+            UPDATE tasks
+            SET status = 'done', progress = 1, finished_at = now()
+            WHERE id = $1
+            """,
+            task_id,
+        )
+    finally:
+        await connection.close()
+
+
+def _assert_no_unique_items(value: object) -> None:
+    if isinstance(value, dict):
+        assert "uniqueItems" not in value
+        for nested in value.values():
+            _assert_no_unique_items(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            _assert_no_unique_items(nested)
+
+
+def test_generate_shots_requires_assets() -> None:
+    fixture = asyncio.run(_create_generate_fixture(with_assets=False))
+    try:
+        with TestClient(app) as client:
+            app.state.task_worker_stop.set()
+            before = asyncio.run(_task_count())
+            impact = client.post(
+                f"/api/episodes/{fixture['episode_id']}/generate-shots/impact",
+                content=b"",
+            )
+            assert impact.status_code == 200
+            assert impact.json() == {
+                "clips_count": 0,
+                "videos_count": 0,
+                "confirm_token": None,
+                "expires_in": None,
+            }
+            response = client.post(
+                f"/api/episodes/{fixture['episode_id']}/generate-shots",
+                json={},
+            )
+            _assert_error(response, 409, "conflict")
+            assert asyncio.run(_task_count()) == before
+    finally:
+        asyncio.run(_cleanup_generate_fixture(fixture))
+
+
+def test_generate_shots_enqueues_exact_snapshot_and_dynamic_schema() -> None:
+    original_template = asyncio.run(_read_script2shots_template())
+    template = "prefix={{assets}}|style={{style}}|script={{script}}|suffix"
+    asyncio.run(_write_script2shots_template(template))
+    fixture = asyncio.run(_create_generate_fixture(with_assets=True))
+    task_ids: list[int] = []
+    try:
+        with TestClient(app) as client:
+            app.state.task_worker_stop.set()
+            url = f"/api/episodes/{fixture['episode_id']}/generate-shots"
+            for body in (
+                None,
+                b"null",
+                b"[]",
+                b'{"request_id":"not-allowed"}',
+                b'{"confirm_token":17}',
+                b'{"confirm_token":""}',
+                b'{"confirm_token":"   "}',
+            ):
+                kwargs: dict[str, object] = {}
+                if body is not None:
+                    kwargs["content"] = body
+                    kwargs["headers"] = {"content-type": "application/json"}
+                invalid = client.post(url, **kwargs)
+                _assert_error(invalid, 422, "validation_error")
+
+            missing = client.post(url, json={})
+            _assert_error(missing, 409, "conflict")
+            impact = client.post(
+                f"{url}/impact",
+                content=b"",
+            )
+            assert impact.status_code == 200
+            token = impact.json()["confirm_token"]
+            assert isinstance(token, str) and token
+            valid = client.post(url, json={"confirm_token": token})
+            assert valid.status_code == 202
+            assert valid.json().keys() == {"task_id"}
+            task_id = valid.json()["task_id"]
+            assert isinstance(task_id, int) and task_id > 0
+            task_ids.append(task_id)
+
+            task = asyncio.run(_read_task(task_id))
+            assert task["type"] == "gen_shots"
+            assert task["target_id"] == fixture["episode_id"]
+            assert task["request_id"] is None
+            assert task["status"] == "queued"
+            assert task["progress"] == 0
+            payload = task["payload"]
+            assert isinstance(payload, dict)
+            assert set(payload) == {
+                "input_snapshot",
+                "input_hash",
+                "source_revisions",
+            }
+            assert payload["input_hash"] is None
+
+            snapshot = payload["input_snapshot"]
+            assert isinstance(snapshot, dict)
+            assert set(snapshot) == {
+                "episode_id",
+                "project_id",
+                "script",
+                "script_revision",
+                "style",
+                "template_key",
+                "template_content",
+                "assets",
+                "rendered_prompt",
+                "model",
+                "temperature",
+                "guided_json_schema",
+                "replacement_snapshot",
+            }
+            assert snapshot["episode_id"] == fixture["episode_id"]
+            assert snapshot["project_id"] == fixture["project_id"]
+            assert snapshot["script"] == "剧本 {{style}}"
+            assert snapshot["script_revision"] == 1
+            assert snapshot["style"] == "冷峻写实"
+            assert snapshot["template_key"] == "script2shots"
+            assert snapshot["template_content"] == template
+            expected_assets = [
+                {
+                    "id": fixture["valid_asset_ids"][0],
+                    "type": "character",
+                    "name": "林夏",
+                    "description": "短发，穿蓝色外套",
+                },
+                {
+                    "id": fixture["valid_asset_ids"][1],
+                    "type": "scene",
+                    "name": "旧车站",
+                    "description": "雨夜的空旷站台",
+                },
+            ]
+            assert snapshot["assets"] == expected_assets
+            assert snapshot["rendered_prompt"] == (
+                'prefix=[{"id":%d,"type":"character","name":"林夏",'
+                '"description":"短发，穿蓝色外套"},{"id":%d,"type":"scene",'
+                '"name":"旧车站","description":"雨夜的空旷站台"}]|'
+                "style=冷峻写实|script=剧本 {{style}}|suffix"
+                % tuple(fixture["valid_asset_ids"])
+            )
+            assert snapshot["model"] == "Qwen3-30B-A3B-Instruct-2507-AWQ-4bit"
+            assert snapshot["temperature"] == 0.2
+
+            schema = snapshot["guided_json_schema"]
+            assert isinstance(schema, dict)
+            _assert_no_unique_items(schema)
+            assert schema["type"] == "json_schema"
+            assert schema["json_schema"]["name"] == "script2shots"
+            assert schema["json_schema"]["strict"] is True
+            inner = schema["json_schema"]["schema"]
+            assert set(inner) == {
+                "type",
+                "properties",
+                "required",
+                "additionalProperties",
+            }
+            assert inner["type"] == "object"
+            assert inner["required"] == ["shots"]
+            assert inner["additionalProperties"] is False
+            shots_schema = inner["properties"]["shots"]
+            assert set(shots_schema) == {"type", "items"}
+            item_schema = shots_schema["items"]
+            assert set(item_schema["properties"]) == {
+                "order",
+                "duration_est",
+                "shot_type",
+                "camera",
+                "description",
+                "dialogue",
+                "asset_ids",
+            }
+            assert item_schema["required"] == [
+                "order",
+                "duration_est",
+                "shot_type",
+                "camera",
+                "description",
+                "dialogue",
+                "asset_ids",
+            ]
+            assert item_schema["additionalProperties"] is False
+            assert item_schema["properties"]["duration_est"] == {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 5,
+            }
+            assert item_schema["properties"]["shot_type"]["enum"] == [
+                "远景",
+                "全景",
+                "中景",
+                "近景",
+                "特写",
+            ]
+            assert item_schema["properties"]["camera"]["enum"] == [
+                "固定",
+                "推",
+                "拉",
+                "摇",
+                "移",
+                "跟",
+                "手持",
+            ]
+            assert item_schema["properties"]["asset_ids"]["items"]["enum"] == fixture["valid_asset_ids"]
+            assert "minItems" not in shots_schema
+
+            replacement = snapshot["replacement_snapshot"]
+            assert replacement == {
+                "shots": fixture["shot_snapshot"],
+                "clips": fixture["clip_snapshot"],
+                "clip_video_ids": [
+                    item["id"] for item in fixture["video_media"]
+                ],
+                "clip_media": fixture["video_media"] + fixture["override_media"],
+            }
+            assert set(replacement) == {
+                "shots",
+                "clips",
+                "clip_video_ids",
+                "clip_media",
+            }
+            media = replacement["clip_media"]
+            assert all(set(item) == {"kind", "id", "path"} for item in media)
+            video_items = [item for item in media if item["kind"] == "clip_video"]
+            override_items = [
+                item for item in media if item["kind"] == "slot_override"
+            ]
+            assert media == video_items + override_items
+            assert [item["id"] for item in video_items] == sorted(
+                item["id"] for item in video_items
+            )
+            assert [item["id"] for item in override_items] == sorted(
+                item["id"] for item in override_items
+            )
+            assert replacement["clip_video_ids"] == [
+                item["id"] for item in video_items
+            ]
+            revisions = payload["source_revisions"]
+            assert revisions == {
+                "episode": {
+                    "id": fixture["episode_id"],
+                    "script_revision": 1,
+                },
+                "assets": [
+                    {"id": asset_id, "revision": 1}
+                    for asset_id in fixture["valid_asset_ids"]
+                ],
+                "shots": fixture["shot_snapshot"],
+                "clips": fixture["clip_snapshot"],
+            }
+    finally:
+        asyncio.run(_write_script2shots_template(original_template))
+        asyncio.run(_cleanup_generate_fixture(fixture, task_ids))
+
+
+def test_generate_shots_active_conflict() -> None:
+    original_template = asyncio.run(_read_script2shots_template())
+    asyncio.run(
+        _write_script2shots_template(
+            "assets={{assets}}|style={{style}}|script={{script}}"
+        )
+    )
+    fixture = asyncio.run(_create_generate_fixture(with_assets=True))
+    task_ids: list[int] = []
+    try:
+        with TestClient(app) as client:
+            app.state.task_worker_stop.set()
+            url = f"/api/episodes/{fixture['episode_id']}/generate-shots"
+            impact = client.post(f"{url}/impact", content=b"")
+            assert impact.status_code == 200
+            token = impact.json()["confirm_token"]
+            assert isinstance(token, str) and token
+
+            def submit() -> object:
+                return client.post(url, json={"confirm_token": token})
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                responses = list(executor.map(lambda _: submit(), (1, 2)))
+            assert sorted(response.status_code for response in responses) == [202, 409]
+            for response in responses:
+                if response.status_code == 202:
+                    task_ids.append(response.json()["task_id"])
+                else:
+                    _assert_error(response, 409, "conflict")
+            assert len(task_ids) == 1
+            active = asyncio.run(_active_generate_tasks(fixture["episode_id"]))
+            assert len(active) == 1
+            assert active[0]["id"] == task_ids[0]
+            assert active[0]["type"] == "gen_shots"
+            assert active[0]["target_id"] == fixture["episode_id"]
+            assert active[0]["request_id"] is None
+            assert active[0]["status"] == "queued"
+            assert active[0]["progress"] == 0
+
+            asyncio.run(_mark_generate_task_done(task_ids[0]))
+            next_impact = client.post(f"{url}/impact", content=b"")
+            assert next_impact.status_code == 200
+            next_token = next_impact.json()["confirm_token"]
+            assert isinstance(next_token, str) and next_token
+            after_terminal = client.post(url, json={"confirm_token": next_token})
+            assert after_terminal.status_code == 202
+            task_ids.append(after_terminal.json()["task_id"])
+            assert task_ids[-1] != task_ids[0]
+    finally:
+        asyncio.run(_write_script2shots_template(original_template))
+        asyncio.run(_cleanup_generate_fixture(fixture, task_ids))

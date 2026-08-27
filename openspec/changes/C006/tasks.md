@@ -40,7 +40,7 @@
 
 ### T3 generate-shots 入队、快照与 active 去重
 
-- [ ] 实现 `POST /api/episodes/{id}/generate-shots` 的精确 body/token/前置条件合同；在同一入队真相中渲染正式模板、冻结四字段资产、动态 schema、替换结构与 source revisions，以三键 payload 和 `request_id=null` 入队，并保持同目标 active 冲突 409。
+- [x] 实现 `POST /api/episodes/{id}/generate-shots` 的精确 body/token/前置条件合同；在同一入队真相中渲染正式模板、冻结四字段资产、动态 schema、替换结构与 source revisions，以三键 payload 和 `request_id=null` 入队，并保持同目标 active 冲突 409。
   - **前置 task：** T2。
   - **R：** R1、R3；对应 PRD §2.1(4,11)、§3.1-§3.2、§5、§6.1-§6.2、§7。
   - **范围：** 只到 queued task；请求线程不得调用 vLLM，不执行覆盖，不增加 request_id/hash/If-Match/模板版本。
