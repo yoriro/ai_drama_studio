@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -1314,6 +1315,236 @@ def test_gen_shots_success_replaces_episode_and_trashes_clip_media(
             for fixture in reversed(fixtures):
                 await _cleanup_replace_fixture(fixture, task_ids)
             event.remove(Session, "before_commit", fail_before_commit)
+            await engine.dispose()
+
+    asyncio.run(run())
+
+
+class _FailureVLLM:
+    def __init__(self, stage: str) -> None:
+        self.stage = stage
+        self.wake_calls = 0
+        self.chat_calls: list[dict[str, object]] = []
+
+    async def wake(self) -> None:
+        self.wake_calls += 1
+        if self.stage == "wake":
+            raise RuntimeError("simulated wake failure")
+
+    async def structured_chat(self, **request: object) -> dict[str, object]:
+        self.chat_calls.append(request)
+        if self.stage == "chat":
+            raise RuntimeError("simulated vLLM HTTP 503")
+        raise AssertionError("structured_chat was not expected for this failure")
+
+
+async def _mutate_database(statement: str, *arguments: object) -> None:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        await connection.execute(statement, *arguments)
+    finally:
+        await connection.close()
+
+
+def test_gen_shots_failures_preserve_existing_structure(monkeypatch, tmp_path) -> None:
+    async def run() -> None:
+        monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
+        engine = create_async_engine(os.environ["DATABASE_URL"])
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        monkeypatch.setattr("app.services.gen_shots.async_session_factory", session_factory)
+        monkeypatch.setattr("app.tasks.gen_shots.async_session_factory", session_factory)
+        fake_holder: dict[str, object] = {"value": None}
+        monkeypatch.setattr(
+            "app.tasks.gen_shots.VLLMClient",
+            lambda base_url: fake_holder["value"],
+        )
+
+        async def failure_case(
+            fake: object,
+            expected_error: str,
+            *,
+            mutate: Callable[[dict[str, object]], Awaitable[None]] | None = None,
+            missing_last_file: bool = False,
+        ) -> None:
+            fixture = await _create_replace_fixture(tmp_path)
+            task_ids: list[int] = []
+            try:
+                payload = _replace_payload(fixture)
+                if mutate is not None:
+                    await mutate(fixture)
+                before_target, before_other = await _read_replace_structure(fixture)
+                if missing_last_file:
+                    last_media = fixture["target_media"][-1]
+                    (tmp_path / Path(last_media["path"])).unlink()
+                fake_holder["value"] = fake
+                task_id = await _insert_task(
+                    payload, fixture["target_episode_id"], session_factory
+                )
+                task_ids.append(task_id)
+                await _run_task(task_id, session_factory)
+                status, error_msg = await _read_task(task_id, session_factory)
+                assert status == "failed"
+                assert error_msg is not None
+                assert expected_error in error_msg
+                after_target, after_other = await _read_replace_structure(fixture)
+                assert after_target == before_target
+                assert after_other == before_other
+                if hasattr(fake, "wake_calls"):
+                    assert fake.wake_calls == 1
+                if hasattr(fake, "chat_calls"):
+                    assert len(fake.chat_calls) == (0 if getattr(fake, "stage", None) == "wake" else 1)
+                for media in fixture["target_media"]:
+                    media_path = Path(media["path"])
+                    source = tmp_path / media_path
+                    trash = tmp_path / "trash" / media_path
+                    if missing_last_file and media is fixture["target_media"][-1]:
+                        assert not source.exists()
+                    else:
+                        assert source.is_file()
+                    assert not trash.exists()
+                assert app.state.task_handlers["gen_shots"] is gen_shots_handler
+            finally:
+                await _cleanup_replace_fixture(fixture, task_ids)
+
+        try:
+            await failure_case(_FailureVLLM("wake"), "simulated wake failure")
+            await failure_case(_FailureVLLM("chat"), "simulated vLLM HTTP 503")
+            await failure_case(
+                _FakeVLLM(_response("not valid json")),
+                "vLLM response is not a valid script2shots JSON object",
+            )
+
+            deleted_asset_fixture = await _create_replace_fixture(tmp_path)
+            deleted_asset_tasks: list[int] = []
+            try:
+                deleted_asset_id = deleted_asset_fixture["asset_ids"][0]
+                await _mutate_database(
+                    "DELETE FROM assets WHERE id = $1", deleted_asset_id
+                )
+                before_target, before_other = await _read_replace_structure(
+                    deleted_asset_fixture
+                )
+                fake = _FakeVLLM(
+                    _response(
+                        {
+                            "shots": [
+                                _shot(asset_ids=[deleted_asset_id]),
+                            ]
+                        }
+                    )
+                )
+                fake_holder["value"] = fake
+                task_id = await _insert_task(
+                    _replace_payload(deleted_asset_fixture),
+                    deleted_asset_fixture["target_episode_id"],
+                    session_factory,
+                )
+                deleted_asset_tasks.append(task_id)
+                await _run_task(task_id, session_factory)
+                status, error_msg = await _read_task(task_id, session_factory)
+                assert status == "failed"
+                assert error_msg is not None
+                assert "no longer valid for the project" in error_msg
+                assert fake.wake_calls == 1
+                assert len(fake.chat_calls) == 1
+                after_target, after_other = await _read_replace_structure(
+                    deleted_asset_fixture
+                )
+                assert after_target == before_target
+                assert after_other == before_other
+            finally:
+                await _cleanup_replace_fixture(
+                    deleted_asset_fixture, deleted_asset_tasks
+                )
+
+            snapshot_row = await _create_replace_fixture(tmp_path)
+            snapshot_tasks: list[int] = []
+            try:
+                await _mutate_database(
+                    "UPDATE shots SET revision = revision + 1 WHERE id = $1",
+                    snapshot_row["target_shot_ids"][0],
+                )
+                before_target, before_other = await _read_replace_structure(snapshot_row)
+                fake = _FakeVLLM(
+                    _response({"shots": [_shot(asset_ids=[snapshot_row["asset_ids"][0]])]})
+                )
+                fake_holder["value"] = fake
+                task_id = await _insert_task(
+                    _replace_payload(snapshot_row),
+                    snapshot_row["target_episode_id"],
+                    session_factory,
+                )
+                snapshot_tasks.append(task_id)
+                await _run_task(task_id, session_factory)
+                status, error_msg = await _read_task(task_id, session_factory)
+                assert status == "failed"
+                assert error_msg is not None
+                assert "replacement snapshot shots changed" in error_msg
+                assert fake.wake_calls == 1
+                assert len(fake.chat_calls) == 1
+                after_target, after_other = await _read_replace_structure(snapshot_row)
+                assert after_target == before_target
+                assert after_other == before_other
+            finally:
+                await _cleanup_replace_fixture(snapshot_row, snapshot_tasks)
+
+            async def change_clip_revision(fixture: dict[str, object]) -> None:
+                await _mutate_database(
+                    "UPDATE clips SET revision = revision + 1 WHERE id = $1",
+                    fixture["target_clip_ids"][0],
+                )
+
+            await failure_case(
+                _FakeVLLM(
+                    _response(
+                        {
+                            "shots": [
+                                _shot(asset_ids=[]),
+                            ]
+                        }
+                    )
+                ),
+                "replacement snapshot clips changed",
+                mutate=change_clip_revision,
+            )
+
+            async def change_media_owner(fixture: dict[str, object]) -> None:
+                await _mutate_database(
+                    """
+                    UPDATE clip_videos
+                    SET clip_id = $2, is_current = false
+                    WHERE id = $1
+                    """,
+                    fixture["target_video_ids"][0],
+                    fixture["other_clip_id"],
+                )
+
+            await failure_case(
+                _FakeVLLM(_response({"shots": [_shot(asset_ids=[])]})),
+                "replacement snapshot clip videos changed",
+                mutate=change_media_owner,
+            )
+
+            async def change_media_path(fixture: dict[str, object]) -> None:
+                media_path = fixture["target_media"][0]["path"]
+                await _mutate_database(
+                    "UPDATE clip_videos SET file_path = $2 WHERE id = $1",
+                    fixture["target_video_ids"][0],
+                    f"{media_path}.changed",
+                )
+
+            await failure_case(
+                _FakeVLLM(_response({"shots": [_shot(asset_ids=[])]})),
+                "replacement snapshot clip video changed",
+                mutate=change_media_path,
+            )
+
+            await failure_case(
+                _FakeVLLM(_response({"shots": [_shot(asset_ids=[])]})),
+                "FileNotFoundError",
+                missing_last_file=True,
+            )
+        finally:
             await engine.dispose()
 
     asyncio.run(run())
