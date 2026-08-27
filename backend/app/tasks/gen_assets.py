@@ -20,6 +20,10 @@ _POSTGRES_INTEGER_MIN = -(2**31)
 _POSTGRES_INTEGER_MAX = 2**31 - 1
 
 
+class _CanceledBeforeCommit(Exception):
+    """The task cancellation won the final business commit race."""
+
+
 async def _merge_generated_assets(
     session: AsyncSession,
     task: ClaimedTask,
@@ -129,6 +133,24 @@ async def gen_assets_handler(
     safe_point = await context.cancel_safe_point()
     if safe_point.task is not None and safe_point.task.status == "canceled":
         return
-    async with async_session_factory() as session:
-        async with session.begin():
-            await _merge_generated_assets(session, task, result)
+    try:
+        async with async_session_factory() as session:
+            async with session.begin():
+                await _merge_generated_assets(session, task, result)
+                completed = await context.queue.complete(session, task.id)
+                if not completed.changed:
+                    if completed.task is not None and (
+                        completed.task.status == "canceled"
+                        or (
+                            completed.task.status == "running"
+                            and completed.task.cancel_requested_at is not None
+                        )
+                    ):
+                        raise _CanceledBeforeCommit
+                    raise RuntimeError(
+                        f"gen_assets task {task.id} did not transition to done"
+                    )
+    except _CanceledBeforeCommit:
+        await context.cancel_safe_point()
+        return
+    await context.queue.publish_committed(completed)
