@@ -111,7 +111,7 @@
 
 ### T8 资产编辑/换图/删除对 Shot/Clip 的 C006 级联
 
-- [ ] 扩展现有资产 mutation：name/description/current image 实际变化使绑定 Shot 各 revision+1/changed、相关 Clip stale；删除前定位关系，解绑后 changed/stale，并保留 C003 图片 trash。no-op 与重复命中不重复递增。
+- [x] 扩展现有资产 mutation：name/description/current image 实际变化使绑定 Shot 各 revision+1/changed、相关 Clip stale；删除前定位关系，解绑后 changed/stale，并保留 C003 图片 trash。no-op 与重复命中不重复递增。
   - **前置 task：** T7。
   - **R：** 无；对应 PRD §3.2 修订、§3.3“编辑资产/换当前图”“删除资产”、§6.4；R12 完整槽位行为明确不在本 task。
   - **范围：** 只增加 C006 可达 Shot/Clip 状态级联；不实现槽位启停/override/快照 UI，不删 clip 视频，不改变 generation_state。

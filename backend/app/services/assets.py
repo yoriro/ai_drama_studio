@@ -3,12 +3,12 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 from PIL import Image
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Asset, AssetImage, Project
+from app.models import Asset, AssetImage, Clip, ClipShot, Project, Shot, ShotAsset
 from app.schemas.assets import AssetCreate, AssetPatch
 from app.services.asset_files import (
     asset_image_path,
@@ -34,6 +34,35 @@ def _project_not_found() -> HTTPException:
 
 def _is_visible_asset(asset: Asset) -> bool:
     return asset.type in _VISIBLE_ASSET_TYPES
+
+
+async def _mark_asset_dependents_changed(
+    session: AsyncSession, asset_id: int
+) -> None:
+    shot_result = await session.execute(
+        select(ShotAsset.shot_id).where(ShotAsset.asset_id == asset_id)
+    )
+    shot_ids = [row[0] for row in shot_result.all()]
+    if not shot_ids:
+        return
+
+    clip_result = await session.execute(
+        select(ClipShot.clip_id)
+        .where(ClipShot.shot_id.in_(shot_ids))
+        .distinct()
+    )
+    clip_ids = [row[0] for row in clip_result.all()]
+    await session.execute(
+        update(Shot)
+        .where(Shot.id.in_(shot_ids))
+        .values(status="changed", revision=Shot.revision + 1)
+    )
+    if clip_ids:
+        await session.execute(
+            update(Clip)
+            .where(Clip.id.in_(clip_ids))
+            .values(freshness="stale")
+        )
 
 
 async def list_assets(session: AsyncSession, project_id: int) -> list[Asset]:
@@ -100,6 +129,7 @@ async def update_asset(
         if changed:
             asset.revision += 1
             asset.updated_at = datetime.now(timezone.utc)
+            await _mark_asset_dependents_changed(session, asset.id)
         await session.flush()
     return asset
 
@@ -310,6 +340,7 @@ async def set_current_asset_image(
             image.is_current = True
             asset.revision += 1
             asset.updated_at = datetime.now(timezone.utc)
+            await _mark_asset_dependents_changed(session, asset.id)
             await session.flush()
     return image
 
@@ -351,6 +382,8 @@ async def delete_asset(session: AsyncSession, asset_id: int) -> None:
             if asset is None or not _is_visible_asset(asset):
                 raise _asset_not_found()
 
+            await _mark_asset_dependents_changed(session, asset.id)
+
             image_result = await session.execute(
                 select(AssetImage)
                 .where(AssetImage.asset_id == asset_id)
@@ -370,6 +403,9 @@ async def delete_asset(session: AsyncSession, asset_id: int) -> None:
 
             await session.execute(
                 delete(AssetImage).where(AssetImage.asset_id == asset_id)
+            )
+            await session.execute(
+                delete(ShotAsset).where(ShotAsset.asset_id == asset_id)
             )
             await session.delete(asset)
             await session.flush()
