@@ -130,16 +130,22 @@ Luna 一次只领取一个 checkbox；每项只允许实现本 task 明列范围
 
 ### T9 C005 全链路、追溯与范围收口
 
-- [ ] 只汇总并复跑 T1-T8 的真实证据，回填实际通过的 TRACEABILITY node ID，完成真实 vLLM、PostgreSQL、API、task/WS、浏览器与范围围栏收口；失败项保持未完成并原样报告。
+- [x] 只汇总并复跑 T1-T8 的真实证据，回填实际通过的 TRACEABILITY node ID，完成真实 vLLM、PostgreSQL、API、task/WS、浏览器与范围围栏收口；失败项保持未完成并原样报告。
   - **前置 task：** T1-T8。
   - **R：** R2；对应 PRD §0、§2.1(4,11)、§3.1-§3.3、§5、§6.1-§6.4、§7、§9-§12。
   - **范围：** 只复跑验收、回填追溯表和记录证据；不新增实现、测试、migration、临时修复、后续 handler 或伪造外部结果。发现失败必须回到对应未完成 task，不能在 T9 顺手修。
   - **覆盖 AC：** AC-01 至 AC-15。
+  - **双数据库验收边界：**
+    1. **干净 pytest 库**：使用一个全新空 PostgreSQL 数据库，只执行仓库现有 `alembic upgrade head` 后运行自动测试。该库在 pytest 启动前的四个模板应保持迁移初始值，其中 `script2assets` 以 `[占位]` 开头；不得在此库执行 T1 的正式模板部署，也不得由操作者在 pytest 前后为通过测试临时 PATCH、恢复或特判模板。授权测试内部对模板 API 的调用及其清理仍按既有用例执行。
+    2. **正式模板验收库**：使用与 pytest 库不同的 PostgreSQL 数据库，保留 T1 已保存并读回的正式 `script2assets`，只用于真实 vLLM、API、task/WS、资产入库和浏览器走查。不得把正式模板改回占位，也不得在此库运行依赖“空库迁移初始值”的 C002 全量测试。
+    3. 两个 DSN 必须解析到不同 database name；只报告脱敏后的 host/port/database name，不提交密码。任一数据库证据缺失、两个变量实际指向同一库，或任一链路失败，T9 均保持未勾选。
   - **验收方式：**
-    1. 在 `backend/` 对 C005 专用 PostgreSQL 运行 `python -m alembic current`、`python -m alembic check`、四个 C005 测试 node 和 `python -m pytest -q tests`；保存实际 stdout/stderr，Alembic 必须无新操作。
-    2. 使用 T1 真实 vLLM 从集工作区完成：保存剧本→生成资产→任务 queued/running/done→资产页呈现；再验证运行中改剧本的旧角标、active 双击 409、非法 existing_id warning 与失败无部分写入。
-    3. 在 `frontend/` 运行 `npm run build`；浏览器保存 POST、任务 REST/WS、结果刷新、角标出现/消失和失败 `detail.message` 的证据。
-    4. 核对 TRACEABILITY 仅回填 T3-T6 实际通过的 node ID，不为 UI/配置另造用例；运行 `git diff --name-status 46eadcc -- backend/tests`，输出只允许新增本文件授权的 C005 测试；再运行 `git diff --exit-code --diff-filter=DMRTUXB 46eadcc -- backend/tests`，必须无输出且退出码 0，以证明既有测试未修改/删除/重命名/弱化。
-    5. 在仓库根运行 `git diff --check`、`git status --short`，并运行 `rg -n -i "generation_runs|continuity|context_loop|fl2v|audio|音频|候选分镜|资产别名|版本化|retry|重试|gen_shots|generate-image|generate-video|comfy|sleep|free" backend frontend`，逐项审查合法命中；vLLM transport 自动 retry、业务 fallback、后续能力或围栏违规必须为零。
+    1. 由操作者分别提供不含占位值的 `$env:C005_PYTEST_DATABASE_URL` 与 `$env:C005_ACCEPTANCE_DATABASE_URL`；人工核对两者的 database name 不同。不得打印完整 DSN。
+    2. 在 `backend/` 指向全新空 pytest 库运行 `$env:DATABASE_URL=$env:C005_PYTEST_DATABASE_URL`，随后依次运行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、T3-T6 明列的全部 C005 测试 node 和 `python -m pytest -q tests`；保存实际 stdout/stderr。全量 pytest 必须成功，且不得修改既有 C002 测试或由操作者在测试前后改写迁移初始模板。
+    3. 切换到正式模板验收库：运行 `$env:DATABASE_URL=$env:C005_ACCEPTANCE_DATABASE_URL`，再运行 `python -m alembic current` 与 `python -m alembic check`；通过 `GET /api/prompt-templates` 读回并逐字核对 `script2assets` 仍为 spec §5.1 正式正文，而非 `[占位]`。
+    4. 在正式模板验收库使用 T1 真实 vLLM 从集工作区完成：保存剧本→生成资产→任务 queued/running/done→资产页呈现；再验证运行中改剧本的旧角标、active 双击 409、非法 existing_id warning 与失败无部分写入。
+    5. 在 `frontend/` 运行 `npm run build`；浏览器保存 POST、任务 REST/WS、结果刷新、角标出现/消失和失败 `detail.message` 的证据。
+    6. 核对 TRACEABILITY 仅回填 T3-T6 实际通过的 node ID，不为 UI/配置另造用例；运行 `git diff --name-status 46eadcc -- backend/tests`，输出只允许新增本文件授权的 C005 测试；再运行 `git diff --exit-code --diff-filter=DMRTUXB 46eadcc -- backend/tests`，必须无输出且退出码 0，以证明既有测试未修改/删除/重命名/弱化。
+    7. 在仓库根运行 `git diff --check`、`git status --short`，并运行 `rg -n -i "generation_runs|continuity|context_loop|fl2v|audio|音频|候选分镜|资产别名|版本化|retry|重试|gen_shots|generate-image|generate-video|comfy|sleep|free" backend frontend`，逐项审查合法命中；vLLM transport 自动 retry、业务 fallback、后续能力或围栏违规必须为零。
   - **计划测试层级：** 不新增自动测试；理由：本 task 只复跑 T3-T6 已授权测试与真实全链路，不产生新场景或新用例。
   - **追溯行：** 不适用。
