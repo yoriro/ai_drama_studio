@@ -1,7 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 
-import { generateAssets, getEpisode, getProject, updateEpisode } from "../api";
+import {
+  generateAssets,
+  generateShots,
+  getEpisode,
+  getProject,
+  readGenerateShotsImpact,
+  updateEpisode,
+} from "../api";
 import type { Episode, Project } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
@@ -145,6 +152,11 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
   const [generating, setGenerating] = useState(false);
   const [generationTaskId, setGenerationTaskId] = useState<number | null>(null);
   const [generationError, setGenerationError] = useState<unknown>(null);
+  const [generatingShots, setGeneratingShots] = useState(false);
+  const [shotGenerationTaskId, setShotGenerationTaskId] = useState<number | null>(
+    null,
+  );
+  const [shotGenerationError, setShotGenerationError] = useState<unknown>(null);
   const [error, setError] = useState<unknown>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -190,6 +202,34 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
     }
   }
 
+  async function handleGenerateShots() {
+    setGeneratingShots(true);
+    setShotGenerationError(null);
+    setShotGenerationTaskId(null);
+    try {
+      const impact = await readGenerateShotsImpact(episode.id);
+      let confirmToken: string | undefined;
+      if (impact.clips_count !== 0 || impact.videos_count !== 0) {
+        const confirmed = window.confirm(
+          `将删除片段 ${impact.clips_count} 个\n将删除视频 ${impact.videos_count} 个\n确认生成分镜？`,
+        );
+        if (!confirmed) {
+          return;
+        }
+        if (impact.confirm_token === null) {
+          throw new Error("影响预检未返回确认 token");
+        }
+        confirmToken = impact.confirm_token;
+      }
+      const result = await generateShots(episode.id, confirmToken);
+      setShotGenerationTaskId(result.task_id);
+    } catch (requestError: unknown) {
+      setShotGenerationError(requestError);
+    } finally {
+      setGeneratingShots(false);
+    }
+  }
+
   function handleCancelEditing() {
     setEditing(false);
     setScriptText(episode.script_text);
@@ -228,6 +268,12 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
             >
               {generating ? "提交生成任务…" : "生成资产"}
             </button>
+            <button
+              type="button"
+              onClick={() => void handleGenerateShots()}
+            >
+              {generatingShots ? "检查分镜生成影响…" : "生成分镜"}
+            </button>
           </div>
           {generationError !== null && (
             <ApiErrorMessage error={generationError} />
@@ -235,6 +281,15 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           {generationTaskId !== null && (
             <p className="success-message" role="status">
               资产生成任务已提交：#{generationTaskId}。{" "}
+              <Link to="/tasks">前往任务中心</Link>
+            </p>
+          )}
+          {shotGenerationError !== null && (
+            <ApiErrorMessage error={shotGenerationError} />
+          )}
+          {shotGenerationTaskId !== null && (
+            <p className="success-message" role="status">
+              分镜生成任务已提交：#{shotGenerationTaskId}。{" "}
               <Link to="/tasks">前往任务中心</Link>
             </p>
           )}

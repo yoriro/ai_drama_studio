@@ -29,6 +29,17 @@ export interface GenerateAssetsResponse {
   task_id: number;
 }
 
+export interface GenerateShotsImpactResponse {
+  clips_count: number;
+  videos_count: number;
+  confirm_token: string | null;
+  expires_in: number | null;
+}
+
+export interface GenerateShotsResponse {
+  task_id: number;
+}
+
 const jsonHeaders = { "Content-Type": "application/json" };
 
 export function listEpisodes(projectId: number): Promise<Episode[]> {
@@ -62,6 +73,30 @@ export function generateAssets(id: number): Promise<GenerateAssetsResponse> {
   return requestJson<GenerateAssetsResponse>(
     `/episodes/${id}/generate-assets`,
     { method: "POST" },
+  );
+}
+
+export function readGenerateShotsImpact(
+  id: number,
+): Promise<GenerateShotsImpactResponse> {
+  return requestJson<GenerateShotsImpactResponse>(
+    `/episodes/${id}/generate-shots/impact`,
+    { method: "POST" },
+  );
+}
+
+export function generateShots(
+  id: number,
+  confirmToken?: string,
+): Promise<GenerateShotsResponse> {
+  const body = confirmToken === undefined ? {} : { confirm_token: confirmToken };
+  return requestJson<GenerateShotsResponse>(
+    `/episodes/${id}/generate-shots`,
+    {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify(body),
+    },
   );
 }
 

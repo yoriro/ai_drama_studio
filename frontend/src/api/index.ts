@@ -8,8 +8,10 @@ export {
   createEpisode,
   deleteEpisode,
   generateAssets,
+  generateShots,
   getEpisode,
   listEpisodes,
+  readGenerateShotsImpact,
   updateEpisode,
 } from "./episodes";
 export type {
@@ -17,6 +19,8 @@ export type {
   EpisodeCreate,
   EpisodePatch,
   GenerateAssetsResponse,
+  GenerateShotsImpactResponse,
+  GenerateShotsResponse,
 } from "./episodes";
 export { getHealth } from "./health";
 export {
