@@ -3,7 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.schemas.episodes import EpisodeCreate, EpisodePatch, EpisodeResponse
-from app.schemas.generation import GenerateAssetsResponse
+from app.schemas.generation import (
+    GenerateAssetsResponse,
+    GenerateShotsImpactResponse,
+)
 from app.services.episodes import (
     create_episode,
     delete_episode,
@@ -12,6 +15,7 @@ from app.services.episodes import (
     update_episode,
 )
 from app.services.generate_assets import enqueue_generate_assets
+from app.services.generate_shots import read_generate_shots_impact
 from app.tasks.queue import TaskConflictError, TaskQueue
 
 
@@ -72,6 +76,24 @@ async def generate_assets_route(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     await queue.publish_committed(result)
     return GenerateAssetsResponse(task_id=result.task.id)
+
+
+@router.post(
+    "/episodes/{episode_id}/generate-shots/impact",
+    response_model=GenerateShotsImpactResponse,
+)
+async def generate_shots_impact_route(
+    episode_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> GenerateShotsImpactResponse:
+    body = await request.body()
+    if body:
+        raise HTTPException(
+            status_code=422,
+            detail="Generate-shots impact request body must be empty",
+        )
+    return await read_generate_shots_impact(session, episode_id)
 
 
 @router.patch("/episodes/{episode_id}", response_model=EpisodeResponse)

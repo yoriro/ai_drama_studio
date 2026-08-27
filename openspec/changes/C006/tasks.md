@@ -27,7 +27,7 @@
 
 ### T2 impact/token API
 
-- [ ] 实现无 body 的 `POST /api/episodes/{id}/generate-shots/impact` 及 10 分钟进程内不透明 token：先做 episode/输入边界校验，准确快照 clip revision、video id 和 override 媒体引用，按 spec §3.1 返回固定响应；预检只读、重启失效，R1 只由 T3 generate 最终裁决。
+- [x] 实现无 body 的 `POST /api/episodes/{id}/generate-shots/impact` 及 10 分钟进程内不透明 token：先做 episode/输入边界校验，准确快照 clip revision、video id 和 override 媒体引用，按 spec §3.1 返回固定响应；预检只读、重启失效，R1 只由 T3 generate 最终裁决。
   - **前置 task：** T1。
   - **R：** R3；对应 PRD §3.1、§5 生成动作、§11 M2。
   - **范围：** 只实现影响读取与 token 生命周期；不创建 task、不删除数据、不持久化 token、不实现生成 handler。
