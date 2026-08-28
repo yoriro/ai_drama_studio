@@ -3,26 +3,34 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   createStyle,
   deleteStyle,
+  getHealth,
   listPromptTemplates,
   listStyles,
   updatePromptTemplate,
   updateStyle,
 } from "../api";
-import type { PromptTemplate, Style } from "../api";
+import type { HealthResponse, PromptTemplate, Style } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
 
+type LoadState = "loading" | "ready" | "error";
+
 export function SettingsPage() {
   const [styles, setStyles] = useState<Style[]>([]);
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>(
     {},
   );
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
+  const [stylesLoadState, setStylesLoadState] = useState<LoadState>("loading");
+  const [templatesLoadState, setTemplatesLoadState] = useState<LoadState>(
     "loading",
   );
-  const [loadError, setLoadError] = useState<unknown>(null);
+  const [healthLoadState, setHealthLoadState] = useState<LoadState>("loading");
+  const [stylesLoadError, setStylesLoadError] = useState<unknown>(null);
+  const [templatesLoadError, setTemplatesLoadError] = useState<unknown>(null);
+  const [healthLoadError, setHealthLoadError] = useState<unknown>(null);
   const [actionError, setActionError] = useState<unknown>(null);
   const [styleName, setStyleName] = useState("");
   const [stylePrompt, setStylePrompt] = useState("");
@@ -35,31 +43,75 @@ export function SettingsPage() {
 
   useEffect(() => {
     let disposed = false;
-    void Promise.all([listStyles(), listPromptTemplates()]).then(
-      ([loadedStyles, loadedTemplates]) => {
+
+    void listStyles().then(
+      (loadedStyles) => {
         if (disposed) {
           return;
         }
         setStyles(loadedStyles);
+        setStylesLoadState("ready");
+      },
+      (error: unknown) => {
+        if (!disposed) {
+          setStylesLoadError(error);
+          setStylesLoadState("error");
+        }
+      },
+    );
+
+    void listPromptTemplates().then(
+      (loadedTemplates) => {
+        if (disposed) {
+          return;
+        }
         setTemplates(loadedTemplates);
         setTemplateDrafts(
           Object.fromEntries(
             loadedTemplates.map((template) => [template.key, template.content]),
           ),
         );
-        setLoadState("ready");
+        setTemplatesLoadState("ready");
       },
       (error: unknown) => {
         if (!disposed) {
-          setLoadError(error);
-          setLoadState("error");
+          setTemplatesLoadError(error);
+          setTemplatesLoadState("error");
         }
       },
     );
+
+    void getHealth().then(
+      (loadedHealth) => {
+        if (!disposed) {
+          setHealth(loadedHealth);
+          setHealthLoadState("ready");
+        }
+      },
+      (error: unknown) => {
+        if (!disposed) {
+          setHealthLoadError(error);
+          setHealthLoadState("error");
+        }
+      },
+    );
+
     return () => {
       disposed = true;
     };
   }, []);
+
+  async function handleRefreshHealth() {
+    setHealthLoadError(null);
+    setHealthLoadState("loading");
+    try {
+      setHealth(await getHealth());
+      setHealthLoadState("ready");
+    } catch (error: unknown) {
+      setHealthLoadError(error);
+      setHealthLoadState("error");
+    }
+  }
 
   async function handleCreateStyle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,30 +197,82 @@ export function SettingsPage() {
     }
   }
 
-  if (loadState === "loading") {
-    return (
-      <>
-        <PageTitle>设置</PageTitle>
-        <p>正在加载风格与提示词模板…</p>
-      </>
-    );
-  }
-
-  if (loadState === "error") {
-    return (
-      <>
-        <PageTitle>设置</PageTitle>
-        <ApiErrorMessage error={loadError} />
-      </>
-    );
-  }
-
   return (
     <>
       <PageTitle>设置</PageTitle>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
+      <section className="settings-section" aria-labelledby="diagnostics-heading">
+        <div className="settings-section-heading">
+          <h2 id="diagnostics-heading">系统诊断</h2>
+          <button
+            disabled={healthLoadState === "loading"}
+            type="button"
+            onClick={() => void handleRefreshHealth()}
+          >
+            {healthLoadState === "loading" ? "诊断读取中…" : "刷新诊断"}
+          </button>
+        </div>
+        {healthLoadState === "loading" && <p>正在读取系统诊断…</p>}
+        {healthLoadError !== null && (
+          <ApiErrorMessage error={healthLoadError} />
+        )}
+        {health !== null && (
+          <dl className="diagnostic-list">
+            <div>
+              <dt>vLLM</dt>
+              <dd>
+                <span
+                  className={`diagnostic-status diagnostic-status-${health.vllm.status}`}
+                >
+                  {health.vllm.status}
+                </span>
+                {health.vllm.message !== null && (
+                  <span className="diagnostic-message">
+                    ：{health.vllm.message}
+                  </span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>ComfyUI</dt>
+              <dd>
+                <span
+                  className={`diagnostic-status diagnostic-status-${health.comfy.status}`}
+                >
+                  {health.comfy.status}
+                </span>
+                {health.comfy.message !== null && (
+                  <span className="diagnostic-message">
+                    ：{health.comfy.message}
+                  </span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Z-Image binding</dt>
+              <dd>
+                <span className="diagnostic-status diagnostic-status-valid">
+                  {health.workflow_bindings.status}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt>Z-Image workflow hash</dt>
+              <dd className="diagnostic-hash">
+                {health.workflow_bindings.hashes.zimage}
+              </dd>
+            </div>
+          </dl>
+        )}
+      </section>
       <section className="settings-section" aria-labelledby="styles-heading">
         <h2 id="styles-heading">风格</h2>
+        {stylesLoadState === "loading" && <p>正在加载风格…</p>}
+        {stylesLoadError !== null && (
+          <ApiErrorMessage error={stylesLoadError} />
+        )}
+        {stylesLoadState === "ready" && (
+          <>
         <form className="panel form-grid" onSubmit={handleCreateStyle}>
           <h3>创建风格</h3>
           <label>
@@ -247,10 +351,16 @@ export function SettingsPage() {
             ))}
           </section>
         )}
+          </>
+        )}
       </section>
       <section className="settings-section" aria-labelledby="templates-heading">
         <h2 id="templates-heading">提示词模板</h2>
-        {templates.length === 0 ? (
+        {templatesLoadState === "loading" && <p>正在加载提示词模板…</p>}
+        {templatesLoadError !== null && (
+          <ApiErrorMessage error={templatesLoadError} />
+        )}
+        {templatesLoadState === "ready" && (templates.length === 0 ? (
           <EmptyState message="暂无提示词模板" />
         ) : (
           <section className="entity-list" aria-label="提示词模板列表">
@@ -284,7 +394,7 @@ export function SettingsPage() {
               </form>
             ))}
           </section>
-        )}
+        ))}
       </section>
     </>
   );

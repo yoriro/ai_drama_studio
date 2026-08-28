@@ -33,14 +33,37 @@ export function BackendStatus({ state }: BackendStatusProps) {
   return (
     <section
       aria-label="后端连接状态"
-      className="backend-status backend-status-connected"
+      className={
+        state.health.vllm.status === "unhealthy" ||
+        state.health.comfy.status === "unhealthy"
+          ? "backend-status backend-status-error"
+          : "backend-status backend-status-connected"
+      }
+      role={
+        state.health.vllm.status === "unhealthy" ||
+        state.health.comfy.status === "unhealthy"
+          ? "alert"
+          : undefined
+      }
     >
-      <strong>后端已连接</strong>
+      <strong>
+        {state.health.vllm.status === "unhealthy" ||
+        state.health.comfy.status === "unhealthy"
+          ? "外部服务诊断异常"
+          : "后端已连接"}
+      </strong>
       <div className="backend-checks">
-        <span>vLLM：未检查</span>
-        <span>ComfyUI：未检查</span>
-        <span>工作流绑定：未检查</span>
+        <span>vLLM：{describeComponent(state.health.vllm)}</span>
+        <span>ComfyUI：{describeComponent(state.health.comfy)}</span>
+        <span>Z-Image binding：{state.health.workflow_bindings.status}</span>
       </div>
     </section>
   );
+}
+
+function describeComponent(component: HealthResponse["vllm"]): string {
+  if (component.status === "healthy") {
+    return "healthy";
+  }
+  return `unhealthy（${component.message}）`;
 }

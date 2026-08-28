@@ -223,7 +223,7 @@
   - 计划测试层级：API 集成。
   - 追溯行：`R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot`。
 
-- [ ] **T11 在设置页交付系统诊断面板**
+- [x] **T11 在设置页交付系统诊断面板**
   - 依赖：T3。
   - 改动清单：
     1. 更新前端 health 类型/解析器到 spec §2.3 精确状态与 message/hash，不宽容吞掉畸形 200。
@@ -238,6 +238,7 @@
     npm run build
     ```
     人工访问 `/settings`，记录初次诊断、手动刷新、单组件 unhealthy、请求级失败四种截图/文字证据。
+    2026-08-28 实际结果：生产 build 成功（55 modules transformed，vite built in 536ms）；隔离数据库完整 pytest 为 `100 passed in 34.35s`；真实浏览器完成 healthy、ComfyUI 停止后的 unhealthy/message、后端停止后的请求级错误、设置编辑保留与恢复刷新走查；原始输出见 `.work/c007/T11-test.log`。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用（仓库没有前端自动测试框架；后端 health 运行时合同已由 T3 对应追溯行覆盖）。
 

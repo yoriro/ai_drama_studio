@@ -23,6 +23,11 @@ export type {
   GenerateShotsResponse,
 } from "./episodes";
 export { getHealth } from "./health";
+export type {
+  HealthComponent,
+  HealthResponse,
+  WorkflowBindings,
+} from "./health";
 export {
   createAsset,
   deleteAsset,
