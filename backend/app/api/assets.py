@@ -1,4 +1,13 @@
-from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
@@ -8,6 +17,10 @@ from app.schemas.assets import (
     AssetImageResponse,
     AssetPatch,
     AssetResponse,
+)
+from app.schemas.generation import (
+    GenerateAssetImageRequest,
+    GenerateAssetImageResponse,
 )
 from app.services.assets import (
     create_asset,
@@ -20,9 +33,40 @@ from app.services.assets import (
     upload_asset_image,
     update_asset,
 )
+from app.services.generate_asset_image import enqueue_generate_asset_image
+from app.tasks.queue import TaskConflictError, TaskQueue, TaskValidationError
 
 
 router = APIRouter(tags=["assets"])
+
+
+@router.post(
+    "/assets/{asset_id}/generate-image",
+    response_model=GenerateAssetImageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_asset_image_route(
+    asset_id: int,
+    payload: GenerateAssetImageRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> GenerateAssetImageResponse:
+    queue: TaskQueue = request.app.state.task_queue
+    try:
+        result = await enqueue_generate_asset_image(
+            session,
+            queue,
+            asset_id,
+            user_note=payload.user_note,
+            request_id=payload.request_id,
+            workflow_binding=request.app.state.workflow_binding_snapshot,
+        )
+    except TaskValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except TaskConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await queue.publish_committed(result)
+    return GenerateAssetImageResponse(task_id=result.task.id)
 
 
 @router.get(

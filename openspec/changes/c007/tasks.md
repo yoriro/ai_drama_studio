@@ -111,7 +111,7 @@
   - 计划测试层级：纯函数。
   - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 
-- [ ] **T5 交付 generate-image 请求边界与单请求入队合同**
+- [x] **T5 交付 generate-image 请求边界与单请求入队合同**
   - 依赖：T3、T4。
   - 改动清单：
     1. 新增严格 request/response schema 和 `POST /api/assets/{asset_id}/generate-image`；只接受 JSON object 的 `user_note/request_id`，成功精确 202/task_id。
@@ -125,6 +125,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m pytest -q tests/api/test_c007_generate_asset_image.py -k request_contract
     ```
+  - 2026-08-28 实际结果：定向测试 `2 passed in 1.31s`；在新建隔离 PostgreSQL 数据库完成迁移后，完整 `pytest` 为 `70 passed in 24.55s`；原始输出见 `.work/c007/T5-test.log`。
   - 计划测试层级：API 集成。
   - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 

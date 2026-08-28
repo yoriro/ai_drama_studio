@@ -3,6 +3,19 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 
 
+class GenerateAssetImageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    user_note: StrictStr | None = None
+    request_id: StrictStr | None = None
+
+
+class GenerateAssetImageResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: int = Field(gt=0)
+
+
 class GenerateAssetsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
