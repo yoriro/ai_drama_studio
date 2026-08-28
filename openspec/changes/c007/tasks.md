@@ -129,7 +129,7 @@
   - 计划测试层级：API 集成。
   - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 
-- [ ] **T6 完成 request_id 并发幂等、多抽卡与 payload 快照竞态**
+- [x] **T6 完成 request_id 并发幂等、多抽卡与 payload 快照竞态**
   - 依赖：T5。
   - 改动清单：
     1. 实现 D-007 规范化 key 的任意状态预查：同 type/target/user_note 返回既有冻结 payload/task，任一不一致 409。
@@ -144,6 +144,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m pytest -q tests/task_system/test_c007_enqueue_races.py
     ```
+  - 2026-08-28 实际结果：定向测试 `3 passed in 1.56s`；在新建隔离 PostgreSQL 数据库完成迁移后，完整 `pytest` 为 `73 passed in 25.70s`；原始输出见 `.work/c007/T6-test.log`。
   - 计划测试层级：任务系统 mock。
   - 追溯行：`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有 task`；`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 

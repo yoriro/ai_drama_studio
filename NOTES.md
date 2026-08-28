@@ -83,3 +83,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - C007 T4 首次定向运行暴露新测试固定哈希期望值错误，校正期望值后定向测试通过；`alembic upgrade head` 在 `ai_drama_studio_c007_t4_full_20260828` 成功。
 - C007 T5 定向请求合同测试 2 passed，隔离数据库完整 pytest 70 passed；原始输出保存在 `.work/c007/T5-test.log`。
 - C007 T5 在 `ai_drama_studio_c007_t5_api_20260828` 完成 `alembic upgrade head`；测试替换并恢复 zimage 模板，POST 请求未新增 vLLM/Comfy 健康探测调用。
+- C007 T6 在 `ai_drama_studio_c007_t6_races_20260828` 完成 `alembic upgrade head`；竞态定向 3 passed，完整 pytest 73 passed，原始输出保存在 `.work/c007/T6-test.log`。
+- C007 T6 新增用例跨多个 `asyncio.run()` 时须在每个用例清理后 `engine.dispose()`，否则 asyncpg 连接池会报告事件循环已关闭或并发操作错误。

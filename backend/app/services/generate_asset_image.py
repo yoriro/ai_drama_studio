@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.integrations.workflow_binding import WorkflowBindingSnapshot
-from app.models import Asset, Project, PromptTemplate, Style
+from app.models import Asset, Project, PromptTemplate, Style, Task
 from app.services.asset_image_inputs import (
     build_asset_image_identifiers,
     build_asset_image_input_hash,
@@ -17,6 +17,7 @@ from app.services.asset_image_inputs import (
 )
 from app.tasks.queue import (
     EnqueueResult,
+    TaskRequestConflictError,
     TaskQueue,
     normalize_request_id,
 )
@@ -38,6 +39,35 @@ def _internal_error(message: str) -> HTTPException:
     return HTTPException(status_code=500, detail=message)
 
 
+def _request_user_note(task: Task) -> str | None:
+    snapshot = task.payload.get("input_snapshot")
+    if not isinstance(snapshot, dict) or "user_note" not in snapshot:
+        raise RuntimeError(
+            f"task {task.id} has no valid gen_asset_image user_note snapshot"
+        )
+    user_note = snapshot["user_note"]
+    if user_note is not None and not isinstance(user_note, str):
+        raise RuntimeError(
+            f"task {task.id} has an invalid gen_asset_image user_note snapshot"
+        )
+    return user_note
+
+
+def _matches_request_identity(
+    task: Task, asset_id: int, user_note: str | None
+) -> bool:
+    if task.type != "gen_asset_image" or task.target_id != asset_id:
+        return False
+    return _request_user_note(task) == user_note
+
+
+def _request_conflict(task: Task) -> TaskRequestConflictError:
+    return TaskRequestConflictError(
+        "request_id is already bound to a different task request",
+        existing_task=task,
+    )
+
+
 async def enqueue_generate_asset_image(
     session: AsyncSession,
     queue: TaskQueue,
@@ -50,6 +80,13 @@ async def enqueue_generate_asset_image(
     normalized_request_id = normalize_request_id(request_id)
 
     async with session.begin():
+        if normalized_request_id is not None:
+            existing = await queue.find_request(session, normalized_request_id)
+            if existing is not None:
+                if not _matches_request_identity(existing, asset_id, user_note):
+                    raise _request_conflict(existing)
+                return EnqueueResult(task=existing, created=False)
+
         asset = await session.scalar(
             select(Asset)
             .where(
@@ -148,10 +185,22 @@ async def enqueue_generate_asset_image(
                 }
             },
         }
-        return await queue.enqueue(
-            session,
-            "gen_asset_image",
-            asset.id,
-            payload,
-            request_id=normalized_request_id,
-        )
+        try:
+            return await queue.enqueue(
+                session,
+                "gen_asset_image",
+                asset.id,
+                payload,
+                request_id=normalized_request_id,
+            )
+        except TaskRequestConflictError as exc:
+            existing = exc.existing_task
+            if existing is None and normalized_request_id is not None:
+                existing = await queue.find_request(
+                    session, normalized_request_id
+                )
+            if existing is None or not _matches_request_identity(
+                existing, asset.id, user_note
+            ):
+                raise
+            return EnqueueResult(task=existing, created=False)
