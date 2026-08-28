@@ -148,7 +148,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有 task`；`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 
-- [ ] **T7 交付生成 PNG 的正式落盘、最终事务和同步补偿服务**
+- [x] **T7 交付生成 PNG 的正式落盘、最终事务和同步补偿服务**
   - 依赖：T4、T6。
   - 改动清单：
     1. 流式写 `DATA_DIR/tmp`，要求 Pillow 完整 decode 且真实 PNG，计算原始 bytes sha256；拒绝 0/多输出在上游，服务不转码或生成占位图。
@@ -163,6 +163,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m pytest -q tests/task_system/test_c007_asset_image_commit.py
     ```
+  - 2026-08-28 实际结果：定向首轮 `6 passed, 1 failed`（新增测试读取 asyncpg JSONB 未解码）；修正测试夹具后最终 `7 passed in 3.23s`，隔离 PostgreSQL 数据库完整 `pytest` 为 `80 passed in 35.29s`；原始输出见 `.work/c007/T7-test.log`。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 资产出图事务与文件一致性：生成 PNG 校验/sha256/原子落盘、首版 current、修订竞态保存非 current、缓存/图片/done 同事务、失败补偿入 trash`。
 
