@@ -79,3 +79,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 
 - C007 T3 在新隔离数据库上验证健康接口：定向用例 6 passed，全量 pytest 51 passed；输出保存在 `.work/c007/T3-test.log`。
 - 默认测试库当时被正在运行的 8000 端口后端持有 advisory lock，未停止该进程，改用隔离数据库完成 T3 验收。
+- C007 T4 定向 `tests/unit/test_c007_asset_image_inputs.py` 最终 17 passed，隔离数据库完整 pytest 68 passed；原始输出保存在 `.work/c007/T4-test.log`。
+- C007 T4 首次定向运行暴露新测试固定哈希期望值错误，校正期望值后定向测试通过；`alembic upgrade head` 在 `ai_drama_studio_c007_t4_full_20260828` 成功。

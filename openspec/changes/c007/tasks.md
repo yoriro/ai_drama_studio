@@ -92,7 +92,7 @@
   - 计划测试层级：API 集成。
   - 追溯行：`C001 基础设施 smoke（C007 合法演进）：FastAPI 应用可启动，/docs 可访问，/system/health 返回 C007 当前诊断且测试不连接真实外部网络，通用 API 错误体符合约定`；`C007 Comfy 工作流绑定与诊断：API 格式、注入/输出路径、启动失败、workflow hash 与 /system/health`。
 
-- [ ] **T4 交付模板渲染、封闭 schema、R4 hash、workflow 注入和 seed/id 纯函数**
+- [x] **T4 交付模板渲染、封闭 schema、R4 hash、workflow 注入和 seed/id 纯函数**
   - 依赖：T1。
   - 改动清单：
     1. 实现 `{{asset}}/{{style}}/{{user_note}}` 一次渲染与未知/缺失变量拒绝；asset 注入精确三字段 compact JSON，null note 注入空串。
@@ -107,6 +107,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m pytest -q tests/unit/test_c007_asset_image_inputs.py
     ```
+  - 2026-08-28 实际结果：定向测试最终 `17 passed in 0.23s`；在新建隔离 PostgreSQL 数据库完成迁移后，完整 `pytest` 为 `68 passed in 23.71s`；原始输出见 `.work/c007/T4-test.log`。
   - 计划测试层级：纯函数。
   - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 
