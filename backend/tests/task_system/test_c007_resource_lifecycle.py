@@ -262,3 +262,12 @@ def test_client_protocol() -> None:
         ]
 
     asyncio.run(run())
+
+
+def test_pipeline_handler_registration() -> None:
+    from app.main import create_app
+    from app.tasks.gen_asset_image import gen_asset_image_handler
+
+    application = create_app()
+    assert application.state.task_handlers["gen_asset_image"] is gen_asset_image_handler
+    assert "gen_clip_video" not in application.state.task_handlers

@@ -32,6 +32,7 @@ from app.integrations.workflow_binding import (
 from app.services.system_health import build_health_response
 from app.services.vllm import VLLMClient
 from app.tasks.events import EventBus
+from app.tasks.gen_asset_image import gen_asset_image_handler
 from app.tasks.gen_assets import gen_assets_handler
 from app.tasks.gen_shots import gen_shots_handler
 from app.tasks.queue import AdvisoryLockNotAcquired, TaskHandler, TaskQueue
@@ -203,6 +204,7 @@ def create_app(
     handlers: dict[str, TaskHandler] = {
         "gen_assets": gen_assets_handler,
         "gen_shots": gen_shots_handler,
+        "gen_asset_image": gen_asset_image_handler,
     }
     handlers.update(task_handlers or {})
     application.state.task_handlers = handlers

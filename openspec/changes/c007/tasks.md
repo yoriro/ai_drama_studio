@@ -167,7 +167,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 资产出图事务与文件一致性：生成 PNG 校验/sha256/原子落盘、首版 current、修订竞态保存非 current、缓存/图片/done 同事务、失败补偿入 trash`。
 
-- [ ] **T8 组装并注册 gen_asset_image handler 的完整 GPU/Comfy 流水线**
+- [x] **T8 组装并注册 gen_asset_image handler 的完整 GPU/Comfy 流水线**
   - 依赖：T2、T4、T7。
   - 改动清单：
     1. 仅在 cache miss 调 wake + 一次 structured chat；cache hit 直接使用 payload cached prompt。两支都记录完整 built prompt/input_hash。
