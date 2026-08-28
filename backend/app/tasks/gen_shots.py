@@ -365,6 +365,8 @@ async def gen_shots_handler(task: ClaimedTask, context: WorkerContext) -> None:
         return
 
     moved: list[_MediaMove] = []
+    committed = False
+    canceled_before_commit = False
     try:
         async with async_session_factory() as session:
             async with session.begin():
@@ -375,17 +377,19 @@ async def gen_shots_handler(task: ClaimedTask, context: WorkerContext) -> None:
                     result,
                     moved,
                 )
-    except BaseException as exc:
-        if moved:
+            committed = True
+    except _CanceledBeforeCommit:
+        canceled_before_commit = True
+    finally:
+        if not committed and moved:
             try:
                 _restore_media(moved)
-            except (FileNotFoundError, OSError) as restore_error:
+            except OSError as restore_error:
                 raise RuntimeError(
                     "gen_shots database operation failed and trash restore failed: "
                     f"{restore_error}"
                 ) from restore_error
-        if isinstance(exc, _CanceledBeforeCommit):
-            await context.cancel_safe_point()
-            return
-        raise
+    if canceled_before_commit:
+        await context.cancel_safe_point()
+        return
     await context.queue.publish_committed(completed)

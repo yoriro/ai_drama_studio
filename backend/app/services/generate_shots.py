@@ -102,6 +102,8 @@ async def require_generate_shots_impact_token(
     session: AsyncSession,
     episode_id: int,
     token: str | None,
+    *,
+    current_snapshot: GenerateShotsImpactSnapshot | None = None,
 ) -> GenerateShotsImpactSnapshot:
     if token is None:
         raise _token_conflict()
@@ -115,7 +117,11 @@ async def require_generate_shots_impact_token(
     if record.episode_id != episode_id:
         raise _token_conflict()
 
-    current = await _read_impact_snapshot(session, episode_id)
+    current = (
+        current_snapshot
+        if current_snapshot is not None
+        else await _read_impact_snapshot(session, episode_id)
+    )
     if current != record.snapshot:
         raise _token_conflict()
     return record.snapshot
@@ -233,13 +239,18 @@ async def enqueue_generate_shots(
         if template is None:
             raise _conflict("script2shots 模板不存在")
 
-        impact_snapshot = await _read_impact_snapshot(session, episode_id)
+        impact_snapshot = await _read_impact_snapshot(
+            session, episode_id, for_update=True
+        )
         if confirm_token is None:
             if impact_snapshot.clip_revisions:
                 raise _token_conflict()
         else:
             await require_generate_shots_impact_token(
-                session, episode_id, confirm_token
+                session,
+                episode_id,
+                confirm_token,
+                current_snapshot=impact_snapshot,
             )
 
         asset_result = await session.execute(
@@ -274,6 +285,28 @@ async def enqueue_generate_shots(
         replacement_snapshot = await _read_replacement_snapshot(
             session, episode_id
         )
+        replacement_clips = tuple(
+            (int(row["id"]), int(row["revision"]))
+            for row in replacement_snapshot["clips"]
+        )
+        replacement_video_ids = tuple(
+            int(video_id) for video_id in replacement_snapshot["clip_video_ids"]
+        )
+        replacement_overrides = tuple(
+            (int(item["id"]), str(item["path"]))
+            for item in replacement_snapshot["clip_media"]
+            if item["kind"] == "slot_override"
+        )
+        if (
+            replacement_clips != impact_snapshot.clip_revisions
+            or replacement_video_ids != impact_snapshot.clip_video_ids
+            or replacement_overrides
+            != tuple(
+                (slot_id, path)
+                for slot_id, _clip_id, path in impact_snapshot.clip_override_media
+            )
+        ):
+            raise _token_conflict()
         input_snapshot = {
             "episode_id": episode.id,
             "project_id": project.id,
@@ -383,17 +416,26 @@ def _conflict(message: str) -> HTTPException:
 
 
 async def _read_impact_snapshot(
-    session: AsyncSession, episode_id: int
+    session: AsyncSession,
+    episode_id: int,
+    *,
+    for_update: bool = False,
 ) -> GenerateShotsImpactSnapshot:
-    episode = await session.get(Episode, episode_id)
+    episode_statement = select(Episode).where(Episode.id == episode_id)
+    if for_update:
+        episode_statement = episode_statement.with_for_update()
+    episode = await session.scalar(episode_statement)
     if episode is None:
         raise _not_found()
 
-    clip_result = await session.execute(
+    clip_statement = (
         select(Clip.id, Clip.revision)
         .where(Clip.episode_id == episode_id)
         .order_by(Clip.id)
     )
+    if for_update:
+        clip_statement = clip_statement.with_for_update()
+    clip_result = await session.execute(clip_statement)
     clip_rows = clip_result.all()
     clip_revisions = tuple((int(row.id), int(row.revision)) for row in clip_rows)
     clip_ids = tuple(row[0] for row in clip_rows)
@@ -406,24 +448,28 @@ async def _read_impact_snapshot(
             clip_override_media=(),
         )
 
-    video_result = await session.execute(
+    video_statement = (
         select(ClipVideo.id)
         .where(ClipVideo.clip_id.in_(clip_ids))
         .order_by(ClipVideo.id)
     )
+    if for_update:
+        video_statement = video_statement.with_for_update()
+    video_result = await session.execute(video_statement)
     clip_video_ids = tuple(int(row.id) for row in video_result.all())
 
-    override_result = await session.execute(
+    override_statement = (
         select(ClipRefSlot.id, ClipRefSlot.clip_id, ClipRefSlot.override_image_path)
-        .where(
-            ClipRefSlot.clip_id.in_(clip_ids),
-            ClipRefSlot.override_image_path.is_not(None),
-        )
+        .where(ClipRefSlot.clip_id.in_(clip_ids))
         .order_by(ClipRefSlot.id)
     )
+    if for_update:
+        override_statement = override_statement.with_for_update()
+    override_result = await session.execute(override_statement)
     clip_override_media = tuple(
         (int(row.id), int(row.clip_id), str(row.override_image_path))
         for row in override_result.all()
+        if row.override_image_path is not None
     )
     return GenerateShotsImpactSnapshot(
         episode_id=episode_id,

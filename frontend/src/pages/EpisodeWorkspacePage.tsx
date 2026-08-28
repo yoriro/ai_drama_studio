@@ -9,6 +9,13 @@ import {
   readGenerateShotsImpact,
   updateEpisode,
 } from "../api";
+import { getTask } from "../api/tasks";
+import {
+  closeWebSocket,
+  openTaskWebSocket,
+  parseTaskEvent,
+} from "../api/ws";
+import type { TaskEvent } from "../api/tasks";
 import type { Episode, Project } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
@@ -81,6 +88,77 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
       disposed = true;
     };
   }, [activeTab, numericEpisodeId, numericProjectId]);
+
+  useEffect(() => {
+    if (activeTab !== "script") {
+      return;
+    }
+
+    let disposed = false;
+    const socket = openTaskWebSocket();
+
+    function isTerminal(event: TaskEvent): boolean {
+      return (
+        event.status === "done" ||
+        event.status === "failed" ||
+        event.status === "canceled"
+      );
+    }
+
+    socket.onmessage = (message: MessageEvent) => {
+      if (typeof message.data !== "string") {
+        throw new TypeError("Task WebSocket messages must be text");
+      }
+      const event = parseTaskEvent(message.data);
+      if (event.type !== "gen_shots" || !isTerminal(event)) {
+        return;
+      }
+
+      void getTask(event.task_id).then(
+        (task) => {
+          if (
+            disposed ||
+            task.type !== "gen_shots" ||
+            task.target_id !== numericEpisodeId
+          ) {
+            return;
+          }
+          void getEpisode(numericEpisodeId).then(
+            (updatedEpisode) => {
+              if (disposed) {
+                return;
+              }
+              setContext((current) =>
+                current === null
+                  ? current
+                  : { ...current, episode: updatedEpisode },
+              );
+            },
+            (error: unknown) => {
+              if (!disposed) {
+                setLoadError(error);
+                setLoadState("error");
+              }
+            },
+          );
+        },
+        (error: unknown) => {
+          if (!disposed) {
+            setLoadError(error);
+            setLoadState("error");
+          }
+        },
+      );
+    };
+    socket.onerror = () => {
+      closeWebSocket(socket);
+    };
+
+    return () => {
+      disposed = true;
+      closeWebSocket(socket);
+    };
+  }, [activeTab, numericEpisodeId]);
 
   if (loadState === "loading") {
     return (
