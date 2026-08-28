@@ -187,7 +187,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`；`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 
-- [ ] **T9 接通 running cancel 的 targeted Comfy interrupt 与最终竞态**
+- [x] **T9 接通 running cancel 的 targeted Comfy interrupt 与最终竞态**
   - 依赖：T8。
   - 改动清单：
     1. 扩展既有 cancel route 的提交后副作用：仅 running `gen_asset_image` 第一次写 cancel intent 后，用 payload prompt id 调一次 targeted interrupt。
@@ -201,6 +201,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m pytest -q tests/task_system/test_c007_cancel_interrupt.py
     ```
+  - 2026-08-28 实际结果：定向测试 `5 passed in 2.44s`；在新建隔离 PostgreSQL 数据库完成迁移后，完整 `pytest` 为 `99 passed in 35.21s`；原始输出见 `.work/c007/T9-test.log`。
   - 计划测试层级：任务系统 mock。
   - 追溯行：`§6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断`；`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`。
 

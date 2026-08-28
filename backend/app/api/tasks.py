@@ -1,6 +1,8 @@
 import asyncio
+import logging
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
 from fastapi.websockets import WebSocketDisconnect
 from sqlalchemy import desc, select
@@ -15,6 +17,21 @@ from app.tasks.queue import TaskConflictError, TaskNotFoundError, TaskQueue
 
 router = APIRouter(tags=["tasks"])
 ws_router = APIRouter(tags=["tasks"])
+logger = logging.getLogger("app.api.tasks")
+
+
+async def _interrupt_running_asset_image(request: Request, task: Task) -> None:
+    snapshot = task.payload["input_snapshot"]
+    prompt_id = snapshot["comfy_prompt_id"]
+    try:
+        await request.app.state.comfy_client.interrupt(prompt_id)
+    except (httpx.HTTPError, OSError, TimeoutError) as exc:
+        logger.warning(
+            "Comfy interrupt best-effort call failed task_id=%s prompt_id=%s error=%s",
+            task.id,
+            prompt_id,
+            exc,
+        )
 
 
 @router.get("/tasks", response_model=list[TaskResponse])
@@ -68,6 +85,12 @@ async def cancel_task(
     await queue.publish_committed(change)
     if change.task is None:
         raise HTTPException(status_code=500, detail="Task cancellation returned no task")
+    if (
+        change.changed
+        and change.task.status == "running"
+        and change.task.type == "gen_asset_image"
+    ):
+        await _interrupt_running_asset_image(request, change.task)
     return change.task
 
 
