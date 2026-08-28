@@ -28,6 +28,14 @@ class VLLMClient:
             )
             response.raise_for_status()
 
+    async def health(self) -> None:
+        async with httpx.AsyncClient(
+            timeout=self._timeout,
+            trust_env=False,
+        ) as client:
+            response = await client.get(f"{self._base_url}/health")
+            response.raise_for_status()
+
     async def structured_chat(
         self,
         *,

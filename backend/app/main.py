@@ -3,6 +3,8 @@ import logging
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Protocol
 
 from fastapi import FastAPI
 from starlette.datastructures import Headers
@@ -21,6 +23,14 @@ from app.api.tasks import router as tasks_router, ws_router as tasks_ws_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.db.session import async_session_factory, dispose_engine, engine
+from app.integrations.comfy import ComfyClient
+from app.integrations.workflow_binding import (
+    DEFAULT_BINDING_PATH,
+    WorkflowBindingError,
+    load_binding_snapshot,
+)
+from app.services.system_health import build_health_response
+from app.services.vllm import VLLMClient
 from app.tasks.events import EventBus
 from app.tasks.gen_assets import gen_assets_handler
 from app.tasks.gen_shots import gen_shots_handler
@@ -28,6 +38,14 @@ from app.tasks.queue import AdvisoryLockNotAcquired, TaskHandler, TaskQueue
 from app.services.trash import cleanup_expired_trash, run_trash_cleanup_loop
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+
+class HealthClient(Protocol):
+    async def health(self) -> object:
+        ...
+
+
+HealthClientFactory = Callable[[str], HealthClient]
 
 
 class StructuredCORSMiddleware(CORSMiddleware):
@@ -77,10 +95,51 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
                 "Application startup rejected: project worker advisory lock is held"
             )
             raise
+        app_settings = application.state.settings
+        try:
+            binding_snapshot = load_binding_snapshot(
+                application.state.binding_path,
+                backend_root=application.state.binding_root,
+            )
+        except WorkflowBindingError:
+            logging.getLogger("app.lifecycle").exception(
+                "Application startup rejected: invalid Z-Image workflow binding"
+            )
+            raise
+        application.state.workflow_binding_snapshot = binding_snapshot
+        application.state.vllm_client = application.state.vllm_client_factory(
+            str(app_settings.VLLM_BASE_URL)
+        )
+        application.state.comfy_client = application.state.comfy_client_factory(
+            str(app_settings.COMFY_BASE_URL)
+        )
+        startup_health = await build_health_response(
+            vllm_probe=application.state.vllm_client.health,
+            comfy_probe=application.state.comfy_client.health,
+            workflow_hash=binding_snapshot.workflow_hash,
+        )
+        lifecycle_logger = logging.getLogger("app.lifecycle")
+        lifecycle_logger.info(
+            "Startup health probes completed: vllm=%s comfy=%s workflow_binding=valid",
+            startup_health.vllm.status,
+            startup_health.comfy.status,
+        )
+        for component_name, component in (
+            ("vLLM", startup_health.vllm),
+            ("ComfyUI", startup_health.comfy),
+        ):
+            if component.status == "unhealthy":
+                lifecycle_logger.warning(
+                    "%s startup health probe unhealthy: %s",
+                    component_name,
+                    component.message,
+                )
         if application.state.startup_prepare is not None:
             await application.state.startup_prepare()
         try:
-            cleanup_expired_trash(settings.DATA_DIR, settings.TRASH_RETENTION_HOURS)
+            cleanup_expired_trash(
+                app_settings.DATA_DIR, app_settings.TRASH_RETENTION_HOURS
+            )
         except OSError:
             logging.getLogger("app.trash").exception(
                 "Initial trash cleanup failed"
@@ -92,7 +151,9 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         for change in recovery:
             await queue.publish_committed(change)
         cleanup_task = asyncio.create_task(
-            run_trash_cleanup_loop(settings.DATA_DIR, settings.TRASH_RETENTION_HOURS)
+            run_trash_cleanup_loop(
+                app_settings.DATA_DIR, app_settings.TRASH_RETENTION_HOURS
+            )
         )
         worker_task = asyncio.create_task(
             queue.run_worker(
@@ -132,6 +193,10 @@ def create_app(
     *,
     task_handlers: Mapping[str, TaskHandler] | None = None,
     startup_prepare: Callable[[], Awaitable[None]] | None = None,
+    binding_path: str | Path | None = None,
+    binding_root: str | Path | None = None,
+    vllm_client_factory: HealthClientFactory | None = None,
+    comfy_client_factory: HealthClientFactory | None = None,
 ) -> FastAPI:
     application = FastAPI(title="AI Drama Studio API", lifespan=lifespan)
     application.state.settings = settings
@@ -142,6 +207,18 @@ def create_app(
     handlers.update(task_handlers or {})
     application.state.task_handlers = handlers
     application.state.startup_prepare = startup_prepare
+    application.state.binding_path = (
+        DEFAULT_BINDING_PATH if binding_path is None else Path(binding_path)
+    )
+    application.state.binding_root = (
+        None if binding_root is None else Path(binding_root)
+    )
+    application.state.vllm_client_factory = (
+        VLLMClient if vllm_client_factory is None else vllm_client_factory
+    )
+    application.state.comfy_client_factory = (
+        ComfyClient if comfy_client_factory is None else comfy_client_factory
+    )
     application.add_middleware(
         StructuredCORSMiddleware,
         allow_origin_regex=r"^http://(?:localhost|127\.0\.0\.1)(?::[0-9]+)?$",

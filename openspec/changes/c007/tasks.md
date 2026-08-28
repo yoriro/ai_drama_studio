@@ -73,22 +73,24 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`。
 
-- [ ] **T3 把静态校验接入启动并交付真实 health API**
+- [x] **T3 把静态校验接入启动并交付真实 health API**
   - 依赖：T1、T2。
   - 改动清单：
     1. 在 app lifespan 的 worker 恢复/启动与 ASGI yield 前加载一次 binding snapshot；失败时保留具体日志、释放已有 advisory lock，并拒绝启动。
     2. 启动时各执行一次 vLLM/Comfy health 探测；外部 unhealthy 不阻止启动，不调用推理/sleep/free/submit。
     3. 替换 C001 `not_checked` skeleton 为 spec §2.3 精确 schema；每次 GET 单次实时探测并返回 `healthy|unhealthy`、安全 message、`valid` 和只含 zimage 的 hash。
     4. 通过 app 显式注入 binding path/transport 的测试 seam 验证错误分支；不得按测试数据分支，也不得在生产创建验收模式。
+    5. 按 AGENTS.md 的 C007 一次性窄例外，仅修正 `backend/tests/api/test_system.py::test_infrastructure_smoke`：保留 `/docs`、`/openapi.json`、404/错误体和禁止真实网络 guard，将 C001 `not_checked` 阶段断言演进为注入 transport 后的 C007 精确健康响应与各一次逻辑探测；不得修改其他既有测试。该用例不替代本 task 新增的错误矩阵测试。
   - R：无；PRD §2.1(2)、§5 system、§8、§9、§11 M3。
   - 验收方式：API 测试覆盖健康/不可达/非 2xx/畸形响应与精确 keys；启动测试证明坏 binding 时 worker 未 claim，health 路由无 GPU mutation。
   - 应运行命令：
     ```powershell
     Set-Location D:\ai_drama_studio\backend
-    python -m pytest -q tests/api/test_c007_health.py
+    python -m pytest -q tests/api/test_system.py::test_infrastructure_smoke tests/api/test_c007_health.py
     ```
+    2026-08-28 实际结果：首次使用默认数据库执行时发现 8000 端口后端已持有 advisory lock，且测试辅助函数直接读取未导出的 `DATABASE_URL`；未停止运行进程，改用 `Settings` 读取 DSN 与新隔离数据库后，定向测试 `6 passed in 1.52s`，完整 `pytest` 为 `51 passed in 22.84s`，完整原始输出见 `.work/c007/T3-test.log`。
   - 计划测试层级：API 集成。
-  - 追溯行：`C007 Comfy 工作流绑定与诊断：API 格式、注入/输出路径、启动失败、workflow hash 与 /system/health`。
+  - 追溯行：`C001 基础设施 smoke（C007 合法演进）：FastAPI 应用可启动，/docs 可访问，/system/health 返回 C007 当前诊断且测试不连接真实外部网络，通用 API 错误体符合约定`；`C007 Comfy 工作流绑定与诊断：API 格式、注入/输出路径、启动失败、workflow hash 与 /system/health`。
 
 - [ ] **T4 交付模板渲染、封闭 schema、R4 hash、workflow 注入和 seed/id 纯函数**
   - 依赖：T1。

@@ -73,6 +73,9 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 
 ## 4. 当前实际目录状态
 
-- 实际业务目录：`backend/app/{api,core,db,models,schemas,services,tasks}`、`backend/tests/{api,task_system}`、`backend/alembic/versions`、`frontend/src/{api,components,pages,routes}`、`openspec/{archive,changes/C001..C006}`。
-- 与 `project.md` 的差异：规范列出的 `backend/app/integrations`、`backend/tests/unit`、`frontend/src/features` 实际不存在；`backend/workflows` 也不存在。
+- 实际业务目录：`backend/app/{api,core,db,models,schemas,services,tasks}`、`backend/tests/{api,task_system}`、`backend/alembic/versions`、`frontend/src/{api,components,pages,routes}`、`openspec/{archive,changes/C001..C007}`。
+- 与 `project.md` 的差异：规范列出的 `frontend/src/features` 实际不存在；C007 T1 已创建并验证 `backend/app/integrations`、`backend/tests/unit` 与 `backend/workflows`。
 - 运行产物/数据目录：根目录 `.runtime`、`backend/data/{projects,tmp,trash}`、`backend/.pytest_cache`、各处 `__pycache__`、`frontend/node_modules`、`frontend/dist`；这些不在规范目录树中，是当前实际存在的生成或运行目录。
+
+- C007 T3 在新隔离数据库上验证健康接口：定向用例 6 passed，全量 pytest 51 passed；输出保存在 `.work/c007/T3-test.log`。
+- 默认测试库当时被正在运行的 8000 端口后端持有 advisory lock，未停止该进程，改用隔离数据库完成 T3 验收。
