@@ -55,7 +55,7 @@
   - 计划测试层级：纯函数。
   - 追溯行：`C007 Comfy 工作流绑定与诊断：API 格式、注入/输出路径、启动失败、workflow hash 与 /system/health`。
 
-- [ ] **T2 交付最小 vLLM sleep 与 Comfy HTTP/WS 传输客户端**
+- [x] **T2 交付最小 vLLM sleep 与 Comfy HTTP/WS 传输客户端**
   - 依赖：T1。
   - 改动清单：
     1. 在现有 vLLM 传输边界增加精确 `POST /sleep?level=1`；保持 D-011，客户端不读取模板、不计算 hash、不解释业务输出。
@@ -69,6 +69,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m pytest -q tests/task_system/test_c007_resource_lifecycle.py -k client_protocol
     ```
+    2026-08-28 实际结果：定向测试首次发现协议夹具错误解析无 body 的 sleep 请求，修正夹具后 `1 passed in 0.34s`；新隔离 PostgreSQL 数据库迁移后完整 `pytest` 为 `46 passed in 18.09s`。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`。
 
