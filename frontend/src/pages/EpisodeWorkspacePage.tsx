@@ -14,6 +14,7 @@ import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
 import { AssetPage } from "./AssetPage";
+import { ShotsPage } from "./ShotsPage";
 
 type WorkspaceTab = "script" | "assets" | "shots" | "director";
 
@@ -131,6 +132,12 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
         />
       ) : activeTab === "assets" ? (
         <AssetPage episode={context.episode} projectId={context.project.id} />
+      ) : activeTab === "shots" ? (
+        <ShotsPage
+          episode={context.episode}
+          onEpisodeUpdated={(episode) => setContext({ ...context, episode })}
+          projectId={context.project.id}
+        />
       ) : (
         <EmptyState
           message={`${tabs.find((tab) => tab.key === activeTab)?.label}页暂未交付`}
@@ -249,6 +256,9 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
       {isAssetsStale(episode) && (
         <p className="field-hint">资产提取基于旧剧本</p>
       )}
+      {isShotsStale(episode) && (
+        <p className="field-hint">分镜基于旧剧本</p>
+      )}
       {!editing ? (
         <>
           <p className="field-hint">剧本修订：{episode.script_revision}</p>
@@ -332,5 +342,12 @@ function isAssetsStale(episode: Episode): boolean {
   return (
     episode.assets_generated_script_revision !== null &&
     episode.assets_generated_script_revision < episode.script_revision
+  );
+}
+
+function isShotsStale(episode: Episode): boolean {
+  return (
+    episode.shots_generated_script_revision !== null &&
+    episode.shots_generated_script_revision < episode.script_revision
   );
 }

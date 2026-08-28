@@ -443,6 +443,102 @@ button:disabled {
   margin: 0 0 8px;
 }
 
+.shots-page {
+  display: grid;
+  gap: 24px;
+}
+
+.shots-heading,
+.shot-card-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.shots-heading h2,
+.shot-card-heading h3 {
+  margin: 0;
+}
+
+.shot-list {
+  display: grid;
+  gap: 24px;
+}
+
+.shot-card {
+  margin: 0;
+}
+
+.shot-meta,
+.shot-status {
+  color: #746c61;
+  margin: 8px 0 0;
+}
+
+.shot-badges {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: right;
+}
+
+.shot-badge {
+  border-radius: 999px;
+  font-size: 0.85rem;
+  padding: 5px 9px;
+}
+
+.shot-badge-changed {
+  background: #f3e3bd;
+  color: #79581b;
+}
+
+.shot-badge-note {
+  background: #ebe4d8;
+  color: #746c61;
+}
+
+.shot-badge-warning {
+  background: #f3dfd9;
+  color: #8a3028;
+}
+
+.shot-assets {
+  border: 1px solid #ded5c8;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.shot-assets legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+.shot-assets p {
+  margin: 0;
+}
+
+.shot-asset-options {
+  display: grid;
+  gap: 8px;
+}
+
+.shot-asset-option {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.shot-asset-option input {
+  accent-color: #1d2925;
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   .app-header {
     align-items: flex-start;

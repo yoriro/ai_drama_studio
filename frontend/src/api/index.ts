@@ -44,6 +44,14 @@ export type {
   AssetSource,
   AssetType,
 } from "./assets";
+export { listShots, updateShot } from "./shots";
+export type {
+  CameraType,
+  Shot,
+  ShotPatch,
+  ShotStatus,
+  ShotType,
+} from "./shots";
 export {
   createProject,
   deleteProject,
