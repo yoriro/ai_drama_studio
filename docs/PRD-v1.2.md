@@ -6,6 +6,12 @@
 
 ## 0. 变更摘要(供 diff)
 
+### v1.2 实施裁决补充(2026-08-26)
+
+1. **R2 非法 existing_id 防丢失**:生成资产输出中的非 null `existing_id` 必须属于当前项目;不属于当前项目或不存在时,该项降级为新增资产并记录 warning,避免因编造 id 被静默忽略。
+2. **gen_assets 修订归属**:`episodes.assets_generated_script_revision` 写入任务入队快照中的 `script_revision`,生成期间剧本若被编辑,完成后仍须显示“资产提取基于旧剧本”。
+3. **script2assets 调用合同**:现有资产以只含 `id/type/name/description` 的紧凑 JSON 数组注入;无资产时为 `[]`;模板整体作为单条 user message;结构由 guided_json 的封闭 JSON schema 硬约束;默认温度为 `0.2`。
+
 ### v1.2 相对 v1.1(导演台补充)
 
 1. 新增 **R5a 同场景约束**:片段内所选分镜的场景类资产去重后至多 1 个;未绑场景的分镜可加入任意片段,全特写的「纯人物片段」合法;绑定 ≥2 个场景的分镜不能组入任何片段;gen_clip_video 入队前复检 R5/R5a。
@@ -84,7 +90,7 @@ context loop 融合;单 shot 局部重生成;fl2v(首帧用户上传);音频路�
 ### 3.1 生成动作
 
 - **R1 无资产禁止生成分镜**:项目资产数为 0 时 `generate-shots` 返回 409。
-- **R2 生成资产 = 增量合并**:注入现有资产清单;Qwen 输出完整所需清单,每项带 `existing_id` 或 null;后端仅插入 null 项。已有资产不更新不删除;删改仅限用户手动。成功后写 `episodes.assets_generated_script_revision = 当前 script_revision`。
+- **R2 生成资产 = 增量合并**:注入当前项目现有资产清单;Qwen 输出完整所需清单,每项带 `existing_id` 或 null。后端插入 `existing_id=null` 项;非 null `existing_id` 真实属于当前项目时只视为复用,不更新、不删除;非 null id 不存在或不属于当前项目时,按该项返回的 type/name/description 降级插入为新增资产,并记录包含任务与非法 id 上下文的 warning 日志。已有资产的删改仅限用户手动。成功后写 `episodes.assets_generated_script_revision = 任务入队快照中的 script_revision`;生成期间剧本被编辑时不得写成完成时的较新 revision。
 - **R3 生成分镜 = 集内覆盖(带兜底)**:
   1. 前端先调 `POST /episodes/{id}/generate-shots/impact`,返回将被删除的片段数、视频数与 `confirm_token`(TTL 10 分钟,绑定该集当前影响快照;影响为空时 token 可省略)。
   2. `POST /episodes/{id}/generate-shots` 携带 token;token 缺失/过期/不匹配 → 409。
@@ -307,12 +313,17 @@ tasks            id PK, type ∈ {gen_assets, gen_shots, gen_asset_image, gen_cl
 
 ## 7. LLM 集成规范
 
-- OpenAI 兼容 `/v1/chat/completions` + guided_json(xgrammar);模型 ID、温度进配置,模型 ID 参与 input_hash。
+- OpenAI 兼容 `/v1/chat/completions` + guided_json(xgrammar);模型 ID、温度进配置,模型 ID 参与 input_hash;`VLLM_TEMPERATURE` 默认 `0.2`。
 - 模板变量:
   - script2assets:`{{script}} {{style}} {{existing_assets}}`
   - script2shots:`{{script}} {{style}} {{assets}}`
   - zimage:`{{asset}} {{style}} {{user_note}}`
   - minimaxh3:`{{shots}} {{references}} {{style}} {{user_note}}`
+- `script2assets` 调用与注入合同:
+  - 模板渲染后的完整内容作为单条 user message;若客户端必须提供 system message,只允许通用一句“你是结构化数据生成器,只输出 JSON”,不得把任何业务规则藏入代码侧 system message。
+  - `{{script}}` 注入任务入队时的剧本文本快照;`{{style}}` 注入任务入队时项目风格内容快照。
+  - `{{existing_assets}}` 注入按 asset id 升序的紧凑 JSON 数组,每项只含 `id`、`type`、`name`、`description`;无现有资产时注入 `[]`,不得改成自然语言。
+  - response_format 的 guided_json schema:顶层 object 只含必填 `assets` 数组且 `additionalProperties=false`;每项 object 的 `existing_id` 类型为 `["integer","null"]`,`type` 为封闭 enum `["character","scene"]`,`name`/`description` 为 string,四字段全部 required,每项 `additionalProperties=false`;v1 schema 不允许 `prop`。
 - `{{references}}` 结构(仅含启用槽位,按 slot_no 升序):
 
 ```jsonc
@@ -376,7 +387,7 @@ output_node = "30"
 ## 10. 非功能与配置
 
 - 技术栈:FastAPI + SQLAlchemy 2 + Alembic + asyncpg;httpx;React 18 + Vite + TS。
-- 配置:`DATABASE_URL, DATA_DIR, VLLM_BASE_URL, VLLM_MODEL, COMFY_BASE_URL, SCRIPT_CHAR_LIMIT=2000, CLIP_MAX_SECONDS=15, CLIP_MIN_SECONDS=5, SLOT_HARD_LIMIT=9, SLOT_SOFT_LIMIT=4, UPLOAD_MAX_MB=20, TRASH_RETENTION_HOURS=24, DEBUG_PROMPTS=false` + §8 绑定表。
+- 配置:`DATABASE_URL, DATA_DIR, VLLM_BASE_URL, VLLM_MODEL, VLLM_TEMPERATURE=0.2, COMFY_BASE_URL, SCRIPT_CHAR_LIMIT=2000, CLIP_MAX_SECONDS=15, CLIP_MIN_SECONDS=5, SLOT_HARD_LIMIT=9, SLOT_SOFT_LIMIT=4, UPLOAD_MAX_MB=20, TRASH_RETENTION_HOURS=24, DEBUG_PROMPTS=false` + §8 绑定表。
 - 文件布局:`{DATA_DIR}/projects/{pid}/assets/{aid}/{image_id}.png`;`{DATA_DIR}/projects/{pid}/episodes/{eid}/clips/{cid}/{video_id}.mp4`;`{DATA_DIR}/trash/...`。
 - 日志:任务级结构化日志,含渲染后完整中间提示词与 input_hash。
 - 单进程 + advisory lock;无鉴权无 HTTPS;CORS 放开 localhost。

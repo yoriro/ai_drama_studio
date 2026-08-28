@@ -4,7 +4,7 @@
 
 - 本文件只授权 C006。执行者不得新增 migration、表、列、索引、候选分镜、分镜增删/拆分/合并/排序、clip 创建/视频生成、资产出图、导演台或其他后续能力。
 - 一次只执行一个明确 task；每个 checkbox 只有在列出的验收命令和人工检查都取得真实证据后才可勾选。失败不重试、不吞异常、不用 mock/假数据冒充真实外部验收。
-- 既有测试不得修改、删除、跳过或弱化；本 change 只允许新增下列明确命名的 C006 测试。若既有测试与 spec 冲突，立即停止并报告，不自行改测试。
+- 既有测试不得修改、删除、跳过或弱化；本 change 只允许新增下列明确命名的 C006 测试。若既有测试与 spec 冲突，立即停止并报告，不自行改测试。唯一例外是 `AGENTS.md` 已记录的 C006 T5 窄授权：只可修正提交 `88258d8` 新增的 `test_gen_shots_uses_snapshot_prompt_and_dynamic_schema`，且必须遵守其中列出的保留断言与禁止项，不得类推到其他测试。
 - 自动测试只能归属本文件逐项写明的 `openspec/TRACEABILITY.md` 原有行。Luna 不修改 TRACEABILITY；完成后提交实际 pytest node ID 和输出，由 Sol 审计并维护追溯表。
 - 执行开始先记录 `git rev-parse HEAD` 为 `C006_BASE`；保留工作区已有非 C006 改动，不回滚、不覆盖。
 - 正式模板/真实 vLLM 验收库与干净 pytest 库严格分离。完整 pytest 只跑迁移初始占位模板的全新隔离库；正式库用于模板、真实 vLLM 和浏览器走查。
@@ -47,7 +47,7 @@
   - **覆盖 AC：** AC-04、AC-05、AC-06、AC-07、AC-17。
   - **验收方式：**
     1. 新增并运行 `Set-Location backend; python -m pytest -q tests/api/test_c006_generate_shots.py::test_generate_shots_requires_assets`，核对项目无 character/scene 资产时 generate 为固定结构 409、task 数不变；impact 的只读成功不得绕过此裁决。
-    2. 新增并运行 `python -m pytest -q tests/api/test_c006_generate_shots.py::test_generate_shots_enqueues_exact_snapshot_and_dynamic_schema`，核对 body 矩阵、202 精确响应、task 字段、payload 精确三键、紧凑四字段资产、单次模板替换、温度、动态 enum、schema 不含 `uniqueItems`、replacement/source revisions 和 `input_hash=null`。
+    2. 新增并运行 `python -m pytest -q tests/api/test_c006_generate_shots.py::test_generate_shots_enqueues_exact_snapshot_and_dynamic_schema`，核对 body 矩阵、202 精确响应、task 字段、payload 精确三键、紧凑四字段资产、单次模板替换、温度、动态 enum、schema 不含 `uniqueItems`、replacement/source revisions 和 `input_hash=null`；`replacement_snapshot.clip_media` 必须逐项符合 spec §4.5 的 `kind/id/path` 合同、两类固定顺序，并与 `clip_video_ids` 一致。
     3. 新增并运行 `python -m pytest -q tests/api/test_c006_generate_shots.py::test_generate_shots_active_conflict`，以真实 PostgreSQL 并发两次合法请求，必须只有一条 active task，败者 409；终态后允许显式新建。
     4. 人工查看 task JSON，确认 token、base URL、绝对路径、模板/风格版本、prop、候选分镜和未知顶层键均不存在；模板/风格缺失或占位符非法为 409，body/类型非法为 422。
   - **计划测试层级：** API 集成。
@@ -75,9 +75,10 @@
   - **范围：** 只做 gen_shots 的成功替换；不创建 clip、不保留候选/历史、不实现后台补偿任务或自动重试。
   - **覆盖 AC：** AC-09、AC-10。
   - **验收方式：**
-    1. 新增并运行 `Set-Location backend; python -m pytest -q tests/task_system/test_c006_gen_shots.py::test_gen_shots_success_replaces_episode_and_trashes_clip_media`，夹具含旧 shots、shot_assets、clips、关系、slots、videos 和真实临时媒体，核对只替换目标 episode、全部依赖行顺序正确、媒体进入已有 trash、新 Shot 字段/status/revision/绑定及 marker 准确、task done。
+    1. 新增并运行 `Set-Location backend; python -m pytest -q tests/task_system/test_c006_gen_shots.py::test_gen_shots_success_replaces_episode_and_trashes_clip_media`，夹具含旧 shots、shot_assets、clips、关系、带 `clip_videos.id/file_path` 的视频及带 `clip_ref_slots.id/override_image_path` 的真实临时媒体，核对 handler 按 spec §4.5 的 `kind/id/path` 定位两类文件、只替换目标 episode、全部依赖行顺序正确、媒体进入已有 trash、新 Shot 字段/status/revision/绑定及 marker 准确、task done。
     2. 夹具同时保留另一 episode 的完整结构与媒体，逐项比较其行和文件不变；确认生成输出为空数组时仍按 R3 清空目标结构并写 marker。
     3. 模拟数据库提交错误，核对数据库回滚且本次文件恢复到原路径；恢复失败必须显式失败并记录完整原因，不能报告旧数据无损或 done。
+    4. 按 `AGENTS.md` 的一次性窄例外修正 `test_gen_shots_uses_snapshot_prompt_and_dynamic_schema`：媒体夹具使用数据库真实相对路径；保留其全部 vLLM 请求/快照断言，把阶段性的“结构不变”断言替换为最终成功覆盖断言。随后单独复跑该 node，证明最终 T5 行为没有削弱 T4 的请求合同。
   - **计划测试层级：** 任务系统 mock。
   - **追溯行：** `R3 生成分镜覆盖：impact/token 校验；新分镜成功后才删除旧数据并移入 trash；LLM 失败旧数据不动`；`§3.3 重新生成分镜：成功后覆盖本集分镜、删除本集片段并将文件移入 trash`。
 
@@ -89,7 +90,7 @@
   - **范围：** 只覆盖 gen_shots handler 的既有 C004 状态语义，不改通用队列协议、不新增 retry/backoff/补偿 worker。
   - **覆盖 AC：** AC-04、AC-08、AC-10。
   - **验收方式：**
-    1. 新增并运行 `Set-Location backend; python -m pytest -q tests/task_system/test_c006_gen_shots.py::test_gen_shots_failures_preserve_existing_structure`，覆盖 wake/HTTP/schema/资产删除/替换快照行集或 revision 漂移/文件错误，核对 task failed、完整 error_msg、旧结构/marker/文件不变、无第二次调用。
+    1. 新增并运行 `Set-Location backend; python -m pytest -q tests/task_system/test_c006_gen_shots.py::test_gen_shots_failures_preserve_existing_structure`，覆盖 wake/HTTP/schema/资产删除/替换快照行集、shot/clip revision、媒体所属 clip 或媒体相对路径漂移及文件错误，核对 task failed、完整 error_msg、旧结构/marker/文件不变、无第二次调用。
     2. 新增并运行 `python -m pytest -q tests/task_system/test_c006_cancel_commit_race.py::test_cancel_and_gen_shots_commit_have_one_atomic_winner`，强制交错取消与最终提交：取消先赢时 canceled+旧结构，提交先赢时 done+完整新结构；不得出现 canceled+新结构或 done+半结构。
     3. 运行已有 `python -m pytest -q tests/task_system/test_task_queue.py::test_running_cancel_stops_at_safe_point tests/task_system/test_task_queue.py::test_restart_fails_running_and_continues_queued`，确认通用取消/重启没有被改弱。
   - **计划测试层级：** 任务系统 mock。
@@ -104,7 +105,7 @@
   - **覆盖 AC：** AC-11、AC-13、AC-17。
   - **验收方式：**
     1. 新增并运行 `Set-Location backend; python -m pytest -q tests/api/test_c006_shots.py::test_shot_get_and_patch_contract`，核对排序、精确字段、空列表、404/422、枚举、未知/只读字段、跨项目/prop/重复 id、no-op 与正常部分更新。
-    2. 运行 `python -m pytest -q tests/api/test_c006_shots.py::test_shot_patch_changes_revision_and_stales_clips`，核对一次实际变化只 revision+1/changed，多个命中 Clip 只 stale、不改 generation_state/revision、不删文件。
+    2. 运行 `python -m pytest -q tests/api/test_c006_shots.py::test_shot_patch_changes_revision_and_stales_clips`，分别覆盖 Shot 未归属 Clip 与已归属唯一 Clip：一次实际变化只使 Shot revision+1/changed；前者不改变任何 Clip，后者只将该唯一 Clip 置 stale，且不改 generation_state/revision、不删文件。不得构造违反 R5 与 `clip_shots.shot_id UNIQUE` 的多 Clip 归属。
     3. 运行 `python -m pytest -q tests/api/test_c006_shots.py::test_shot_patch_accepts_zero_and_multiple_scene_bindings`，证明零场景和多场景都返回 200 并准确持久化，不提前执行 C008 片段裁决。
   - **计划测试层级：** API 集成。
   - **追溯行：** `§3.3 编辑分镜文本或绑定：该分镜 changed、包含它的片段 stale、文件不删`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`。
@@ -185,7 +186,7 @@
 - [x] 在全新隔离 pytest 数据库完成后端全量、Alembic、前端生产构建、静态编译、diff/围栏扫描；汇总本 change 新增测试的真实 node ID、各 task 命令输出和正式库证据交给 Sol。不得由 Luna修改 PRD、TRACEABILITY、前置依赖清单或 change spec。
   - **前置 task：** T6、T8、T9、T10、T11、T12。
   - **R：** R1、R3；对应 PRD §0、§3.1-§3.3、§6.1-§6.4、§11 M2、§12。
-  - **范围：** 只做验收与证据收口；发现失败回到对应未完成 task，不改测试、不放宽 spec、不顺手重构。
+- **范围：** 只做验收与证据收口；发现失败回到对应未完成 task，不改测试、不放宽 spec、不顺手重构。`AGENTS.md` 的 C006 T5 一次性例外只能在 T5 内执行，T13 不再扩张或追加测试修改。
   - **覆盖 AC：** AC-01 至 AC-19。
   - **验收方式：**
     1. 新建全新 PostgreSQL pytest 库，设置 `$env:DATABASE_URL=$env:C006_PYTEST_DATABASE_URL`；`Set-Location backend; python -m alembic upgrade head; python -m alembic current; python -m alembic check`，确认 head 且无新 migration，迁移种子 `script2shots` 仍为占位。

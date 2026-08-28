@@ -32,5 +32,5 @@
 - `openspec/TRACEABILITY.md` 是“测全且不过度”的唯一裁决依据；不得编写追溯表之外的测试。
 - 新增测试前必须定位对应追溯行；实现 change 时回填用例 ID。一个用例可覆盖多行，但每个用例必须至少归属一行。
 - 不得修改、删除、跳过或弱化既有测试来换取通过；不得对测试数据做特殊分支。
+- **C006 一次性窄例外（需求方于 2026-08-27 明确授权）**：仅允许在 T5 中修正提交 `88258d8` 新增的 `backend/tests/task_system/test_c006_gen_shots.py::test_gen_shots_uses_snapshot_prompt_and_dynamic_schema`。修正范围只限：让媒体快照夹具符合 C006 spec §4.5 的真实 `kind/id/path` 合同，并把“T4 成功后结构保持不变”的阶段性断言替换为符合 T5 最终成功覆盖行为的断言。必须保留单次 wake/chat、快照 user message、model、temperature、schema name、精确动态 schema、无隐藏 system 业务 prompt 的全部断言；不得 skip/删除该用例、修改其他既有测试、弱化路径漂移校验或在生产代码中识别测试数据。T5 专用成功用例仍须独立覆盖完整 R3 替换与 trash。本例外在 C006 archive 时自动失效，不得类推。
 - 完成 task 后运行其计划测试与完整 `pytest`，报告真实命令和原始结果；失败或未运行时必须明确说明，不能勾选完成。
-

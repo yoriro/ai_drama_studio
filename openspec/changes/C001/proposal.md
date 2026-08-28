@@ -5,11 +5,11 @@
 - Change：`C001`
 - 里程碑：PRD §11 M0
 - 前序 change：无
-- 当前状态：可规划、可开始不依赖数据库连接的工作；在真实 PostgreSQL DSN 到位并完成迁移验证前不可验收
+- 当前状态：实现与 Sol 复审已完成；PostgreSQL 验收门槛已有合格证据，尚未执行 archive
 
 ## 背景与现状
 
-仓库当前只有冷启动文档、`.env.example` 和 `backend/`、`frontend/` 空目录，没有应用代码、依赖声明、迁移、测试或已归档 change。基线提交为 `8d716fe`。因此 C001 必须先建立最小可运行的前后端纵向切片，再创建 PRD §4 定稿的完整数据库结构；不能假设任何框架能力、数据库对象或外部服务已经存在。
+规划 C001 时，仓库只有冷启动文档、`.env.example` 和 `backend/`、`frontend/` 空目录，没有应用代码、依赖声明、迁移、测试或已归档 change；规划基线提交为 `8d716fe`。C001 现已交付最小可运行的前后端纵向切片、PRD §4 定稿的完整数据库结构及合法 smoke 基线。当前仍无已归档 change，C001 文档在获得 archive 确认前继续保留于活动目录。
 
 经用户确认，`openspec/TRACEABILITY.md` 已增加唯一一条 C001 基础设施 smoke 行，用于建立首个合法 pytest 基线；除该行外，不扩张业务测试范围。
 
@@ -50,7 +50,7 @@
 | §12.1 Z-Image、MiniMax H3 工作流与绑定 | 非 C001 开工或验收门槛 | `docs/前置依赖清单.md` 状态为“待提供” | C001 不创建绑定文件、不探测工作流；分别留待 C007/C009 |
 | §12.2 四个提示词模板初始内容 | 非 C001 开工或验收门槛 | 状态为“待提供”，PRD 允许先用占位示例 | C001 不 seed 占位内容；C002 以后按其 spec 处理 |
 | §12.3 vLLM sleep/wake | 非 C001 开工或验收门槛 | 状态为“待提供” | C001 不调用 vLLM；C007 开工前必须补齐验证证据 |
-| §12.4 PostgreSQL DSN | **C001 验收前必须到位**；ORM 声明和迁移文件可先编写，实际 upgrade/check 不可跳过 | `.env.example` 只有本地示例，依赖清单仍为“待提供”，没有可达性或权限证据 | 需提供可连接的专用 PostgreSQL 数据库、DSN 与建表权限；未提供时 C001 保持未验收，禁止用 SQLite 或 mock 代替 |
+| §12.4 PostgreSQL DSN | **C001 验收前必须到位**；ORM 声明和迁移文件可先编写，实际 upgrade/check 不可跳过 | `docs/前置依赖清单.md` 已记录本机 PostgreSQL `5432` 与专用空库 `ai_drama_studio_c001_acceptance_20260824` 的 C001 迁移验收；2026-08-24 Sol 复核当前 `ai_drama_studio`：用户 `postgres`、`public` schema 具备 CREATE 权限、13 张业务表、revision `3ad09fb566ed (head)`，`alembic check` 输出 `No new upgrade operations detected.` | C001 缺失项：无；后续 change 如需新验收库，应继续通过环境变量注入实际 DSN，不得把 `.env.example`、SQLite 或 mock 当作证据 |
 | §12.4 Comfy/vLLM 地址端口 | 非 C001 门槛，分别属于 C005/C007 | `.env.example` 只有示例地址，不能视为服务已到位 | health 骨架必须返回 `not_checked`，不得把示例地址报告为 healthy |
 
 ## 风险与控制
