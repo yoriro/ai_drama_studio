@@ -1,0 +1,128 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 421736402375458,
+      "steps": 9,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": [
+        "16",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "真人写实定妆照式角色设定图，横向排版，纯白无缝背景和地面，画面中只有人物。画面从中间垂直分为左右两个等宽区域，中间有一条细灰色分隔线：左侧为面部正面特写，头部与肩部入镜，脸正对镜头，占满区域宽度；右侧为全身正面视图，身体正对镜头，从头顶到鞋底完整入镜，双脚与肩同宽，双臂自然下垂。两个区域为同一人，五官、发型、服装细节完全一致，统一柔和摄影棚漫射光均匀平铺。\n\n25岁东亚女性，中等体型，面容清瘦，肤色偏白，眼下有淡淡青灰色阴影，嘴唇干燥无血色。黑色长直发湿透，几绺发丝贴在脸颊和颈侧。上身穿湿透的白色长袖衬衫，布料贴身，完全未系扣、前襟敞开，内搭浅灰色棉质吊带背心，两侧袖口卷至小臂中段，下摆左侧有一片淡黄褐色汤渍；下身穿深灰色直筒长裤；脚穿黑色平底鞋，鞋面有零星干泥点。神情疲惫，眼皮微垂，目光朝向地面，肩膀微微内收。\n\n照片，中性冷调，高清晰度，皮肤与湿布料质感清晰，人物比例准确。",
+      "clip": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "13": {
+    "inputs": {
+      "width": 1344,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "空Latent图像（SD3）"
+    }
+  },
+  "16": {
+    "inputs": {
+      "unet_name": "z_image\\z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "17": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "18": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  }
+}

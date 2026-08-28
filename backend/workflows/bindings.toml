@@ -1,0 +1,5 @@
+[comfy.zimage]
+workflow = "workflows/zimage.json"
+prompt_path = "6.inputs.text"
+seed_path = "3.inputs.seed"
+output_node = "9"

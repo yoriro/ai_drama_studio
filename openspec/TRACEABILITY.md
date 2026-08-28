@@ -17,6 +17,9 @@
 | R9 槽位取图优先级：override 图优先于资产当前图 | 纯函数 + API 集成 | 待填 |
 | R10 缺图即失败：任一启用槽位无可用图时任务失败并指出槽位与原因 | 任务系统 mock | 待填 |
 | R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot | API 集成 | `backend/tests/api/test_c002_prompt_templates.py::test_prompt_templates_and_edits_preserve_downstream_rows`（C002 覆盖模板可见可编辑及默认响应无中间字段；DEBUG_PROMPTS 详情待 C007/C009） |
+| C007 Comfy 工作流绑定与诊断：API 格式、注入/输出路径、启动失败、workflow hash 与 /system/health | 纯函数 + API 集成 | `backend/tests/unit/test_c007_workflow_binding.py::test_loads_verified_zimage_binding_and_hash`; `backend/tests/unit/test_c007_workflow_binding.py::test_rejects_invalid_api_workflow_shapes`; `backend/tests/unit/test_c007_workflow_binding.py::test_rejects_invalid_paths_and_leaf_types`; `backend/tests/unit/test_c007_workflow_binding.py::test_rejects_invalid_binding_sections_and_missing_workflow` |
+| C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发 | 任务系统 mock + 跨进程/资源生命周期 | 待填 |
+| C007 资产出图事务与文件一致性：生成 PNG 校验/sha256/原子落盘、首版 current、修订竞态保存非 current、缓存/图片/done 同事务、失败补偿入 trash | 任务系统 mock + 跨进程/资源生命周期 | 待填 |
 | R12 删除资产后的槽位：asset_id 置 NULL、快照和槽位号保留、片段 stale，不停用或无 override 时再次生成触发 R10 | API 集成 + 任务系统 mock | 待填 |
 | §3.3 编辑剧本：分镜、片段、文件均不动，只出现集级旧剧本角标 | API 集成 | `backend/tests/api/test_c002_script.py::test_script_revision_preserves_downstream_rows`（C002 覆盖 API 与下游不变；C005 T8 已人工验收资产旧剧本角标；C006 T11-T12 已用生产构建、真实浏览器与真实 gen_shots 验收分镜旧剧本角标及任务完成后刷新，不新增重复自动用例） |
 | §3.3 重新生成资产（增量）：分镜、片段、文件均不动 | 任务系统 mock | `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_failure_rolls_back_and_preserves_downstream`; `backend/tests/task_system/test_c005_gen_assets.py::test_gen_assets_uses_enqueued_script_revision_after_edit`（C005 T6 覆盖失败时既有资产/marker 无损与空输出成功按快照修订写 marker；T7-T8 已用真实 vLLM、PostgreSQL 和浏览器验收成功结果呈现，不新增自动用例） |
