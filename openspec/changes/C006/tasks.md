@@ -182,7 +182,7 @@
 
 ### T13 全量回归、范围证据与 Sol 追溯交接
 
-- [ ] 在全新隔离 pytest 数据库完成后端全量、Alembic、前端生产构建、静态编译、diff/围栏扫描；汇总本 change 新增测试的真实 node ID、各 task 命令输出和正式库证据交给 Sol。不得由 Luna修改 PRD、TRACEABILITY、前置依赖清单或 change spec。
+- [x] 在全新隔离 pytest 数据库完成后端全量、Alembic、前端生产构建、静态编译、diff/围栏扫描；汇总本 change 新增测试的真实 node ID、各 task 命令输出和正式库证据交给 Sol。不得由 Luna修改 PRD、TRACEABILITY、前置依赖清单或 change spec。
   - **前置 task：** T6、T8、T9、T10、T11、T12。
   - **R：** R1、R3；对应 PRD §0、§3.1-§3.3、§6.1-§6.4、§11 M2、§12。
   - **范围：** 只做验收与证据收口；发现失败回到对应未完成 task，不改测试、不放宽 spec、不顺手重构。
