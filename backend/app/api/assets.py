@@ -11,6 +11,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
+from app.models import AssetImage
 from app.schemas.assets import (
     AssetCreate,
     CurrentImagePatch,
@@ -38,6 +39,16 @@ from app.tasks.queue import TaskConflictError, TaskQueue, TaskValidationError
 
 
 router = APIRouter(tags=["assets"])
+
+
+def _asset_image_payload(
+    image: AssetImage, *, include_debug: bool
+) -> dict[str, object]:
+    payload = AssetImageResponse.model_validate(image).model_dump(mode="json")
+    if include_debug:
+        payload["built_prompt"] = image.built_prompt
+        payload["input_snapshot"] = image.input_snapshot
+    return payload
 
 
 @router.post(
@@ -118,12 +129,19 @@ async def delete_asset_route(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/assets/{asset_id}/images", response_model=list[AssetImageResponse])
+@router.get("/assets/{asset_id}/images", response_model=list[dict[str, object]])
 async def read_asset_images(
     asset_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_session),
-) -> list[AssetImageResponse]:
-    return await list_asset_images(session, asset_id)
+) -> list[dict[str, object]]:
+    images = await list_asset_images(session, asset_id)
+    return [
+        _asset_image_payload(
+            image, include_debug=request.app.state.settings.DEBUG_PROMPTS
+        )
+        for image in images
+    ]
 
 
 @router.post(

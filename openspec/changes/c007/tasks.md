@@ -205,7 +205,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：`§6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断`；`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`。
 
-- [ ] **T10 交付 R11 图片调试字段的条件 API 合同**
+- [x] **T10 交付 R11 图片调试字段的条件 API 合同**
   - 依赖：T7。
   - 改动清单：
     1. `DEBUG_PROMPTS=false` 时保持 C003 图片列表精确字段，无 built_prompt/input_snapshot/file_path/input_hash/user_note。
@@ -219,6 +219,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m pytest -q tests/api/test_c007_prompt_visibility.py
     ```
+  - 2026-08-28 实际结果：定向测试 `1 passed in 0.98s`；在新建隔离 PostgreSQL 数据库完成迁移后，完整 `pytest` 为 `100 passed in 34.64s`；原始输出见 `.work/c007/T10-test.log`。
   - 计划测试层级：API 集成。
   - 追溯行：`R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot`。
 

@@ -90,3 +90,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - C007 T8 在 `ai_drama_studio_c007_t8_20260828` 完成迁移；定向 13+1 passed，完整 pytest 94 passed，原始输出保存在 `.work/c007/T8-test.log`。
 - C007 T8 验证时 `.env` 数据库有运行中的 uvicorn worker，改用隔离数据库后任务系统资源顺序测试稳定通过。
 - C007 T9 在 `ai_drama_studio_c007_t9_20260828` 完成迁移；定向 5 passed，完整 pytest 99 passed，原始输出保存在 `.work/c007/T9-test.log`。
+- C007 T10 在 `ai_drama_studio_c007_t10_20260828` 完成迁移；定向 1 passed，完整 pytest 100 passed，原始输出保存在 `.work/c007/T10-test.log`。
