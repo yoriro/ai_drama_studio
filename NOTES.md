@@ -94,3 +94,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - C007 T11 生产 build 成功，隔离数据库完整 pytest 100 passed；真实 `/settings` 走查覆盖 healthy、ComfyUI 停止后的 unhealthy/message、后端停止后的 API 错误、设置编辑保留与恢复刷新；原始 build/pytest 输出在 `.work/c007/T11-test.log`。
 - C007 T12 2026-08-30：设置 API 写入并逐字读回人物四视图模板；真实资产 `林晚` 任务 `#233/#234` 均完成，生成版本 29/30 产生不同 seed，30 current，29 删除后进入 `backend/data/trash/projects/4/assets/48/29.png`；debug false/true 字段实测符合约定；T12 build/pytest 输出见 `.work/c007/T12-test.log`。
 - C007 T13 2026-08-30：设置 API 写入并逐字读回人物/场景单一 `zimage` 正式模板；当前正文长度 2770，唯一占位符顺序为 `asset,style,user_note`，包含 `character`/`scene`、`1344×1024` 和封闭 JSON `prompt` 合同；复核输出见 `.work/c007/T13-test.log`。
+- C007 T14 2026-08-30：真实 ComfyUI 使用 127.0.0.1:8188 与 workflow hash e9790bece3462691ebaf63d849bf1940beec62f9149fb6d475be859c47e41eaa；health 返回 vLLM/Comfy healthy、binding valid。
+- C007 T14：林晚资产修订 4 生成图片 31/32/33；相同意见第二次任务 248 命中已缓存 prompt，描述修改后任务 249 生成新 prompt；三张 PNG 均为 1344×1024。
+- C007 T14：场景资产 279 的任务 250 完成，图片 34 自动 current，PNG 为 1344×1024；debug false 不返回 built_prompt/input_snapshot，debug true 返回。
+- C007 T14 最终隔离库 `ai_drama_studio_c007_t14_final_20260830` 定向测试 68 passed、完整 pytest 100 passed，frontend build 与 Alembic current/check 均成功；原始输出见 `.work/c007/T14-test.log`。

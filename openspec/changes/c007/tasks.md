@@ -261,16 +261,47 @@
   - 追溯行：不适用（R4/R11 后端行为已有 T4-T10 自动覆盖；当前前端无测试框架，以 build + 真实浏览器验收 UI）。
   - 2026-08-30 实际结果：设置 API 写入并逐字读回人物四视图模板（`READBACK_MATCH=True`，三处占位符精确）；真实浏览器任务 `#233/#234` 均 `done`，产生版本 `29/30` 两个不同 seed，切换 current 并删除非 current 后页面/API/正式目录与 trash 一致；同步错误保留意见；debug false/true 字段与可展开展示符合约定；隔离库完整 pytest `100 passed in 33.90s`，生产 build 成功；原始命令输出见 `.work/c007/T12-test.log`。
 
-- [ ] **T13 完成真实 M3 纵向验收、全量回归与追溯回填**
+- [x] **T13 通过设置 API 固化单一 `zimage` 人物/场景双分支正式模板**
   - 依赖：T0-T12 全部完成。
   - 改动/证据清单：
+    1. 以需求方 2026-08-30 提供的人物模板为人物分支，保留其七段四视图正文、填写规则、默认值和林晚示例；只作 spec §4.1 明确要求的合同修正：`3:2` 改为 `1344×1024`，把裸正文输出改为唯一 JSON object 的 `prompt` 字段，并增加按注入资产 JSON `type` 二选一的总入口。
+    2. 在同一模板加入 spec §4.1 场景分支：四段 prompt 必须依次覆盖单幅连续空间、观察位置/方向及前中后景、建筑或地貌/陈设/时间/天气/光照/材质/项目风格、排除可辨识人物与多格/四视图/分镜/平面图/文字/标志/水印；不新增第二模板 key、模板版本、fallback 或代码侧业务 prompt。
+    3. 正文末尾按 `资产：{{asset}}`、`风格：{{style}}`、`用户补充：{{user_note}}` 顺序各保留一次且仅一次，不含其他或未闭合占位符；用户意见优先级不得覆盖类型、画幅、分支构图和 JSON 硬约束。
+    4. 先 GET 记录当前 `zimage` 内容，再通过既有 `PATCH /api/prompt-templates/zimage` 写入合并后的正式正文，随后 GET 并与提交字符串逐字比较；只改变现有运行数据，不新增仓库模板文件、不把测试输入写进生产代码。API 未成功写入或读回不一致时不勾选。
+  - R：R4、R11；PRD §3.1 R4、§3.2 风格/模板即时生效、§3.5、§5 设置 API、§7、§11 M3、§12.2。
+  - 验收方式与应运行命令：使用真实设置 API 保存和读回，不直接改数据库。`$approvedTemplate` 必须是按上述 1-3 合并后的完整正文，不得用摘要代替。
+    ```powershell
+    $apiBase = 'http://127.0.0.1:8000/api'
+    $before = Invoke-RestMethod -Method Get -Uri "$apiBase/prompt-templates"
+    $approvedTemplate = @'
+    <粘贴完整的已确认单模板正文；执行时不得保留本占位行>
+    '@
+    $placeholderNames = [regex]::Matches($approvedTemplate, '\{\{([^{}]+)\}\}') | ForEach-Object { $_.Groups[1].Value }
+    if (($placeholderNames -join ',') -cne 'asset,style,user_note') { throw "unexpected placeholders: $($placeholderNames -join ',')" }
+    if ($approvedTemplate -match '3:2|只输出填好的提示词正文') { throw 'template still conflicts with workflow or JSON response contract' }
+    if ($approvedTemplate -notmatch '1344×1024' -or $approvedTemplate -notmatch 'character' -or $approvedTemplate -notmatch 'scene' -or $approvedTemplate -notmatch 'JSON' -or $approvedTemplate -notmatch 'prompt') { throw 'template is missing a required branch/output marker' }
+    $body = @{ content = $approvedTemplate } | ConvertTo-Json
+    Invoke-RestMethod -Method Patch -Uri "$apiBase/prompt-templates/zimage" -ContentType 'application/json' -Body $body
+    $after = Invoke-RestMethod -Method Get -Uri "$apiBase/prompt-templates"
+    $stored = ($after | Where-Object { $_.key -eq 'zimage' }).content
+    if ($stored -cne $approvedTemplate) { throw 'zimage template readback differs from submitted content' }
+    ```
+    保存 before/PATCH/after 的真实 HTTP 状态与逐字相等结果；不得声称静态关键字检查已经证明图片语义，图片语义只由 T14 验收。
+  - 计划测试层级：不新增自动测试（正式模板是需求方确认并经既有设置 API 管理的运行数据；API 编辑合同已有 C002 覆盖，人物/场景输出语义由 T14 真实资源通路验收）。
+  - 追溯行：`C007 Z-Image 类型语义：单一 zimage 模板按 asset.type 生成 1344×1024 人物四视图或单幅连续场景，并使用封闭 prompt JSON`；`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`；`R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot`。
+  - 2026-08-30 实际结果：真实 `GET /api/prompt-templates` 读取后通过 `PATCH /api/prompt-templates/zimage` 写入完整正式模板，再次 GET 逐字比对；两次 PATCH 均返回 `200`，最终 `READBACK_MATCH=True`、长度 `2770`，占位符顺序为 `asset,style,user_note`；同一模板包含人物/场景分支、`1344×1024` 和唯一 `prompt` JSON 输出约束；隔离库全量 pytest `100 passed in 34.39s`，原始输出见 `.work/c007/T13-test.log`。图片语义留待 T14。
+
+- [x] **T14 完成真实 M3 人物/场景纵向验收、全量回归与追溯回填**
+  - 依赖：T13。
+  - 改动/证据清单：
     1. 使用新建隔离 PostgreSQL 数据库和隔离 DATA_DIR 跑全部定向/完整测试；任何已有 uvicorn 必须先停止或切换 DSN，避免 advisory lock/历史数据污染。
-    2. 真实环境通过设置 API 写入需求方提供/确认的含三个变量 `zimage` 内容；读回逐字一致。占位未获确认时明确报告真实语义验收未完成，不勾选本 task。
-    3. 选择已有 current 图片的资产：相同意见连续成功两次，证明第二次 hash hit/chat=0、seed/版本不同；编辑描述后第三次 hash 改变/chat=1。另用无 current 资产证明安全首版 current。
-    4. 用真实 vLLM/Comfy 记录 wake/chat/sleep/submit/progress/history/view/free 顺序和任务日志；执行期间采样 GPU 进程/显存，确认无 LLM/Comfy 推理重叠。
-    5. 验证真实 `/system/health`、资产页、设置页、任务中心、媒体 URL、debug false/true；不得用 mock/占位图冒充。
-    6. 回填本 change 新增测试的真实 pytest node ID 到准确 TRACEABILITY 行；不得修改/弱化任何既有测试。
-    7. 运行 full pytest、frontend build、Alembic current/check、diff/check/范围扫描，保留原始输出；发现失败不得勾选或提交。
+    2. 真实环境 GET `zimage` 并与 T13 提交正文逐字一致；模板、workflow hash 或外部服务状态漂移时停止，不以旧 cache 或临时 prompt 继续。
+    3. 选择已有 current 图片的 `character` 资产：以相同意见连续成功两次，证明首次为 template 内容变化后的 cache miss/chat=1，第二次 hash hit/chat=0 且 seed/版本不同；编辑描述后第三次 hash 改变/chat=1。检查首次 built prompt 只含 1344×1024 人物四视图语义，PNG 为 1344×1024 单张四栏同一人物且无额外人物、文字、标志或水印。
+    4. 创建或选择一个无 current 的 `scene` 资产，其描述明确给出前景、中景、背景、时间、天气和光照；执行一次真实 cache miss，检查 snapshot/rendered/built prompt 不含人物四视图指令，PNG 为 1344×1024 单幅连续环境且无可辨识人物、多格、分镜、文字、标志或水印，并证明该安全首版自动 current。任一人工检查项为假时本 task 失败，不用另一 seed 冒充本次通过。
+    5. 用真实 vLLM/Comfy 记录人物 miss/hit、场景 miss 的 wake/chat/sleep/submit/progress/history/view/free 顺序和任务日志；执行期间采样 GPU 进程/显存，确认无 LLM/Comfy 推理重叠。
+    6. 验证真实 `/system/health`、资产页、设置页、任务中心、两类媒体 URL、debug false/true；保存两类 input snapshot/rendered prompt/built prompt、task 终态、PNG 尺寸、页面/图片截图和 AC-19 逐项真假表，不得用 mock/占位图冒充。
+    7. 回填本 change 新增测试的真实 pytest node ID 到准确 TRACEABILITY 行；AC-19 保持 T13/T14 的非自动真实验收记录，不为图像语义新增固定像素测试，不得修改/弱化任何既有测试。
+    8. 运行 full pytest、frontend build、Alembic current/check、diff/check/范围扫描，保留原始输出；发现失败不得勾选或提交。
   - R：R4、R11；PRD §2.1(5,9)、§3.1-§3.3、§3.5、§5、§6.1-§6.4、§7-§9、§11 M3、§12。
   - 验收方式与应运行命令：
     ```powershell
@@ -288,23 +319,25 @@
     git status --short
     rg -n -i "generation_runs|continuity|context_loop|fl2v|audio|candidate shot|候选分镜|资产别名|模板版本" backend frontend/src
     ```
-    真实浏览器/HTTP/GPU证据按 spec AC-02、AC-04、AC-09、AC-10、AC-15、AC-16 保存；命中既有合法 `clips.generation_mode` 预留时只核对未新增读写，不把单纯文本命中误报为失败。
+    真实浏览器/HTTP/GPU证据按 spec AC-02、AC-04、AC-09、AC-10、AC-15、AC-16、AC-19 保存；命中既有合法 `clips.generation_mode` 预留时只核对未新增读写，不把单纯文本命中误报为失败。
+  - 2026-08-30 实际结果：真实模板 GET 200、唯一占位符顺序为 asset,style,user_note，workflow hash 与 debug false health 均稳定；人物任务 #235/#248/#249 和场景任务 #250 均 done，人物图片 31/32/33、场景图片 34 均为 PNG 1344×1024，场景首版 34 自动 current。人物相同意见第二次命中缓存，描述修改后第三次重建 prompt；debug false 不返回中间字段，debug true 返回 built_prompt/input_snapshot；真实 vLLM/Comfy、媒体 URL、资产页、设置页和任务中心证据见 .work/c007/T14-test.log 及截图。
+  - 2026-08-30 人工偏离记录：人物图片 31 与 33 的第一栏未呈现放大头肩近景，但仍为四栏同一角色 PNG；用户已明确接受 Z-Image 结果不可预测，并裁决本次所有资产以成功生成、任务完成、资产落盘和合同状态可验证为验收门槛。该裁决不改写 spec 字面，未将该视觉项静默记为满足。
   - 计划测试层级：跨进程/资源生命周期。
-  - 追溯行：本 change 使用的 `R4 input_hash 缓存...`、`R11 提示词可见性...`、`§3.3 编辑风格或模板...`、`§6.1 取消...`、`§6.1 去重与幂等...` 以及三条 `C007 ...` 新增行；只回填实际覆盖的 node ID。
+  - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`；`R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot`；`§3.3 编辑风格或模板：分镜与片段不动、文件不删，下次生成因 hash 失配重建 prompt`；`§6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断`；`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务，并按冻结的 UUIDv5 映射复用 seed/prompt id`；`C007 Z-Image 类型语义：单一 zimage 模板按 asset.type 生成 1344×1024 人物四视图或单幅连续场景，并使用封闭 prompt JSON`；`C007 Comfy 工作流绑定与诊断：API 格式、注入/输出路径、启动失败、workflow hash 与 /system/health`；`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`；`C007 资产出图事务与文件一致性：生成 PNG 校验/sha256/原子落盘、首版 current、修订竞态保存非 current、缓存/图片/done 同事务、失败补偿入 trash`。只回填实际覆盖的 node ID，AC-19 不虚构 pytest node ID。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - R：无；PRD 章节：不适用，依据 AGENTS §7 的真实环境与命令证据纪律。
-  - 验收方式与命令：对照 T0/T13 原始输出更新地址、版本、启动命令、真实测试结果与新坑；若无持久事实，在完成报告精确写“无”。运行 `git diff -- NOTES.md` 核对只记录真实事实。
+  - 验收方式与命令：对照 T0/T14 原始输出更新地址、版本、启动命令、真实测试结果与新坑；若无持久事实，在完成报告精确写“无”。运行 `git diff -- NOTES.md` 核对只记录真实事实。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - R：无；PRD 章节：§6-§8；依据 `DECISIONS.md` 的跨 change 收录边界。
   - 验收方式与命令：对照实现是否形成 PRD/AGENTS 未直接规定且约束 C009+ 的长期决定；只在完成报告列候选，不擅自修改 `DECISIONS.md`。运行 `git diff -- DECISIONS.md` 必须为空。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
   - R：无；PRD 章节：不适用，依据 `openspec/project.md` change 工作流。
   - 验收方式与命令：逐项核对本文件 checkbox 只勾选已有真实证据的 task；`spec.md`、`tasks.md`、TRACEABILITY 回填、实现与当前 commit 同步，无部分完成冒充完成。
     ```powershell
