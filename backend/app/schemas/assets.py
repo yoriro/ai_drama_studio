@@ -82,10 +82,17 @@ class AssetImageResponse(BaseModel):
     id: int
     asset_id: int
     sha256: str
-    seed: int | None
+    seed: str | None
     source: str
     is_current: bool
     created_at: datetime
+
+    @field_validator("seed", mode="before")
+    @classmethod
+    def serialize_seed(cls, value: int | str | None) -> str | None:
+        if value is None:
+            return None
+        return str(value)
 
 
 class CurrentImagePatch(BaseModel):

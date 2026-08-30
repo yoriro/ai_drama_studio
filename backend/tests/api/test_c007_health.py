@@ -126,9 +126,9 @@ def _http_status_error(status_code: int) -> httpx.HTTPStatusError:
             "ComfyUI health returned HTTP 503",
         ),
         (
-            "vllm",
+            "comfy",
             ValueError("invalid JSON"),
-            "vLLM health response was invalid",
+            "ComfyUI health response was invalid",
         ),
     ],
 )

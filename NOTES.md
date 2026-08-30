@@ -102,3 +102,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-30 C007 审查新增回归定向为 `9 passed in 4.21s`，完整 C007 定向为 `77 passed in 14.96s`，完整 backend 为 `109 passed in 68.02s`；原始输出见 `.work/c007/C007-sol-review-*.log`。
 - 2026-08-30 最新 SettingsPage 清理诊断旧状态后 `npm run build` 通过：55 modules、JS `215.70 kB`、CSS `7.90 kB`、`426ms`。
 - 2026-08-30 资产页/设置页人工走查时 vLLM 保持停止，页面显示 vLLM unhealthy、ComfyUI healthy、Z-Image binding valid；设置页刷新期间旧 health 不显示。
+- 2026-08-30 按既有 vLLM 启动命令重启 `/mnt/d/llm_models/Qwen3-30B-A3B-Instruct-2507-AWQ-4bit`；8001 `/health` 实测 HTTP 200、空 body，原始输出见 `.work/c007/Sol-vllm-restart-20260830-*.log`。
+- 2026-08-30 隔离库 `ai_drama_studio_c007_seed_20260830` 上公开 seed API 用例 `1 passed`，63-bit seed 原样返回十进制字符串；内部 seed 整数用例未改且通过。
+- 2026-08-30 全量 backend 为 `109 passed, 1 failed`；唯一失败是 `test_health_timeout_is_unhealthy_without_gpu_mutation` 实际访问已启动的 8001 并收到 healthy，原始输出见 `.work/c007/C007-seed-contract-full-backend.log`。

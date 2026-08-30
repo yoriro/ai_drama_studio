@@ -31,7 +31,7 @@ export interface AssetImage {
   id: number;
   asset_id: number;
   sha256: string;
-  seed: number | null;
+  seed: string | null;
   source: AssetImageSource;
   is_current: boolean;
   created_at: string;
