@@ -9,6 +9,13 @@ class GenerateAssetImageRequest(BaseModel):
     user_note: StrictStr | None = None
     request_id: StrictStr | None = None
 
+    @field_validator("user_note", "request_id")
+    @classmethod
+    def reject_postgres_nul(cls, value: str | None) -> str | None:
+        if value is not None and "\x00" in value:
+            raise ValueError("request_id and user_note must not contain U+0000")
+        return value
+
 
 class GenerateAssetImageResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")

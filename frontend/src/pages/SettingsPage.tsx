@@ -43,6 +43,9 @@ export function SettingsPage() {
 
   useEffect(() => {
     let disposed = false;
+    setHealth(null);
+    setHealthLoadError(null);
+    setHealthLoadState("loading");
 
     void listStyles().then(
       (loadedStyles) => {
@@ -90,6 +93,7 @@ export function SettingsPage() {
       },
       (error: unknown) => {
         if (!disposed) {
+          setHealth(null);
           setHealthLoadError(error);
           setHealthLoadState("error");
         }
@@ -102,12 +106,14 @@ export function SettingsPage() {
   }, []);
 
   async function handleRefreshHealth() {
+    setHealth(null);
     setHealthLoadError(null);
     setHealthLoadState("loading");
     try {
       setHealth(await getHealth());
       setHealthLoadState("ready");
     } catch (error: unknown) {
+      setHealth(null);
       setHealthLoadError(error);
       setHealthLoadState("error");
     }

@@ -99,9 +99,9 @@
     2. 实现 spec §4.2 精确 schema 与非空白 prompt 校验；不加 system 业务 prompt或自由文本解析。
     3. 实现固定八成员数组 JSON bytes 与 SHA-256 `input_hash`；测试逐成员变化和仅 seed 变化。
     4. 实现只修改 workflow 深拷贝两条叶路径的注入函数，证明原 payload object 不变。
-    5. 实现无 request id 的 random 63-bit seed/UUID4，以及有 request id 的固定 namespace 确定性 seed/canonical UUID；不依赖当前时间。
+    5. 实现无 request id 的 random 63-bit seed/UUID4；有 request id 时只按 spec §3.4：`UUID("27e66eeb-4d70-597c-8f24-fb984fab13c3")` + 规范化 key 执行标准库 UUIDv5，prompt id 为 canonical string，seed 为 UUID integer 低 63 bits。不得 lowercase/NFC、拼入其他字段、读取配置、二次 hash、碰撞处理或依赖当前时间。
   - R：R4；PRD §3.1 R4、§6.2、§7、§8。
-  - 验收方式：表驱动纯函数用例精确比较渲染 string、schema object、hash bytes、workflow diff、seed 范围与同 key 稳定性；异常不 fallback。
+  - 验收方式：表驱动纯函数用例精确比较渲染 string、schema object、hash bytes、workflow diff、无 id seed/id 范围与独立性；固定向量 `" abc " → "abc" → f0faf273-5fe9-5726-98be-3d449efdbe8d / 1782929867419795085` 必须逐值相等，并覆盖大小写、内部空白与 Unicode 不被额外规范化；异常不 fallback。
   - 应运行命令：
     ```powershell
     Set-Location D:\ai_drama_studio\backend
@@ -109,7 +109,7 @@
     ```
   - 2026-08-28 实际结果：定向测试最终 `17 passed in 0.23s`；在新建隔离 PostgreSQL 数据库完成迁移后，完整 `pytest` 为 `68 passed in 23.71s`；原始输出见 `.work/c007/T4-test.log`。
   - 计划测试层级：纯函数。
-  - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
+  - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`；`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务，并按冻结的 UUIDv5 映射复用 seed/prompt id`。
 
 - [x] **T5 交付 generate-image 请求边界与单请求入队合同**
   - 依赖：T3、T4。
@@ -133,12 +133,12 @@
   - 依赖：T5。
   - 改动清单：
     1. 实现 D-007 规范化 key 的任意状态预查：同 type/target/user_note 返回既有冻结 payload/task，任一不一致 409。
-    2. 保证真正并发相同 key 构造相同 seed/prompt id/payload，由现有 request_id 唯一索引裁决后返回一个 task；不得插入重试、内容签名或新锁机制。
+    2. 保证真正并发的 `" abc "`/`"abc"` 按 spec §3.4 固定 UUIDv5 映射构造相同 seed/prompt id/payload，由现有 request_id 唯一索引裁决后返回一个 task；不得插入重试、内容签名或新锁机制。
     3. 证明无 request id 的同资产并发请求可创建多条 active `gen_asset_image`，各自 seed/prompt id 不共享；不得错误复用 `uq_tasks_active_target`。
     4. 以真实队列/DB 保持入队锁定，验证入队后资产、风格、模板、磁盘 workflow 变化不改已 claim payload；worker seam 只读取冻结内容。
     5. 新增独立 task-system mock 竞态用例；不得把并发要求塞回基础 API 用例或修改 C004 tests。
   - R：R4；PRD §3.2 task snapshot、§6.1 request_id/多任务。
-  - 验收方式：并发 barrier 后断言 task 行数/id/seed/payload；终态重放仍返回原 task；变更 target/note 为结构化 409；快照对象不被回写。
+  - 验收方式：并发 barrier 后断言 task 行数/id/payload及固定 prompt id/seed 向量；终态重放仍返回原 task和原冻结 payload；变更 target/note 为结构化 409；无 id 并发产物独立；快照对象不被回写。
   - 应运行命令：
     ```powershell
     Set-Location D:\ai_drama_studio\backend
@@ -146,7 +146,7 @@
     ```
   - 2026-08-28 实际结果：定向测试 `3 passed in 1.56s`；在新建隔离 PostgreSQL 数据库完成迁移后，完整 `pytest` 为 `73 passed in 25.70s`；原始输出见 `.work/c007/T6-test.log`。
   - 计划测试层级：任务系统 mock。
-  - 追溯行：`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有 task`；`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
+  - 追溯行：`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务，并按冻结的 UUIDv5 映射复用 seed/prompt id`；`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
 
 - [x] **T7 交付生成 PNG 的正式落盘、最终事务和同步补偿服务**
   - 依赖：T4、T6。
@@ -308,7 +308,7 @@
     Set-Location D:\ai_drama_studio\backend
     python -m alembic current
     python -m alembic check
-    python -m pytest -q tests/unit/test_c007_workflow_binding.py tests/unit/test_c007_asset_image_inputs.py tests/api/test_c007_health.py tests/api/test_c007_generate_asset_image.py tests/api/test_c007_prompt_visibility.py tests/task_system/test_c007_enqueue_races.py tests/task_system/test_c007_asset_image_commit.py tests/task_system/test_c007_gen_asset_image.py tests/task_system/test_c007_cancel_interrupt.py tests/task_system/test_c007_resource_lifecycle.py
+    python -m pytest -q tests/unit/test_c007_workflow_binding.py tests/unit/test_c007_asset_image_inputs.py tests/api/test_c007_health.py tests/api/test_c007_generate_asset_image.py tests/api/test_c007_prompt_visibility.py tests/api/test_c007_review_health.py tests/task_system/test_c007_enqueue_races.py tests/task_system/test_c007_asset_image_commit.py tests/task_system/test_c007_gen_asset_image.py tests/task_system/test_c007_cancel_interrupt.py tests/task_system/test_c007_resource_lifecycle.py tests/task_system/test_c007_review_regressions.py
     python -m pytest -q
 
     Set-Location D:\ai_drama_studio\frontend
@@ -321,6 +321,7 @@
     ```
     真实浏览器/HTTP/GPU证据按 spec AC-02、AC-04、AC-09、AC-10、AC-15、AC-16、AC-19 保存；命中既有合法 `clips.generation_mode` 预留时只核对未新增读写，不把单纯文本命中误报为失败。
   - 2026-08-30 实际结果：真实模板 GET 200、唯一占位符顺序为 asset,style,user_note，workflow hash 与 debug false health 均稳定；人物任务 #235/#248/#249 和场景任务 #250 均 done，人物图片 31/32/33、场景图片 34 均为 PNG 1344×1024，场景首版 34 自动 current。人物相同意见第二次命中缓存，描述修改后第三次重建 prompt；debug false 不返回中间字段，debug true 返回 built_prompt/input_snapshot；真实 vLLM/Comfy、媒体 URL、资产页、设置页和任务中心证据见 .work/c007/T14-test.log 及截图。
+  - 2026-08-30 Sol 审查修复实际结果：在隔离数据库 `ai_drama_studio_c007_review_repair_20260830` 上新增 API 边界、真实并发快照、AC-08/AC-11 完整 handler、health timeout 和跨进程资源生命周期回归；新增回归定向 `9 passed in 4.21s`，C007 定向（含新增用例）`77 passed in 14.96s`，完整 backend `109 passed in 68.02s`。最新 frontend `npm run build` 为 55 modules、`215.70 kB` JS、`7.90 kB` CSS、`426ms`；Alembic current 为 `6b8e3f0a1d24 (head)`，check 为 `No new upgrade operations detected.`；原始输出见 `.work/c007/C007-sol-review-*.log`。vLLM 按用户裁决保持停止，依赖真实 vLLM 的复验待外部验证。
   - 2026-08-30 人工偏离记录：人物图片 31 与 33 的第一栏未呈现放大头肩近景，但仍为四栏同一角色 PNG；用户已明确接受 Z-Image 结果不可预测，并裁决本次所有资产以成功生成、任务完成、资产落盘和合同状态可验证为验收门槛。该裁决不改写 spec 字面，未将该视觉项静默记为满足。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`；`R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot`；`§3.3 编辑风格或模板：分镜与片段不动、文件不删，下次生成因 hash 失配重建 prompt`；`§6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断`；`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务，并按冻结的 UUIDv5 映射复用 seed/prompt id`；`C007 Z-Image 类型语义：单一 zimage 模板按 asset.type 生成 1344×1024 人物四视图或单幅连续场景，并使用封闭 prompt JSON`；`C007 Comfy 工作流绑定与诊断：API 格式、注入/输出路径、启动失败、workflow hash 与 /system/health`；`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`；`C007 资产出图事务与文件一致性：生成 PNG 校验/sha256/原子落盘、首版 current、修订竞态保存非 current、缓存/图片/done 同事务、失败补偿入 trash`。只回填实际覆盖的 node ID，AC-19 不虚构 pytest node ID。

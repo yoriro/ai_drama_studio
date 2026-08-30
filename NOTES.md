@@ -98,3 +98,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - C007 T14：林晚资产修订 4 生成图片 31/32/33；相同意见第二次任务 248 命中已缓存 prompt，描述修改后任务 249 生成新 prompt；三张 PNG 均为 1344×1024。
 - C007 T14：场景资产 279 的任务 250 完成，图片 34 自动 current，PNG 为 1344×1024；debug false 不返回 built_prompt/input_snapshot，debug true 返回。
 - C007 T14 最终隔离库 `ai_drama_studio_c007_t14_final_20260830` 定向测试 68 passed、完整 pytest 100 passed，frontend build 与 Alembic current/check 均成功；原始输出见 `.work/c007/T14-test.log`。
+- 2026-08-30 C007 Sol 审查修复使用隔离库 `ai_drama_studio_c007_review_repair_20260830`；`alembic current` 为 `6b8e3f0a1d24 (head)`，`alembic check` 为 `No new upgrade operations detected.`。
+- 2026-08-30 C007 审查新增回归定向为 `9 passed in 4.21s`，完整 C007 定向为 `77 passed in 14.96s`，完整 backend 为 `109 passed in 68.02s`；原始输出见 `.work/c007/C007-sol-review-*.log`。
+- 2026-08-30 最新 SettingsPage 清理诊断旧状态后 `npm run build` 通过：55 modules、JS `215.70 kB`、CSS `7.90 kB`、`426ms`。
+- 2026-08-30 资产页/设置页人工走查时 vLLM 保持停止，页面显示 vLLM unhealthy、ComfyUI healthy、Z-Image binding valid；设置页刷新期间旧 health 不显示。

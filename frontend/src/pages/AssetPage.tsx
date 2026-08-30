@@ -62,6 +62,8 @@ function isTerminalTaskEvent(event: TaskEvent): boolean {
 export function AssetPage({ episode, projectId }: AssetPageProps) {
   const [entries, setEntries] = useState<AssetEntry[]>([]);
   const entriesRef = useRef<AssetEntry[]>([]);
+  const wsEventRevisionRef = useRef(0);
+  const restRequestRef = useRef(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<unknown>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,46 +81,38 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
     );
   }
 
-  useEffect(() => {
-    let disposed = false;
-    setLoadState("loading");
-    setLoadError(null);
-    void readEntries().then(
-      (loadedEntries) => {
-        if (!disposed) {
-          entriesRef.current = loadedEntries;
-          setEntries(loadedEntries);
-          setLoadState("ready");
-        }
-      },
-      (error: unknown) => {
-        if (!disposed) {
-          setLoadError(error);
-          setLoadState("error");
-        }
-      },
-    );
-    return () => {
-      disposed = true;
-    };
-  }, [projectId]);
-
   async function refreshAssets(): Promise<void> {
+    const requestId = ++restRequestRef.current;
+    const observedEventRevision = wsEventRevisionRef.current;
     setRefreshing(true);
     setLoadError(null);
     try {
       const loadedEntries = await readEntries();
+      if (
+        requestId !== restRequestRef.current ||
+        observedEventRevision !== wsEventRevisionRef.current
+      ) {
+        return;
+      }
       entriesRef.current = loadedEntries;
       setEntries(loadedEntries);
       setLoadState("ready");
     } catch (error: unknown) {
+      if (
+        requestId !== restRequestRef.current ||
+        observedEventRevision !== wsEventRevisionRef.current
+      ) {
+        return;
+      }
       setLoadError(error);
       if (entriesRef.current.length === 0) {
         setLoadState("error");
       }
       throw error;
     } finally {
-      setRefreshing(false);
+      if (requestId === restRequestRef.current) {
+        setRefreshing(false);
+      }
     }
   }
 
@@ -127,11 +121,17 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
     let activeSocket: WebSocket | null = null;
     let reconnectTimer: number | null = null;
     let reconnectAttempt = 0;
-    let connectedOnce = false;
+    wsEventRevisionRef.current = 0;
+    restRequestRef.current += 1;
     const handledTerminalTaskIds = new Set<number>();
 
     function isActive(socket: WebSocket): boolean {
       return !disposed && activeSocket === socket;
+    }
+
+    function applyEntries(loadedEntries: AssetEntry[]): void {
+      entriesRef.current = loadedEntries;
+      setEntries(loadedEntries);
     }
 
     function reportRefreshError(socket: WebSocket, error: unknown): void {
@@ -142,58 +142,6 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
       if (entriesRef.current.length === 0) {
         setLoadState("error");
       }
-    }
-
-    function refreshEntriesFromTaskChannel(socket: WebSocket): void {
-      void refreshAssets().catch((error: unknown) => {
-        reportRefreshError(socket, error);
-      });
-    }
-
-    function handleTerminalEvent(event: TaskEvent, socket: WebSocket): void {
-      if (handledTerminalTaskIds.has(event.task_id)) {
-        return;
-      }
-      handledTerminalTaskIds.add(event.task_id);
-
-      void getTask(event.task_id).then(
-        (task) => {
-          if (
-            !isActive(socket) ||
-            task.type !== "gen_asset_image" ||
-            !entriesRef.current.some(({ asset }) => asset.id === task.target_id)
-          ) {
-            return;
-          }
-
-          if (task.status === "failed") {
-            setTaskNotices((current) => ({
-              ...current,
-              [task.target_id]:
-                task.error_msg === null
-                  ? `图片生成任务 #${task.id} 失败：任务未提供 error_msg`
-                  : `图片生成任务 #${task.id} 失败：${task.error_msg}`,
-            }));
-          } else if (task.status === "canceled") {
-            setTaskNotices((current) => ({
-              ...current,
-              [task.target_id]: `图片生成任务 #${task.id} 已取消`,
-            }));
-          } else if (task.status === "done") {
-            setTaskNotices((current) => ({
-              ...current,
-              [task.target_id]: `图片生成任务 #${task.id} 已完成，画廊已刷新`,
-            }));
-          } else {
-            return;
-          }
-
-          refreshEntriesFromTaskChannel(socket);
-        },
-        (error: unknown) => {
-          reportRefreshError(socket, error);
-        },
-      );
     }
 
     function scheduleReconnect(): void {
@@ -219,21 +167,138 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
 
       const socket = openTaskWebSocket();
       activeSocket = socket;
+      restRequestRef.current += 1;
+      let synchronized = false;
+      let synchronizationFailed = false;
+      const bufferedEvents: TaskEvent[] = [];
+      let eventWork = Promise.resolve();
+
+      function refreshEntriesFromTaskChannel(): void {
+        const requestId = ++restRequestRef.current;
+        const observedEventRevision = wsEventRevisionRef.current;
+        setRefreshing(true);
+        setLoadError(null);
+        void readEntries()
+          .then((loadedEntries) => {
+            if (
+              !isActive(socket) ||
+              requestId !== restRequestRef.current ||
+              observedEventRevision !== wsEventRevisionRef.current
+            ) {
+              return;
+            }
+            applyEntries(loadedEntries);
+            setLoadState("ready");
+          })
+          .catch((error: unknown) => {
+            if (
+              !isActive(socket) ||
+              requestId !== restRequestRef.current ||
+              observedEventRevision !== wsEventRevisionRef.current
+            ) {
+              return;
+            }
+            reportRefreshError(socket, error);
+          })
+          .finally(() => {
+            if (
+              isActive(socket) &&
+              requestId === restRequestRef.current
+            ) {
+              setRefreshing(false);
+            }
+          });
+      }
+
+      async function handleTerminalEvent(event: TaskEvent): Promise<void> {
+        if (event.type !== "gen_asset_image" || !isTerminalTaskEvent(event)) {
+          return;
+        }
+        if (handledTerminalTaskIds.has(event.task_id)) {
+          return;
+        }
+        handledTerminalTaskIds.add(event.task_id);
+
+        const task = await getTask(event.task_id);
+        if (
+          !isActive(socket) ||
+          task.type !== "gen_asset_image" ||
+          !entriesRef.current.some(({ asset }) => asset.id === task.target_id)
+        ) {
+          return;
+        }
+
+        if (task.status === "failed") {
+          setTaskNotices((current) => ({
+            ...current,
+            [task.target_id]:
+              task.error_msg === null
+                ? `图片生成任务 #${task.id} 失败：任务未提供 error_msg`
+                : `图片生成任务 #${task.id} 失败：${task.error_msg}`,
+          }));
+        } else if (task.status === "canceled") {
+          setTaskNotices((current) => ({
+            ...current,
+            [task.target_id]: `图片生成任务 #${task.id} 已取消`,
+          }));
+        } else if (task.status === "done") {
+          setTaskNotices((current) => ({
+            ...current,
+            [task.target_id]: `图片生成任务 #${task.id} 已完成，画廊已刷新`,
+          }));
+        } else {
+          return;
+        }
+
+        refreshEntriesFromTaskChannel();
+      }
+
+      function processEvent(event: TaskEvent): void {
+        eventWork = eventWork
+          .then(() => handleTerminalEvent(event))
+          .catch((error: unknown) => {
+            reportRefreshError(socket, error);
+          });
+      }
+
+      async function synchronize(): Promise<void> {
+        synchronized = false;
+        synchronizationFailed = false;
+        setLoadState("loading");
+        try {
+          const loadedEntries = await readEntries();
+          if (!isActive(socket)) {
+            return;
+          }
+
+          applyEntries(loadedEntries);
+          const events = bufferedEvents.splice(0);
+          synchronized = true;
+          reconnectAttempt = 0;
+          setLoadError(null);
+          setLoadState("ready");
+          events.forEach(processEvent);
+        } catch (error: unknown) {
+          if (!isActive(socket)) {
+            return;
+          }
+
+          synchronizationFailed = true;
+          bufferedEvents.length = 0;
+          setLoadError(error);
+          setLoadState("error");
+        }
+      }
 
       socket.onopen = () => {
         if (!isActive(socket)) {
           return;
         }
-        const shouldRefresh = connectedOnce;
-        connectedOnce = true;
-        reconnectAttempt = 0;
-        if (shouldRefresh) {
-          refreshEntriesFromTaskChannel(socket);
-        }
+        void synchronize();
       };
 
       socket.onmessage = (message: MessageEvent) => {
-        if (!isActive(socket)) {
+        if (!isActive(socket) || synchronizationFailed) {
           return;
         }
         if (typeof message.data !== "string") {
@@ -241,9 +306,12 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
         }
 
         const event = parseTaskEvent(message.data);
-        if (event.type === "gen_asset_image" && isTerminalTaskEvent(event)) {
-          handleTerminalEvent(event, socket);
+        wsEventRevisionRef.current += 1;
+        if (!synchronized) {
+          bufferedEvents.push(event);
+          return;
         }
+        processEvent(event);
       };
 
       socket.onerror = () => {

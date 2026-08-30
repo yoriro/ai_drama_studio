@@ -1,8 +1,11 @@
+from typing import Annotated
+
 from fastapi import (
     APIRouter,
     Depends,
     File,
     HTTPException,
+    Path,
     Request,
     Response,
     UploadFile,
@@ -57,7 +60,7 @@ def _asset_image_payload(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def generate_asset_image_route(
-    asset_id: int,
+    asset_id: Annotated[int, Path(le=2_147_483_647)],
     payload: GenerateAssetImageRequest,
     request: Request,
     session: AsyncSession = Depends(get_session),
