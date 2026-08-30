@@ -1,9 +1,17 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { Link } from "react-router-dom";
 
 import {
   createAsset,
   deleteAsset,
   deleteAssetImage,
+  generateAssetImage,
   getAssetImageMediaUrl,
   listAssetImages,
   listAssets,
@@ -11,6 +19,13 @@ import {
   updateAsset,
   uploadAssetImage,
 } from "../api";
+import { getTask } from "../api/tasks";
+import type { TaskEvent } from "../api/tasks";
+import {
+  closeWebSocket,
+  openTaskWebSocket,
+  parseTaskEvent,
+} from "../api/ws";
 import type {
   Asset,
   AssetCreate,
@@ -34,13 +49,25 @@ interface AssetEntry {
 
 type LoadState = "loading" | "error" | "ready";
 
+const RECONNECT_DELAYS_MS = [1000, 2000, 5000] as const;
+
+function isTerminalTaskEvent(event: TaskEvent): boolean {
+  return (
+    event.status === "done" ||
+    event.status === "failed" ||
+    event.status === "canceled"
+  );
+}
+
 export function AssetPage({ episode, projectId }: AssetPageProps) {
   const [entries, setEntries] = useState<AssetEntry[]>([]);
+  const entriesRef = useRef<AssetEntry[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<unknown>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [taskNotices, setTaskNotices] = useState<Record<number, string>>({});
 
   async function readEntries(): Promise<AssetEntry[]> {
     const assets = await listAssets(projectId);
@@ -59,6 +86,7 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
     void readEntries().then(
       (loadedEntries) => {
         if (!disposed) {
+          entriesRef.current = loadedEntries;
           setEntries(loadedEntries);
           setLoadState("ready");
         }
@@ -80,11 +108,12 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
     setLoadError(null);
     try {
       const loadedEntries = await readEntries();
+      entriesRef.current = loadedEntries;
       setEntries(loadedEntries);
       setLoadState("ready");
     } catch (error: unknown) {
       setLoadError(error);
-      if (entries.length === 0) {
+      if (entriesRef.current.length === 0) {
         setLoadState("error");
       }
       throw error;
@@ -92,6 +121,161 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
       setRefreshing(false);
     }
   }
+
+  useEffect(() => {
+    let disposed = false;
+    let activeSocket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
+    let connectedOnce = false;
+    const handledTerminalTaskIds = new Set<number>();
+
+    function isActive(socket: WebSocket): boolean {
+      return !disposed && activeSocket === socket;
+    }
+
+    function reportRefreshError(socket: WebSocket, error: unknown): void {
+      if (!isActive(socket)) {
+        return;
+      }
+      setLoadError(error);
+      if (entriesRef.current.length === 0) {
+        setLoadState("error");
+      }
+    }
+
+    function refreshEntriesFromTaskChannel(socket: WebSocket): void {
+      void refreshAssets().catch((error: unknown) => {
+        reportRefreshError(socket, error);
+      });
+    }
+
+    function handleTerminalEvent(event: TaskEvent, socket: WebSocket): void {
+      if (handledTerminalTaskIds.has(event.task_id)) {
+        return;
+      }
+      handledTerminalTaskIds.add(event.task_id);
+
+      void getTask(event.task_id).then(
+        (task) => {
+          if (
+            !isActive(socket) ||
+            task.type !== "gen_asset_image" ||
+            !entriesRef.current.some(({ asset }) => asset.id === task.target_id)
+          ) {
+            return;
+          }
+
+          if (task.status === "failed") {
+            setTaskNotices((current) => ({
+              ...current,
+              [task.target_id]:
+                task.error_msg === null
+                  ? `图片生成任务 #${task.id} 失败：任务未提供 error_msg`
+                  : `图片生成任务 #${task.id} 失败：${task.error_msg}`,
+            }));
+          } else if (task.status === "canceled") {
+            setTaskNotices((current) => ({
+              ...current,
+              [task.target_id]: `图片生成任务 #${task.id} 已取消`,
+            }));
+          } else if (task.status === "done") {
+            setTaskNotices((current) => ({
+              ...current,
+              [task.target_id]: `图片生成任务 #${task.id} 已完成，画廊已刷新`,
+            }));
+          } else {
+            return;
+          }
+
+          refreshEntriesFromTaskChannel(socket);
+        },
+        (error: unknown) => {
+          reportRefreshError(socket, error);
+        },
+      );
+    }
+
+    function scheduleReconnect(): void {
+      if (disposed || reconnectTimer !== null) {
+        return;
+      }
+
+      const delay =
+        reconnectAttempt < RECONNECT_DELAYS_MS.length
+          ? RECONNECT_DELAYS_MS[reconnectAttempt]
+          : 10000;
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    }
+
+    function connect(): void {
+      if (disposed) {
+        return;
+      }
+
+      const socket = openTaskWebSocket();
+      activeSocket = socket;
+
+      socket.onopen = () => {
+        if (!isActive(socket)) {
+          return;
+        }
+        const shouldRefresh = connectedOnce;
+        connectedOnce = true;
+        reconnectAttempt = 0;
+        if (shouldRefresh) {
+          refreshEntriesFromTaskChannel(socket);
+        }
+      };
+
+      socket.onmessage = (message: MessageEvent) => {
+        if (!isActive(socket)) {
+          return;
+        }
+        if (typeof message.data !== "string") {
+          throw new TypeError("Task WebSocket messages must be text");
+        }
+
+        const event = parseTaskEvent(message.data);
+        if (event.type === "gen_asset_image" && isTerminalTaskEvent(event)) {
+          handleTerminalEvent(event, socket);
+        }
+      };
+
+      socket.onerror = () => {
+        if (isActive(socket)) {
+          closeWebSocket(socket);
+        }
+      };
+
+      socket.onclose = () => {
+        if (!isActive(socket)) {
+          return;
+        }
+        activeSocket = null;
+        scheduleReconnect();
+      };
+    }
+
+    connect();
+
+    return () => {
+      disposed = true;
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (activeSocket !== null) {
+        const socket = activeSocket;
+        activeSocket = null;
+        closeWebSocket(socket);
+      }
+    };
+  }, [projectId]);
 
   function handleCreated() {
     setCreateOpen(false);
@@ -157,10 +341,21 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
               images={images}
               key={asset.id}
               onChanged={refreshAssets}
+              onGenerationStarted={() => {
+                setTaskNotices((current) => {
+                  if (!(asset.id in current)) {
+                    return current;
+                  }
+                  const next = { ...current };
+                  delete next[asset.id];
+                  return next;
+                });
+              }}
               onDeleted={async () => {
                 await refreshAssets();
                 setSuccessMessage("资产已删除，全部图片已进入 trash");
               }}
+              taskNotice={taskNotices[asset.id] ?? null}
             />
           ))}
         </div>
@@ -261,9 +456,18 @@ interface AssetCardProps {
   images: AssetImage[];
   onChanged: () => Promise<void>;
   onDeleted: () => Promise<void>;
+  onGenerationStarted: () => void;
+  taskNotice: string | null;
 }
 
-function AssetCard({ asset, images, onChanged, onDeleted }: AssetCardProps) {
+function AssetCard({
+  asset,
+  images,
+  onChanged,
+  onDeleted,
+  onGenerationStarted,
+  taskNotice,
+}: AssetCardProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(asset.name);
   const [description, setDescription] = useState(asset.description);
@@ -273,6 +477,14 @@ function AssetCard({ asset, images, onChanged, onDeleted }: AssetCardProps) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [userNote, setUserNote] = useState("");
+  const [imageGenerating, setImageGenerating] = useState(false);
+  const [imageGenerationTaskId, setImageGenerationTaskId] = useState<
+    number | null
+  >(null);
+  const [imageGenerationError, setImageGenerationError] = useState<unknown>(
+    null,
+  );
 
   const currentImage = images.find((image) => image.is_current) ?? null;
   const busy = saving || uploading || imageActionId !== null || deleting;
@@ -370,6 +582,25 @@ function AssetCard({ asset, images, onChanged, onDeleted }: AssetCardProps) {
     }
   }
 
+  async function handleGenerateImage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setImageGenerating(true);
+    setImageGenerationError(null);
+    setImageGenerationTaskId(null);
+    onGenerationStarted();
+    const normalizedNote = userNote.trim().length === 0 ? null : userNote;
+    try {
+      const result = await generateAssetImage(asset.id, {
+        user_note: normalizedNote,
+      });
+      setImageGenerationTaskId(result.task_id);
+    } catch (requestError: unknown) {
+      setImageGenerationError(requestError);
+    } finally {
+      setImageGenerating(false);
+    }
+  }
+
   function handleCancelEdit() {
     setEditing(false);
     setName(asset.name);
@@ -433,6 +664,37 @@ function AssetCard({ asset, images, onChanged, onDeleted }: AssetCardProps) {
           </div>
         </form>
       )}
+      <form className="asset-generation form-grid" onSubmit={handleGenerateImage}>
+        <h4>生成图片</h4>
+        <label>
+          出图意见
+          <textarea
+            rows={3}
+            value={userNote}
+            onChange={(event) => setUserNote(event.target.value)}
+          />
+        </label>
+        <button disabled={imageGenerating} type="submit">
+          {imageGenerating ? "提交生成任务…" : "生成图片"}
+        </button>
+        {imageGenerationError !== null && (
+          <ApiErrorMessage error={imageGenerationError} />
+        )}
+        {imageGenerationTaskId !== null && (
+          <p className="success-message" role="status">
+            图片生成任务已提交：#{imageGenerationTaskId}。{" "}
+            <Link to="/tasks">前往任务中心</Link>
+          </p>
+        )}
+        {taskNotice !== null && (
+          <p
+            className={taskNotice.includes("已完成") ? "success-message" : "error-message"}
+            role="status"
+          >
+            {taskNotice}
+          </p>
+        )}
+      </form>
       <div className="asset-current-image">
         <h4>当前图片</h4>
         {currentImage === null ? (
@@ -470,6 +732,10 @@ function AssetCard({ asset, images, onChanged, onDeleted }: AssetCardProps) {
                 />
                 <div>
                   <p>版本 {image.id}</p>
+                  <p className="asset-image-metadata">
+                    source: {image.source} · seed: {image.seed ?? "—"} · current:{" "}
+                    {image.is_current ? "true" : "false"}
+                  </p>
                   {image.is_current ? (
                     <p className="field-hint">当前版本不可直接删除</p>
                   ) : (
@@ -490,6 +756,35 @@ function AssetCard({ asset, images, onChanged, onDeleted }: AssetCardProps) {
                       </button>
                     </div>
                   )}
+                  {hasDebugDetails(image) && (
+                    <details className="asset-debug">
+                      <summary>调试信息</summary>
+                      <dl>
+                        <div>
+                          <dt>built_prompt</dt>
+                          <dd>
+                            <pre>
+                              {image.built_prompt === null ||
+                              image.built_prompt === undefined
+                                ? "—"
+                                : image.built_prompt}
+                            </pre>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>input_snapshot</dt>
+                          <dd>
+                            <pre>
+                              {image.input_snapshot === null ||
+                              image.input_snapshot === undefined
+                                ? "—"
+                                : JSON.stringify(image.input_snapshot, null, 2)}
+                            </pre>
+                          </dd>
+                        </div>
+                      </dl>
+                    </details>
+                  )}
                 </div>
               </li>
             ))}
@@ -502,4 +797,11 @@ function AssetCard({ asset, images, onChanged, onDeleted }: AssetCardProps) {
 
 function assetTypeLabel(type: AssetType): string {
   return type === "character" ? "角色" : "场景";
+}
+
+function hasDebugDetails(image: AssetImage): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(image, "built_prompt") ||
+    Object.prototype.hasOwnProperty.call(image, "input_snapshot")
+  );
 }

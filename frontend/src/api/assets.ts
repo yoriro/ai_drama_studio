@@ -1,4 +1,4 @@
-import { requestJson, requestNoContent } from "./client";
+import { ApiProtocolError, requestJson, requestNoContent } from "./client";
 
 export type AssetType = "character" | "scene";
 export type AssetSource = "generated" | "manual";
@@ -35,6 +35,17 @@ export interface AssetImage {
   source: AssetImageSource;
   is_current: boolean;
   created_at: string;
+  built_prompt?: string | null;
+  input_snapshot?: Record<string, unknown> | null;
+}
+
+export interface GenerateAssetImageRequest {
+  user_note: string | null;
+  request_id?: string | null;
+}
+
+export interface GenerateAssetImageResponse {
+  task_id: number;
 }
 
 interface CurrentImagePatch {
@@ -42,6 +53,33 @@ interface CurrentImagePatch {
 }
 
 const jsonHeaders = { "Content-Type": "application/json" };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
+  const actualKeys = Object.keys(value);
+  return (
+    actualKeys.length === keys.length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  );
+}
+
+function isGenerateAssetImageResponse(
+  value: unknown,
+): value is GenerateAssetImageResponse {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["task_id"]) &&
+    typeof value.task_id === "number" &&
+    Number.isInteger(value.task_id) &&
+    value.task_id > 0
+  );
+}
 
 export function listAssets(projectId: number): Promise<Asset[]> {
   return requestJson<Asset[]>(`/projects/${projectId}/assets`);
@@ -56,6 +94,27 @@ export function createAsset(
     headers: jsonHeaders,
     body: JSON.stringify(input),
   });
+}
+
+export async function generateAssetImage(
+  assetId: number,
+  input: GenerateAssetImageRequest,
+): Promise<GenerateAssetImageResponse> {
+  const payload = await requestJson<unknown>(
+    `/assets/${assetId}/generate-image`,
+    {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify(input),
+    },
+  );
+  if (!isGenerateAssetImageResponse(payload)) {
+    throw new ApiProtocolError(
+      202,
+      "Generate-image response did not match its schema",
+    );
+  }
+  return payload;
 }
 
 export function getAsset(id: number): Promise<Asset> {

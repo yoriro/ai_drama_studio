@@ -439,6 +439,23 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+.asset-generation {
+  border-top: 1px solid #ded5c8;
+  margin-top: 24px;
+  padding-top: 20px;
+}
+
+.asset-generation h4 {
+  margin: 0;
+}
+
+.asset-image-metadata {
+  color: #746c61;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
 .asset-current-image {
   margin-top: 24px;
 }
@@ -496,6 +513,43 @@ button:disabled {
   height: 76px;
   object-fit: contain;
   width: 96px;
+}
+
+.asset-debug {
+  border-top: 1px solid #ded5c8;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.asset-debug summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.asset-debug dl {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
+.asset-debug dt {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.asset-debug dd {
+  margin: 4px 0 0;
+}
+
+.asset-debug pre {
+  background: #f5f1ea;
+  border-radius: 8px;
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .asset-gallery-item p {

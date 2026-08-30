@@ -32,6 +32,7 @@ export {
   createAsset,
   deleteAsset,
   deleteAssetImage,
+  generateAssetImage,
   getAsset,
   getAssetImageMediaUrl,
   listAssetImages,
@@ -48,6 +49,8 @@ export type {
   AssetPatch,
   AssetSource,
   AssetType,
+  GenerateAssetImageRequest,
+  GenerateAssetImageResponse,
 } from "./assets";
 export { listShots, updateShot } from "./shots";
 export type {
