@@ -121,3 +121,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-31 C008 复审定向套件 `51 passed`、完整 backend `168 passed`；原始输出见 `.work/c008/T23-targeted.log` 与 `.work/c008/T23-full-pytest.log`。
 - 2026-08-31 C008 T21 新测试首次结束清理触发 `asset_images_asset_id_fkey`；补充先删图片再删资产后重跑为 `1 passed`，两次原始输出均保留在 `.work/c008/T21-test.log`。
 - 2026-08-31 C008 `npm run build` 成功，Vite 报告 `55 modules transformed`；迁移与前端 working diff 均为空，原始输出见 `.work/c008/T23-frontend-build.log`。
+- 2026-08-31 C008 T25 使用全新隔离库 `ai_drama_studio_c008_t25_20260831_01`；Alembic upgrade/current/check 均成功，current 为 `6b8e3f0a1d24 (head)`。
+- 2026-08-31 C008 T25 定向错误合同集 `7 passed`，完整 backend `169 passed`；原始输出见 `.work/c008/T25-targeted-pytest.log` 与 `.work/c008/T25-full-pytest.log`。
+- 2026-08-31 C008 T25 `npm run build` 成功，Vite 报告 `55 modules transformed`；backend/app、migration、frontend 相对 `1e21f55` 的 diff 均为空。
+- 2026-08-31 C008 T25 测试 diff 相对 `1e21f55` 只有 `backend/tests/api/test_c008_review_error_codes.py` 为 `A`，无 `M`/`D`。

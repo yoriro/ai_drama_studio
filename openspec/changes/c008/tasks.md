@@ -424,6 +424,53 @@
   - 层级说明：本 task 只运行并审计 T14-T22 已计划的纯函数、API 集成和跨进程/资源生命周期用例，不再创建用例。
   - 追溯行：本 change 在 `openspec/TRACEABILITY.md` 中引用的全部 R5/R5a/R6/R7/R8/R9/R12、C008 与 `§3.3 删除片段` 行，包括五条 `C008 复审…` 新行。
 
+## 二次复审修复（以已提交基线 `1e21f55` 为起点）
+
+以下 task 只修复 Sol 二次复审确认的 AC-16 自动验收证据缺口。当前生产行为已由 `.work/c008/probe-error-contract-current.py` 在生产 router/service、真实 PostgreSQL 与真实媒体路径上证实符合 spec；本轮只授权新增独立回归测试及其追溯/完成证据，不授权修改任何既有测试或生产实现。若新增测试在相同通路上复现行为漂移，必须停止并报告探针与测试的环境/请求差异，不得直接改生产代码掩盖证据冲突。
+
+- [x] **T24 — 精确锁定 AC-16 的结构化错误 code**
+  - 依赖：已提交基线 `1e21f55`、二次复审 BLOCK，以及 `.work/c008/sol-rereview-probe-errors.log` 的当前行为证据。
+  - 交付：新增且只新增 `backend/tests/api/test_c008_review_error_codes.py`，不得修改、删除或弱化任何既有测试。测试必须通过生产 FastAPI app、真实全新隔离 PostgreSQL、SQLAlchemy 查询计数器和隔离 `DATA_DIR` 覆盖：preview/create/PATCH 的未知字段；slot JSON 未知字段；slot 错误 content type；slot media 当前无 override；slot media 的数据库路径对应文件缺失。每个响应都精确断言外层字段集合仅为 `detail`、内层字段集合仅为 `code/message`，并分别锁定 422/`validation_error`、404/`not_found`、500/`internal_error`；message 必须为可直接展示的非空字符串，已有端点明确固定文案时断言该精确文案。五个请求边界输入在 SQL 前失败且查询计数精确为 0；媒体 404/500 允许按生产读取通路查库。不得新增 test hook、兼容层、fallback、重试或第二套错误映射。
+  - R：无；依据 PRD §5 的统一错误体与 409/422 语义、C008 spec §8 错误码矩阵及 AC-16。
+  - 验收方式与命令：先确认测试文件是相对 `1e21f55` 唯一新增测试文件，再在显式 `DATABASE_URL` 指向全新隔离 PostgreSQL、Alembic 已升级到 head 的环境运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_error_codes.py
+    Set-Location D:\ai_drama_studio
+    git diff --name-status 1e21f55 -- backend/tests
+    ```
+
+    期望：定向用例全部通过；test diff 精确只有 `backend/tests/api/test_c008_review_error_codes.py` 为 `A`，没有任何 `M`/`D`。保存完整 stdout/stderr 与退出码到 `.work/c008/T24-test.log`。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C008 片段 CRUD 与公开合同：稳定读取、输入 PATCH/no-op 状态、结构化错误及删除释放分镜`；`C008 槽位管理与 override 生命周期：固定编号、启停、R9 解析、上传/清除、ID 媒体、文件与数据库补偿`；`C008 复审 API 敌意输入边界：所有 episode/clip/slot 路径 ID 在访问 PostgreSQL 前拒绝超出有符号 INTEGER 的值，create/PATCH user_note 拒绝 U+0000，且不产生数据库副作用`；`C008 复审精确触发条件：两个单分镜场景跨场、合法非默认 Settings、时长 MIN/MAX、建片后活资产变更与精确错误 code 均按 C008 公开合同可观测`。
+
+- [x] **T25 — 回填 T24 追溯并重做最终验收证据**
+  - 依赖：T24 定向用例通过且 test diff 满足其边界。
+  - 交付：把 T24 的真实 pytest node ID 回填至其列出的每条 `openspec/TRACEABILITY.md` 行；不得新增没有行为缺口的新追溯行。使用全新隔离 PostgreSQL 重跑 T24 与既有 C008 错误合同定向集、完整 backend pytest、Alembic current/check、前端 build、范围与测试 diff 检查；以实际输出更新 `.work/c008/completion-report.md` 的既有五节，追加二次复审基线、T24/T25、真实 node ID、命令结果、NOTES/DECISIONS/commit 状态和一条“错误输入 → 精确 status/code/零 SQL”走查。不得把 Sol 的 probe PASS 代替 pytest，也不得宣称 C008 有前端 UI。
+  - R：无；依据 PRD §11、C008 spec AC-16/AC-17 与 `openspec/project.md` Change 工作流。
+  - 验收方式与命令：所有命令的完整 stdout/stderr 与退出码分别保存到 `.work/c008/`，报告链接真实路径：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_error_codes.py tests/api/test_c008_contract_errors.py tests/api/test_c008_review_integer_bounds.py tests/api/test_c008_review_user_note.py tests/api/test_c008_slot_overrides.py
+    python -m pytest -q
+    python -m alembic current
+    python -m alembic check
+    Set-Location D:\ai_drama_studio\frontend
+    npm run build
+    Set-Location D:\ai_drama_studio
+    git diff --check
+    git diff --name-status 1e21f55 -- backend/tests
+    git diff --name-only 1e21f55 -- backend/app backend/alembic/versions frontend
+    rg -n "^\| (C008 片段 CRUD|C008 槽位管理|C008 复审 API 敌意输入边界|C008 复审精确触发条件)" openspec/TRACEABILITY.md
+    ```
+
+    期望：定向与完整 pytest、Alembic、build 均退出 0；从 `1e21f55` 起测试 diff 只有 T24 新文件为 `A`，生产实现/migration/frontend diff 无输出；每条指定追溯行含 T24 的精确 node ID。任何失败必须保留原始输出并保持 T25 未勾选。
+  - 计划测试层级：不新增自动测试。
+  - 层级说明：本 task 只运行、审计并记录 T24 已计划的跨进程/资源生命周期用例及既有套件，不再创建测试。
+  - 追溯行：T24 列出的四条准确行。
+
 - [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - R：无；PRD §11 的可运行可验收原则。
   - 验收方式与命令：只写本轮实际验证的 PostgreSQL/命令/坑，不复制计划值；运行 `git diff -- NOTES.md` 并人工核对每条有本轮原始证据。无新事实则不改文件，并在完成报告逐字写“无”。
@@ -450,6 +497,6 @@
     Get-ChildItem -File openspec/changes/c008 | Select-Object Name
     ```
 
-    期望：`openspec/changes/c008` 精确只有 `spec.md`、`tasks.md`；未勾选项不伪报完成；从 `a35344d` 起既有测试无 `M`/`D`；提交包含本 change 实际交付且不吸收用户已有 `.work/` 审查证据或无关改动。
+    期望：`openspec/changes/c008` 精确只有 `spec.md`、`tasks.md`；未勾选项不伪报完成；从 `a35344d` 起 T14-T24 计划新增测试均只为 `A`、既有测试无 `M`/`D`；提交包含本 change 实际交付且不吸收用户已有 `.work/` 审查证据或无关改动。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用；commit/文档一致性采用上述人工与 git 验收。
