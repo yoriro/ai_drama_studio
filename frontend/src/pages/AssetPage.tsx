@@ -83,32 +83,37 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
 
   async function refreshAssets(): Promise<void> {
     const requestId = ++restRequestRef.current;
-    const observedEventRevision = wsEventRevisionRef.current;
     setRefreshing(true);
     setLoadError(null);
     try {
-      const loadedEntries = await readEntries();
-      if (
-        requestId !== restRequestRef.current ||
-        observedEventRevision !== wsEventRevisionRef.current
-      ) {
-        return;
+      while (true) {
+        const observedEventRevision = wsEventRevisionRef.current;
+        try {
+          const loadedEntries = await readEntries();
+          if (requestId !== restRequestRef.current) {
+            return;
+          }
+          if (observedEventRevision !== wsEventRevisionRef.current) {
+            continue;
+          }
+          entriesRef.current = loadedEntries;
+          setEntries(loadedEntries);
+          setLoadState("ready");
+          return;
+        } catch (error: unknown) {
+          if (requestId !== restRequestRef.current) {
+            return;
+          }
+          if (observedEventRevision !== wsEventRevisionRef.current) {
+            continue;
+          }
+          setLoadError(error);
+          if (entriesRef.current.length === 0) {
+            setLoadState("error");
+          }
+          throw error;
+        }
       }
-      entriesRef.current = loadedEntries;
-      setEntries(loadedEntries);
-      setLoadState("ready");
-    } catch (error: unknown) {
-      if (
-        requestId !== restRequestRef.current ||
-        observedEventRevision !== wsEventRevisionRef.current
-      ) {
-        return;
-      }
-      setLoadError(error);
-      if (entriesRef.current.length === 0) {
-        setLoadState("error");
-      }
-      throw error;
     } finally {
       if (requestId === restRequestRef.current) {
         setRefreshing(false);
@@ -178,41 +183,40 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
       const bufferedEvents: TaskEvent[] = [];
       let eventWork = Promise.resolve();
 
-      function refreshEntriesFromTaskChannel(): void {
+      async function refreshEntriesFromTaskChannel(): Promise<boolean> {
         const requestId = ++restRequestRef.current;
-        const observedEventRevision = wsEventRevisionRef.current;
         setRefreshing(true);
         setLoadError(null);
-        void readEntries()
-          .then((loadedEntries) => {
-            if (
-              !isActive(socket) ||
-              requestId !== restRequestRef.current ||
-              observedEventRevision !== wsEventRevisionRef.current
-            ) {
-              return;
+        try {
+          while (true) {
+            const observedEventRevision = wsEventRevisionRef.current;
+            try {
+              const loadedEntries = await readEntries();
+              if (!isActive(socket) || requestId !== restRequestRef.current) {
+                return false;
+              }
+              if (observedEventRevision !== wsEventRevisionRef.current) {
+                continue;
+              }
+              applyEntries(loadedEntries);
+              setLoadState("ready");
+              return true;
+            } catch (error: unknown) {
+              if (!isActive(socket) || requestId !== restRequestRef.current) {
+                return false;
+              }
+              if (observedEventRevision !== wsEventRevisionRef.current) {
+                continue;
+              }
+              reportRefreshError(socket, error);
+              return false;
             }
-            applyEntries(loadedEntries);
-            setLoadState("ready");
-          })
-          .catch((error: unknown) => {
-            if (
-              !isActive(socket) ||
-              requestId !== restRequestRef.current ||
-              observedEventRevision !== wsEventRevisionRef.current
-            ) {
-              return;
-            }
-            reportRefreshError(socket, error);
-          })
-          .finally(() => {
-            if (
-              isActive(socket) &&
-              requestId === restRequestRef.current
-            ) {
-              setRefreshing(false);
-            }
-          });
+          }
+        } finally {
+          if (isActive(socket) && requestId === restRequestRef.current) {
+            setRefreshing(false);
+          }
+        }
       }
 
       async function handleTerminalEvent(event: TaskEvent): Promise<void> {
@@ -233,29 +237,33 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
           return;
         }
 
+        let taskNotice: string;
         if (task.status === "failed") {
-          setTaskNotices((current) => ({
-            ...current,
-            [task.target_id]:
-              task.error_msg === null
-                ? `图片生成任务 #${task.id} 失败：任务未提供 error_msg`
-                : `图片生成任务 #${task.id} 失败：${task.error_msg}`,
-          }));
+          taskNotice =
+            task.error_msg === null
+              ? `图片生成任务 #${task.id} 失败：任务未提供 error_msg`
+              : `图片生成任务 #${task.id} 失败：${task.error_msg}`;
         } else if (task.status === "canceled") {
-          setTaskNotices((current) => ({
-            ...current,
-            [task.target_id]: `图片生成任务 #${task.id} 已取消`,
-          }));
+          taskNotice = `图片生成任务 #${task.id} 已取消`;
         } else if (task.status === "done") {
-          setTaskNotices((current) => ({
-            ...current,
-            [task.target_id]: `图片生成任务 #${task.id} 已完成，画廊已刷新`,
-          }));
+          taskNotice = `图片生成任务 #${task.id} 已完成，画廊已刷新`;
         } else {
           return;
         }
 
-        refreshEntriesFromTaskChannel();
+        if (task.status !== "done") {
+          setTaskNotices((current) => ({
+            ...current,
+            [task.target_id]: taskNotice,
+          }));
+        }
+        const refreshed = await refreshEntriesFromTaskChannel();
+        if (task.status === "done" && refreshed) {
+          setTaskNotices((current) => ({
+            ...current,
+            [task.target_id]: taskNotice,
+          }));
+        }
       }
 
       function processEvent(event: TaskEvent): void {
