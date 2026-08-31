@@ -52,6 +52,33 @@ def temporary_asset_image_path(data_dir: Path) -> Path:
     return data_dir.resolve() / "tmp" / "asset-images" / f"{uuid4().hex}.upload"
 
 
+def temporary_slot_override_path(data_dir: Path) -> Path:
+    return data_dir.resolve() / "tmp" / "slot-overrides" / f"{uuid4().hex}.upload"
+
+
+def slot_override_relative_path(
+    project_id: int,
+    episode_id: int,
+    clip_id: int,
+    slot_id: int,
+    extension: str,
+) -> Path:
+    if min(project_id, episode_id, clip_id, slot_id) <= 0:
+        raise ValueError("slot override identifiers must be positive")
+    if extension not in {"png", "jpg", "webp"}:
+        raise ValueError(f"Unsupported slot override extension: {extension}")
+    return Path(
+        "projects",
+        str(project_id),
+        "episodes",
+        str(episode_id),
+        "clips",
+        str(clip_id),
+        "slots",
+        f"{slot_id}.{extension}",
+    )
+
+
 def asset_image_trash_path(
     data_dir: Path, project_id: int, asset_id: int, image_id: int, extension: str
 ) -> Path:

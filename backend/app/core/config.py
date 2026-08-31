@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     SCRIPT_CHAR_LIMIT: int = Field(default=2000, gt=0)
     CLIP_MAX_SECONDS: int = Field(default=15, gt=0)
     CLIP_MIN_SECONDS: int = Field(default=5, gt=0)
-    SLOT_HARD_LIMIT: int = Field(default=9, gt=0)
+    SLOT_HARD_LIMIT: int = Field(default=9, gt=0, le=9)
     SLOT_SOFT_LIMIT: int = Field(default=4, gt=0)
     UPLOAD_MAX_MB: int = Field(default=20, gt=0)
     TRASH_RETENTION_HOURS: int = Field(default=24, gt=0)

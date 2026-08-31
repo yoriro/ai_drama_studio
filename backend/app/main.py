@@ -15,6 +15,7 @@ from app.api.styles import router as styles_router
 from app.api.system import router as system_router
 from app.api.episodes import router as episodes_router
 from app.api.assets import router as assets_router
+from app.api.clips import router as clips_router
 from app.api.media import router as media_router
 from app.api.projects import router as projects_router
 from app.api.prompt_templates import router as prompt_templates_router
@@ -234,6 +235,7 @@ def create_app(
     application.include_router(episodes_router, prefix="/api")
     application.include_router(assets_router, prefix="/api")
     application.include_router(shots_router, prefix="/api")
+    application.include_router(clips_router, prefix="/api")
     application.include_router(media_router)
     application.include_router(prompt_templates_router, prefix="/api")
     application.include_router(tasks_router, prefix="/api")

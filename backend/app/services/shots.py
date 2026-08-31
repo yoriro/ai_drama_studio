@@ -70,15 +70,25 @@ async def update_shot(
     session: AsyncSession, shot_id: int, payload: ShotPatch
 ) -> dict[str, Any]:
     async with session.begin():
+        identity_result = await session.execute(
+            select(Shot.id, Shot.episode_id).where(Shot.id == shot_id)
+        )
+        identity = identity_result.one_or_none()
+        if identity is None:
+            raise _shot_not_found()
+
+        episode_result = await session.execute(
+            select(Episode).where(Episode.id == identity.episode_id).with_for_update()
+        )
+        episode = episode_result.scalar_one_or_none()
+        if episode is None:
+            raise _shot_not_found()
+
         result = await session.execute(
             select(Shot).where(Shot.id == shot_id).with_for_update()
         )
         shot = result.scalar_one_or_none()
         if shot is None:
-            raise _shot_not_found()
-
-        episode = await session.get(Episode, shot.episode_id)
-        if episode is None:
             raise _shot_not_found()
 
         requested_asset_ids = payload.asset_ids

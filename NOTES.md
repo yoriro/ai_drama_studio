@@ -113,3 +113,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-31 真实最小 structured chat 为 HTTP 200，封闭 JSON 输出 `{"answer":"ok"}`；后端 `/api/system/health` 的 vLLM 为 `healthy/null`。
 - 2026-08-31 最终 vLLM `/is_sleeping` 为 `{"is_sleeping":true}`，进程保持运行；Comfy `/queue` 最终为 200 且 running/pending 均为空。
 - 2026-08-31 T24 按 `F:\ComfyUI\venv\Scripts\python.exe main.py --listen 127.0.0.1 --port 8188` 启动 ComfyUI；本轮未提交 workflow，最终 `/queue` 仍为 200 且 running/pending 均为空。
+- 2026-08-31 C008 T13 使用隔离库 `ai_drama_studio_c008_t0_20260831`；`alembic current` 为 `6b8e3f0a1d24 (head)`，`alembic check` 为 `No new upgrade operations detected.`。
+- 2026-08-31 C008 T13 定向套件 `39 passed in 60.53s`，完整 backend `156 passed in 140.17s`；原始输出保存在 `.work/c008/T13-test.log`。
+- 2026-08-31 C008 T13 `npm run build` 成功，Vite 报告 `55 modules transformed`、`built in 448ms`；migration/frontend working diff 为空。
+- 2026-08-31 C008 T13 首次定向命令因 PowerShell `.Substring(14)` 生成非法 DSN，改为 `.Substring(13)` 后同一隔离库定向通过；失败与修正输出均保留在 `.work/c008/T13-test.log`。
