@@ -112,3 +112,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-31 真实 vLLM `/health` 为 HTTP 200 空 body；`/sleep?level=1` 与 `/wake_up` 为 200，`/is_sleeping` 依次为 true/false。
 - 2026-08-31 真实最小 structured chat 为 HTTP 200，封闭 JSON 输出 `{"answer":"ok"}`；后端 `/api/system/health` 的 vLLM 为 `healthy/null`。
 - 2026-08-31 最终 vLLM `/is_sleeping` 为 `{"is_sleeping":true}`，进程保持运行；Comfy `/queue` 最终为 200 且 running/pending 均为空。
+- 2026-08-31 T24 按 `F:\ComfyUI\venv\Scripts\python.exe main.py --listen 127.0.0.1 --port 8188` 启动 ComfyUI；本轮未提交 workflow，最终 `/queue` 仍为 200 且 running/pending 均为空。

@@ -373,7 +373,7 @@
   - 追溯行：`C007 health 真实 transport 协议矩阵：按 vLLM/Comfy 各自上游合同判定 healthy/unhealthy`。
   - 2026-08-31 实际结果：隔离本地 HTTP transport seam 定向测试 `4 passed in 3.41s`，覆盖 vLLM 空 body、非 JSON body、非 2xx 及 Comfy 畸形 JSON；原始输出见 `.work/c007/final-repair-t19.log`。
 
-- [ ] T20 按 0.91 显存参数完成 vLLM 真实复验并保持 level-1 sleep
+- [x] T20 按 0.91 显存参数完成 vLLM 真实复验并保持 level-1 sleep
   - 依赖：T15、T19；重新勾选还依赖 T24。先确认无生产任务且 Comfy `queue_running`/`queue_pending` 均为 0，只有该前提成立才允许 `/free`。
   - 改动范围：仅按 NOTES.md 既有命令把 `gpu-memory-utilization` 改为 `0.91`，保留 `max-model-len=16384`、`enable-sleep-mode`、原模型/served name/generation-config 与 `VLLM_USE_FLASHINFER_SAMPLER=0`。真实记录 `/health`、sleep、wake、最小 structured chat、后端 health，最后保持进程运行且 engine level-1 sleep；0.91 失败即保存日志停止。
   - R：PRD §7、§8、§12；spec §2.2-§2.3、AC-02、AC-04、AC-10。
@@ -382,24 +382,27 @@
   - 追溯行：`C007 vLLM 0.91 真实复验：health、sleep/wake、structured chat、后端 health 与最终 level-1 sleep`。
   - 2026-08-31 实际结果：第一次按 0.91 启动因当时可用显存 21.31/23.99 GiB 小于所需 21.83 GiB 失败并按规则停止；随后再次确认生产任务为空、Comfy `queue_running=0`、`queue_pending=0`，按同一启动合同仅使用 `gpu-memory-utilization=0.91` 成功启动。真实 `/health` 为 HTTP 200 空 body；sleep/wake 状态依次为 true/false；structured chat 为 HTTP 200，封闭输出 `{"answer":"ok"}`；后端 health 为 HTTP 200 且 `vllm.status=healthy`、`vllm.message=null`；最终 `/is_sleeping` 为 `{"is_sleeping":true}`，vLLM 进程保持运行。原始日志见 `.work/c007/final-repair-vllm-091.out.log`、`.work/c007/final-repair-vllm-091.err.log`、`.work/c007/final-repair-vllm-retry-091.out.log`、`.work/c007/final-repair-vllm-retry-091.err.log`、`.work/c007/final-repair-vllm-retry-http.log`、`.work/c007/final-repair-vllm-retry-preconditions.log`。
   - 2026-08-31 Sol 最终审查：上述 `final-repair-vllm-retry-http.log` 实际不存在；server log 只能证明各 endpoint 返回 200，不能证明 structured chat 的完整响应体。T20 因证据链不成立而重新开放，只有 T24 产生新的真实请求/响应日志并满足全部门槛后才能重新勾选；不得补写或追认缺失日志。
+  - 2026-08-31 T24 收口实际结果：操作→观测：读取 `.work/c007/T24-vllm-preconditions.log` 得到生产 queued/running 均为 HTTP 200 空数组、Comfy `/queue` 为 HTTP 200 且 running/pending 为空、vLLM 初始 sleeping=true；按 0.91 启动合同读取 `.work/c007/T24-vllm-http.log`，`/health` 为 200 空 body、sleep/wake 为 200 且状态 true→false、structured chat 为 200 且解析为 `{"answer":"ok"}`、后端 health 为 vLLM healthy/null，随后 `/sleep?level=1` 为 200；读取 `.work/c007/T24-vllm-final-state.log` 得到最终 sleeping=true、Comfy/生产任务队列仍为空，WSL 命令保留原模型、served name、max-model-len=16384、gpu-memory-utilization=0.91 与 enable-sleep-mode。三份日志均为本次新执行原始输出。
 
-- [ ] T21 交付 AC-15 保持连接事件/REST 竞态的一次性验收装置
+- [x] T21 交付 AC-15 保持连接事件/REST 竞态的一次性验收装置
   - 依赖：T16、T17；本 task 必须先于 T22 完成，不修改生产实现、测试、spec 或生产 endpoint。
   - 改动范围：仅在 `.work/c007/probe-assetpage-ws-refresh.py` 交付一次性验收驱动并保存原始日志。驱动启动生产前端构建、由生产 `create_app` 创建的隔离 app、真实 PostgreSQL、资产 REST、任务入队 API/EventBus 与 `/ws/tasks`；本地代理只延迟一次画廊 REST，隔离 worker 在 queued 事件发布后保持停止，不调用 vLLM/Comfy。浏览器在创建、切换 current 或删除触发的刷新等待期间，经真实 API 为另一资产入队并收到无关非终态 WS 事件，再释放旧响应。
   - R：R11；PRD §9；spec §6.2、§9、AC-15。
   - 验收方式与命令：运行 `python .work/c007/probe-assetpage-ws-refresh.py` 并按脚本提示完成真实浏览器操作；原始输出必须记录旧 REST 的 request/release 时间、真实 queued WS 事件、后续 REST 请求次数、API 真相、DOM、成功提示与按钮状态。修复前允许报告 `contract_met=false`，但必须证明窗口真实发生且旧代码没有补发快照；装置自身启动失败、使用伪造 WS 消息或触发外部 worker 时本 task 不通过。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 AssetPage 保持连接的事件/REST 竞态：旧响应失效后补发最新快照且成功提示不早于应用`。
+  - 2026-08-31 实际结果（修复前装置）：操作→观测：运行 `python .work/c007/probe-assetpage-ws-refresh.py` 并按提示经生产前端创建第三资产，`.work/c007/T21-pre-fix-contract-false.log` 记录一次延迟 `/api/assets/1/images`、真实 queued `gen_asset_image` WS 事件、延迟响应释放后旧代码 `post_event_rest_requests=0`、API 真相 3 资产且 `contract_met=false`；同页 DOM 观测见 `.work/c007/T21-browser-dom.log`（Gamma=0、成功提示=1、创建按钮 enabled=true）。装置使用生产前端构建、`create_app`、真实 PostgreSQL、资产 REST、任务 API/EventBus 和 `/ws/tasks`；本地代理只延迟一次 gallery REST，隔离 worker 在 queued 事件发布后停止，未调用 vLLM/Comfy。
 
-- [ ] T22 修复 AssetPage 保持连接时事件使 REST 刷新失效后不补刷
+- [x] T22 修复 AssetPage 保持连接时事件使 REST 刷新失效后不补刷
   - 依赖：T21；只修复 T21 已复现的 AC-15 分支，不改变 T16/T17 已验收的断线重连和快照失败行为。
   - 改动范围：仅 `frontend/src/pages/AssetPage.tsx`。任何因更新 WS revision 而失效的画廊响应不得写状态；仍有待完成的创建、切换 current、删除或 terminal 同步时，必须合并或补发绑定最新 revision 的快照。terminal task 去重不得吞掉补刷新，成功提示不得早于最新快照应用，全部有效刷新结束后 `refreshing=false`。不得增加 polling、自动重发 mutation、fallback、兼容层或后续 change 能力。
   - R：R11；PRD §9；spec §6.2、AC-15。
   - 验收方式与命令：在 `frontend` 运行 `npm run build`；随后重跑 `python .work/c007/probe-assetpage-ws-refresh.py` 与同一浏览器步骤。必须观测旧响应未写入、事件后至少一个新 REST 快照成功应用、DOM 与 API 真相一致、成功提示不早于应用、最终按钮可用且无定时轮询；原始输出保存到 `.work/c007/T22-assetpage-ws-refresh.log`。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 AssetPage 保持连接的事件/REST 竞态：旧响应失效后补发最新快照且成功提示不早于应用`。
+  - 2026-08-31 实际结果：操作→观测：在 `frontend` 运行 `npm.cmd run build` 成功（55 modules），重跑同一生产前端/`create_app`/PostgreSQL/REST/任务 API/EventBus/WS 代理装置后，`.work/c007/T22-assetpage-ws-refresh.log` 记录延迟响应与 queued WS 事件、事件后 `post_event_rest_requests=4`、API 真相为 3 资产且 `contract_met=true`；`.work/c007/T22-browser-dom.log` 记录 Gamma=1、成功提示=1、创建按钮 enabled=true。代理未调用 vLLM/Comfy，未增加 polling 或 mutation 重发。
 
-- [ ] T23 按需求方窄授权修正 health timeout 测试装置
+- [x] T23 按需求方窄授权修正 health timeout 测试装置
   - 依赖：T22；生产 health 实现已经由 `.work/c007/probe-final-health-timeout.log` 证明符合合同，本 task 只修复环境依赖的验收用例。
   - 改动范围：仅允许修改 `backend/tests/api/test_c007_review_health.py::test_health_timeout_is_unhealthy_without_gpu_mutation` 函数体：让 `_TimeoutVLLM` 连接该用例创建的 `127.0.0.1:{server.server_port}` 慢服务，并在函数内用事件或计数断言慢服务确实收到请求。必须保留精确 timeout status/message、Comfy healthy、workflow valid、vLLM/Comfy 无 GPU mutation 的全部断言；不得修改其他函数、文件或测试，不得连接生产 8001，不得 skip、改名或削弱用例。
   - 授权记录：需求方于 2026-08-31 明确授权上述唯一函数修改；该授权不适用于任何其他既有测试。被修正并增加“本地慢服务确实命中”断言的同一用例就是本 BLOCK 的 API 回归，不新增测试测试自身的重复用例。
@@ -407,40 +410,45 @@
   - 验收方式与命令：在隔离 PostgreSQL 环境运行 `python -m pytest -q tests/api/test_c007_review_health.py::test_health_timeout_is_unhealthy_without_gpu_mutation`；再运行 `git diff --name-only 74eeabe..HEAD -- backend/tests`，输出必须精确只有 `backend/tests/api/test_c007_review_health.py`，并逐行检查该文件 diff 只落在授权函数体。
   - 计划测试层级：API 集成。
   - 追溯行：`C007 health transport timeout：本地随机端口慢服务被命中，vLLM 超时返回 unhealthy 与可展示 message，health 请求不触发 wake/sleep/free 等 GPU mutation，且不连接生产 8001`。
+  - 2026-08-31 实际结果：操作→观测：隔离 PostgreSQL 运行 `python -m pytest -q tests/api/test_c007_review_health.py::test_health_timeout_is_unhealthy_without_gpu_mutation` 得 `1 passed in 1.19s`；用例内本地慢服务事件已命中，health 返回约定 timeout status/message，Comfy healthy、workflow valid 且 vLLM/Comfy mutation 为空。`git diff --name-only 74eeabe -- backend/tests` 仅为授权文件；原始输出见 `.work/c007/T23-health-timeout.log`。
 
-- [ ] T24 重做 T20 的真实 vLLM HTTP 证据并恢复 level-1 sleep
+- [x] T24 重做 T20 的真实 vLLM HTTP 证据并恢复 level-1 sleep
   - 依赖：T23；执行前必须重新确认生产 queued/running task 均为 0、Comfy `queue_running`/`queue_pending` 均为 0，任一不为空立即停止。若 vLLM 未按 T20 的 0.91 合同运行或模型、served name、参数漂移，保存证据并停止，不自行换参数、模型或地址。
   - 改动范围：不改实现、测试、模型、workflow 或模板。把本次新执行的完整请求/响应分别保存到 `.work/c007/T24-vllm-preconditions.log`、`.work/c007/T24-vllm-http.log`、`.work/c007/T24-vllm-final-state.log`；不得创建缺失旧日志来冒充前一轮证据。
   - R：PRD §7、§8、§12；spec §2.2-§2.3、AC-02、AC-04、AC-10。
   - 验收方式与命令：按顺序记录真实 `GET /health`、初始 `GET /is_sleeping`、`POST /wake_up`、醒后状态、最小 structured chat 的 HTTP 状态与完整 JSON body、后端 `/api/system/health`、`POST /sleep?level=1` 和最终 `GET /is_sleeping`；structured chat 必须得到 HTTP 200 与封闭输出 `{"answer":"ok"}`，后端 vLLM 为 healthy/null，最终必须为 `{"is_sleeping":true}`。任何中途失败也必须在 finally 路径尝试恢复 level-1 sleep 并如实报告，不重试业务请求；成功后更新 T20 与对应追溯行只引用这三个真实存在的新日志。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：`C007 vLLM 0.91 真实复验：health、sleep/wake、structured chat、后端 health 与最终 level-1 sleep`。
+  - 2026-08-31 实际结果：操作→观测：T24 前置、完整请求/响应和最终状态分别记录于 `.work/c007/T24-vllm-preconditions.log`、`.work/c007/T24-vllm-http.log`、`.work/c007/T24-vllm-final-state.log`；三份日志的最终 marker 分别为 `T24_PRECONDITIONS_PASS`、structured parsed `{"answer":"ok"}`/sleep 200、`T24_FINAL_STATE_PASS`，最终 `/is_sleeping` 为 `{"is_sleeping":true}`，Comfy/生产任务队列为空。
 
-- [ ] T25 完成 repair 范围审计、全量回归与证据回填
+- [x] T25 完成 repair 范围审计、全量回归与证据回填
   - 依赖：T21、T22、T23、T24；任一前置 task 未通过时不得勾选。
   - 改动范围：不新增实现或测试，只验证并回填本轮修复证据。使用全新隔离 PostgreSQL 数据库，不让生产 8000 的 worker/advisory lock 污染 pytest；不得为通过测试停止或改变 vLLM 最终 level-1 sleep 状态。
   - R：无；PRD §0、§11；spec AC-01、AC-18。
   - 验收方式与命令：在隔离数据库依次运行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`；收集 `backend/tests/**/*c007*.py` 后运行全部 C007 测试，再运行 `python -m pytest -q`；在 `frontend` 运行 `npm run build`；运行 `git diff --check`、spec T14 的围栏 `rg` 命令及 `git diff --name-only 74eeabe..HEAD -- backend/tests`。预期 Alembic 为单一 head 且无新操作、两轮 pytest 零失败、构建成功、范围扫描无禁项、测试 diff 精确只有 T23 授权文件。原始输出逐项保存到 `.work/c007/T25-*.log`，TRACEABILITY 只回填真实通过证据。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用；AC-18 按 spec §9 的替代验收命令覆盖。
+  - 2026-08-31 实际结果：操作→观测：全新隔离库 `alembic upgrade/current/check` 成功（单一 `6b8e3f0a1d24 (head)`、无新操作）；收集 17 个 C007 测试文件运行得 `85 passed in 18.95s`，完整 backend 得 `117 passed in 42.80s`；frontend build 成功（55 modules）；`git diff --check` 通过，范围扫描仅命中既有 `clips.generation_mode` 预留，测试工作树 diff 仅授权 T23 文件。逐项原始输出见 `.work/c007/T25-*.log`。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - R：无；PRD 章节：不适用，依据 AGENTS §7 的真实环境与命令证据纪律。
   - 验收方式与命令：对照 T0/T14 原始输出更新地址、版本、启动命令、真实测试结果与新坑；若无持久事实，在完成报告精确写“无”。运行 `git diff -- NOTES.md` 核对只记录真实事实。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用。
   - 2026-08-31 实际核对：`d3ab197` 已在 `NOTES.md` 记录本轮 vLLM 0.91 启动、health、sleep/wake、structured chat 与最终 level-1 sleep 的真实证据；本收口不再修改该文件。
   - 2026-08-31 Sol 最终审查后重新开放：T24/T25 可能产生新的持久运行事实与测试结果，必须在其完成后重新核对；无新增内容时在完成报告精确写“无”。
+  - 2026-08-31 收口实际结果：本轮形成新的 ComfyUI 启动命令与未提交 workflow 的运行事实，已以最小一行追加到 `NOTES.md`；T24 vLLM 状态和队列事实已由既有条目与本轮三份新日志共同核对。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - R：无；PRD 章节：§6-§8；依据 `DECISIONS.md` 的跨 change 收录边界。
   - 验收方式与命令：对照实现是否形成 PRD/AGENTS 未直接规定且约束 C009+ 的长期决定；只在完成报告列候选，不擅自修改 `DECISIONS.md`。运行 `git diff -- DECISIONS.md` 必须为空。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用。
   - 2026-08-31 实际核对：`git diff -- DECISIONS.md` 为空；本 change 无新增候选项，在完成报告中列出“无”。
   - 2026-08-31 Sol 最终审查后重新开放：T22 完成后重新判断 AC-15 的合并刷新语义是否形成跨 change 候选；未经需求方授权仍不得直接修改 `DECISIONS.md`。
+  - 2026-08-31 收口实际结果：`git diff -- DECISIONS.md` 为空；本 change 未形成需跨 change 固化的候选项，完成报告列“无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
   - R：无；PRD 章节：不适用，依据 `openspec/project.md` change 工作流。
   - 验收方式与命令：逐项核对本文件 checkbox 只勾选已有真实证据的 task；`spec.md`、`tasks.md`、TRACEABILITY 回填、实现与当前 commit 同步，无部分完成冒充完成。
     ```powershell
@@ -454,3 +462,4 @@
   - 追溯行：不适用。
   - 2026-08-31 实际核对：本收口仅更新 `tasks.md` 与 `TRACEABILITY.md`，未改 `spec.md`、实现、测试、AGENTS、NOTES 或 DECISIONS；提交前后的限定 diff、工作区状态与 commit 将按上述命令核对。
   - 2026-08-31 Sol 最终审查后重新开放：只有 T21-T25、T20 与三个收尾项的 checkbox、TRACEABILITY、原始证据和 commit 内容完全一致时才能再次勾选。
+  - 2026-08-31 收口实际结果：操作→观测：T22 生产实现提交 `45d1801`、T23 授权测试提交 `2895c71`；tasks/TRACEABILITY/NOTES 仅在两项实现提交后按本轮真实日志回填，`.work/c007` 从未 stage。最终 docs commit 与当前状态将在本收口提交后按本 task 命令核对。
