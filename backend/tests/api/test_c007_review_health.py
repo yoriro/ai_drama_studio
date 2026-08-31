@@ -54,7 +54,14 @@ class _NoMutationComfy:
 
 
 def test_health_timeout_is_unhealthy_without_gpu_mutation() -> None:
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _TimeoutHandler)
+    request_seen = threading.Event()
+
+    class TimeoutHandler(_TimeoutHandler):
+        def do_GET(self) -> None:
+            request_seen.set()
+            super().do_GET()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), TimeoutHandler)
     server.daemon_threads = True
     thread = threading.Thread(
         target=server.serve_forever,
@@ -66,9 +73,11 @@ def test_health_timeout_is_unhealthy_without_gpu_mutation() -> None:
     comfy_client = _NoMutationComfy()
     application: Any = None
 
-    def build_vllm(base_url: str) -> _TimeoutVLLM:
+    def build_vllm(_base_url: str) -> _TimeoutVLLM:
         nonlocal vllm_client
-        vllm_client = _TimeoutVLLM(base_url)
+        vllm_client = _TimeoutVLLM(
+            f"http://127.0.0.1:{server.server_port}"
+        )
         return vllm_client
 
     async def stop_worker() -> None:
@@ -85,6 +94,7 @@ def test_health_timeout_is_unhealthy_without_gpu_mutation() -> None:
             response = client.get("/api/system/health")
 
         assert vllm_client is not None
+        assert request_seen.wait(timeout=1)
         assert response.status_code == 200
         body = response.json()
         assert body["vllm"] == {
