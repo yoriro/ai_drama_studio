@@ -334,21 +334,23 @@
   - 追溯行：`C007 generate-image API 下界输入边界：asset_id=-2147483649 在数据库/队列前返回结构化 422`。
   - 2026-08-31 实际结果：隔离库定向测试 `1 passed in 0.60s`；HTTP 422、固定 `detail.code/message`、enqueue 未调用均断言通过；原始输出见 `.work/c007/final-repair-t15.log`。
 
-- [ ] T16 修复 AssetPage 刷新请求失效后的状态清理
+- [x] T16 修复 AssetPage 刷新请求失效后的状态清理
   - 依赖：T14、T15；无外部服务依赖。
   - 改动范围：`frontend/src/pages/AssetPage.tsx`。WS connect/reconnect 使旧 REST 请求失效时，清理旧请求留下的 `refreshing`；仅当前有效请求可写入 entries/load state/error，最终不存在有效刷新请求时 `refreshing=false`。
   - R：R11；PRD §9；spec §6.2、AC-15。
   - 验收命令：`npm run build`；并按 AC-15 记录真实浏览器延迟 REST→WS 重连→按钮状态。
   - 追溯行：`C007 AssetPage REST/WS 刷新竞态：失效旧请求不覆盖状态且不遗留 refreshing`。
   - 2026-08-31 实际结果：生产 build 成功；真实浏览器在 set-current 同步操作分发约 30ms 后中断后端，页面保留资产且 `创建资产` 按钮 `enabled=true`；本轮又在版本 31 切换时安排 Vite 250ms 后中断，恢复后页面仍保留画廊。浏览器控制面未提供可读取的 REST 延迟响应事件，未将这些操作冒充为完整延迟 REST 窗口证据，故本 task 保持未勾选；原始记录见 `.work/c007/final-repair-browser.log`。
+  - 2026-08-31 Sol 定向复验：真实 PostgreSQL `asset_images` 锁使生产图片 REST 请求保持等待；WS 断开后旧 request generation 失效，`创建资产` 按钮观测为 `disabled=false`；释放锁并恢复连接后四张资产卡 ready，未出现旧请求覆盖。原始输出见 `.work/c007/probe-t16-t17-sol.log`；该证据补足延迟 REST→WS 重连窗口，本 task 已解除阻塞并勾选。
 
-- [ ] T17 修复 AssetPage 初始快照失败后的 socket 重连同步
+- [x] T17 修复 AssetPage 初始快照失败后的 socket 重连同步
   - 依赖：T16；无新增 endpoint、polling、fallback 或测试特判。
   - 改动范围：`frontend/src/pages/AssetPage.tsx`。快照失败保留可见错误并关闭当前 socket，沿用既有 WS reconnect 调度；下一连接重复 WS 缓冲→REST 快照→按序合并，恢复后不丢 terminal 更新。
   - R：R11；PRD §9；spec §6.2、AC-15。
   - 验收命令：`npm run build`；并按 AC-15 记录真实浏览器快照失败→恢复服务→下一连接同步事件与 REST 的逐步观测。
   - 追溯行：`C007 AssetPage 初始快照失败恢复：socket 关闭、可见错误、既有重连后重新按序同步`。
   - 2026-08-31 实际结果：首次页面请求失败时真实浏览器显示 `protocol_error：API response was not valid JSON`，但该次是 `EpisodeWorkspacePage` 父级请求失败，不能作为 AssetPage 快照失败证据。补充的同一路由、已挂载 AssetPage 走查中，停止 Vite 使真实 WS close；恢复 Vite 后未手动 reload，页面自动重连并通过新的 REST 快照将临时版本 31 显示为 `current: true`，随后恢复版本 30。自动重连路径已观察，但 AssetPage 自身“快照失败→可见错误”的独立窗口和 terminal 事件窗口仍未同时观测，故本 task 保持未勾选；原始记录见 `.work/c007/final-repair-browser.log`。
+  - 2026-08-31 Sol 定向复验：一次性验收代理仅令首个 AssetPage 快照返回 500；生产前端连续观测到 `loading 26ms → 可见 controlled snapshot failure 541ms → reconnect loading 1537ms → 4 asset cards ready 1586ms`。失败 socket 已关闭，既有 1 秒重连调度重新执行 WS 缓冲→REST 快照→按序合并；恢复数据来自真实 REST/WS 通路。原始输出见 `.work/c007/probe-t16-t17-sol.log`；该证据补足快照失败可见、关闭、重连与恢复窗口，本 task 已解除阻塞并勾选。
 
 - [x] T18 增加 AC-07 三类资源独立连接锁证据
   - 依赖：T14；不得修改 `test_enqueue_snapshot_wins_concurrent_source_edit_and_worker_uses_copy`。
@@ -374,19 +376,21 @@
   - 追溯行：`C007 vLLM 0.91 真实复验：health、sleep/wake、structured chat、后端 health 与最终 level-1 sleep`。
   - 2026-08-31 实际结果：第一次按 0.91 启动因当时可用显存 21.31/23.99 GiB 小于所需 21.83 GiB 失败并按规则停止；随后再次确认生产任务为空、Comfy `queue_running=0`、`queue_pending=0`，按同一启动合同仅使用 `gpu-memory-utilization=0.91` 成功启动。真实 `/health` 为 HTTP 200 空 body；sleep/wake 状态依次为 true/false；structured chat 为 HTTP 200，封闭输出 `{"answer":"ok"}`；后端 health 为 HTTP 200 且 `vllm.status=healthy`、`vllm.message=null`；最终 `/is_sleeping` 为 `{"is_sleeping":true}`，vLLM 进程保持运行。原始日志见 `.work/c007/final-repair-vllm-091.out.log`、`.work/c007/final-repair-vllm-091.err.log`、`.work/c007/final-repair-vllm-retry-091.out.log`、`.work/c007/final-repair-vllm-retry-091.err.log`、`.work/c007/final-repair-vllm-retry-http.log`、`.work/c007/final-repair-vllm-retry-preconditions.log`。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - R：无；PRD 章节：不适用，依据 AGENTS §7 的真实环境与命令证据纪律。
   - 验收方式与命令：对照 T0/T14 原始输出更新地址、版本、启动命令、真实测试结果与新坑；若无持久事实，在完成报告精确写“无”。运行 `git diff -- NOTES.md` 核对只记录真实事实。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用。
+  - 2026-08-31 实际核对：`d3ab197` 已在 `NOTES.md` 记录本轮 vLLM 0.91 启动、health、sleep/wake、structured chat 与最终 level-1 sleep 的真实证据；本收口不再修改该文件。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - R：无；PRD 章节：§6-§8；依据 `DECISIONS.md` 的跨 change 收录边界。
   - 验收方式与命令：对照实现是否形成 PRD/AGENTS 未直接规定且约束 C009+ 的长期决定；只在完成报告列候选，不擅自修改 `DECISIONS.md`。运行 `git diff -- DECISIONS.md` 必须为空。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用。
+  - 2026-08-31 实际核对：`git diff -- DECISIONS.md` 为空；本 change 无新增候选项，在完成报告中列出“无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
   - R：无；PRD 章节：不适用，依据 `openspec/project.md` change 工作流。
   - 验收方式与命令：逐项核对本文件 checkbox 只勾选已有真实证据的 task；`spec.md`、`tasks.md`、TRACEABILITY 回填、实现与当前 commit 同步，无部分完成冒充完成。
     ```powershell
@@ -398,3 +402,4 @@
     ```
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用。
+  - 2026-08-31 实际核对：本收口仅更新 `tasks.md` 与 `TRACEABILITY.md`，未改 `spec.md`、实现、测试、AGENTS、NOTES 或 DECISIONS；提交前后的限定 diff、工作区状态与 commit 将按上述命令核对。
