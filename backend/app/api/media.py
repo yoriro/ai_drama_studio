@@ -1,7 +1,8 @@
 import logging
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException, Path as ApiPath
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,7 @@ from app.core.config import settings
 from app.db.session import get_session
 from app.models import AssetImage, Clip, ClipRefSlot, Episode
 from app.services.asset_files import resolve_data_path, slot_override_relative_path
+from app.schemas.clips import POSTGRES_INTEGER_MAX
 
 
 logger = logging.getLogger("app.media")
@@ -55,7 +57,7 @@ async def read_asset_image_media(
 
 @router.get("/media/slot-overrides/{slot_id}", response_class=FileResponse)
 async def read_slot_override_media(
-    slot_id: int,
+    slot_id: Annotated[int, ApiPath(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     session: AsyncSession = Depends(get_session),
 ) -> FileResponse:
     slot = await session.get(ClipRefSlot, slot_id)

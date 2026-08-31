@@ -228,7 +228,13 @@ def _validate_decoded_image(path: Path, declared_mime: str) -> tuple[str, str]:
             image.verify()
         with Image.open(path) as image:
             image.load()
-    except (OSError, SyntaxError, ValueError) as exc:
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        OSError,
+        SyntaxError,
+        ValueError,
+    ) as exc:
         raise _invalid_upload("file is not a complete PNG, JPEG, or WebP image") from exc
 
     if not isinstance(detected_format, str):

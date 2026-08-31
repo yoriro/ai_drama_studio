@@ -266,6 +266,164 @@
   - 层级说明：本 task 只运行并审计 T1-T12 已计划的全部层级，不再创建用例。
   - 追溯行：`R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`；`R6 时长：最大值硬校验、最小值软提醒、默认 requested_duration 计算及合法 PATCH`；`R7 参考资产与槽位：候选并集、首次出场确定性排序、选择子集 1..9、槽位创建后不重排`；`R8 数量提示：候选超过 9 时要求精简至合法子集、最终选择超过 9 阻止创建，启用槽位超过 4 只给软提示`；`R9 槽位取图优先级：override 图优先于资产当前图`；`R12 删除资产后的槽位：asset_id 置 NULL、快照和槽位号保留、片段 stale，不停用或无 override 时再次生成触发 R10`；`C008 片段 CRUD 与公开合同：稳定读取、输入 PATCH/no-op 状态、结构化错误及删除释放分镜`；`C008 槽位管理与 override 生命周期：固定编号、启停、R9 解析、上传/清除、ID 媒体、文件与数据库补偿`；`§3.3 删除片段：其分镜释放、片段删除、视频移入 trash`。
 
+## 复审修复（以已提交基线 `a35344d` 为起点）
+
+以下 task 只修复 C008 复审已证实的行为/证据缺口。继续保持零 migration；不改槽位表、槽位创建排序和快照落库语义；不实现 C009 序列化器、MiniMax H3、`gen_clip_video`、prompt 或 input hash。四个经 `.work/c008/probe-*.py` 确认的 BLOCK 必须各有新增回归用例，不得修改任何已有测试文件。
+
+- [x] **T14 — 在查库前封闭 C008 整数 ID 边界**
+  - 依赖：T13 的已提交实现与复审 probe 证据。
+  - 交付：所有 C008 `episode_id`/`clip_id`/slot media `slot_id` path 参数以及 create/preview 的 `shot_ids`/`reference_asset_ids` 在 FastAPI/Pydantic 边界限定为 PostgreSQL signed INTEGER（`-2147483648..2147483647`；原本要求 positive 的 body id 仍必须 positive）。越界固定返回 422/`validation_error`，不执行 SQL；范围内未知资源仍返回 404/`not_found`。不改 schema/migration。
+  - R：body 的 Shot/Asset 约束对应 R5、R7；path 整数边界 R：无，依据 PRD §4 的 INTEGER 模型、§5 通用错误体与输入校验语义。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_integer_bounds.py`，通过生产 app、全新隔离 PostgreSQL 和 SQLAlchemy 查询计数器（只在测试中挂载，不增生产 test hook）遍历 C008 所有相关路由；对上下界外值断言精确错误体且 SQL 计数为 0，对范围内不存在值断言精确 404。不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_integer_bounds.py
+    ```
+
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C008 复审 API 敌意输入边界：所有 episode/clip/slot 路径 ID 在访问 PostgreSQL 前拒绝超出有符号 INTEGER 的值，create/PATCH user_note 拒绝 U+0000，且不产生数据库副作用`；body id 同时归属 `R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422`、`R7 参考资产与槽位：候选并集、首次出场确定性排序、选择子集 1..9、槽位创建后不重排`。
+
+- [x] **T15 — 在 schema 边界拒绝 `user_note` 中的 U+0000**
+  - 依赖：T14。
+  - 交付：Clip create/PATCH 的 `user_note` 含 U+0000 时在任何 SQL 前返回 422/`validation_error`；null、空串和不含 U+0000 的字符串仍原样保存，不 trim、不吞 PostgreSQL 编码异常。不改 schema/migration。
+  - R：无；依据 PRD §5 Clip create/PATCH 请求与通用 422 语义。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_user_note.py`，用生产 app、真实隔离 PostgreSQL 和查询计数器分别命中 create/PATCH，断言精确 422 错误体、SQL 计数为 0、三类 C008 表计数不变；另用独立正常请求证明空串不被改写。不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_user_note.py
+    ```
+
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C008 复审 API 敌意输入边界：所有 episode/clip/slot 路径 ID 在访问 PostgreSQL 前拒绝超出有符号 INTEGER 的值，create/PATCH user_note 拒绝 U+0000，且不产生数据库副作用`。
+
+- [x] **T16 — 将 Pillow 解压炸弹纳入 override 422 内容校验**
+  - 依赖：T15。
+  - 交付：公共图片验证边界将 Pillow `DecompressionBombError`（以及该限制明确升格为异常的情形）映射为 422/`validation_error`；上传 temp 清理，正式路径、Slot/Clip、trash 均不变。不降级解码、不转码、不 fallback。
+  - R：无；依据 PRD §5 override 上传输入、§6.4 文件纪律与通用 422 语义。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_override_image.py`，使用只依赖图片头尺寸的有限 fixture 触发生产 Pillow 限制，不分配巨幅像素数据，不在生产代码识别测试值；通过生产 multipart/API、真实隔离 PostgreSQL 和隔离 `DATA_DIR` 断言精确 422 及所有无副作用观测点。不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_override_image.py
+    ```
+
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C008 复审 override 敌意图片输入：Pillow 解压炸弹等非法图片返回 422，temp 被清理且正式文件、数据库与 trash 不变`。
+
+- [x] **T17 — 使 canonical trash 同路径的合法生命周期可重复执行**
+  - 依赖：T16。
+  - 交付：同格式 override 实际替换后，后续清除或 Clip DELETE 将当前正式文件原子替换到同一 canonical trash 路径；该位置最终精确保留本次最新移入 bytes，不生成 hash/时间戳/版本后缀，不将合法同名当成 500。保留 D-010 的 DB 失败补偿与“主错误+恢复错误”可诊断性。
+  - R：无；依据 PRD §3.3 删除片段、§5 override 清除/替换、§6.4 文件与 trash 纪律，以及 DECISIONS D-010。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_trash_lifecycle.py`，使用生产 API、真实隔离 PostgreSQL、隔离 `DATA_DIR` 和两份同格式不同 bytes，分别验收“上传 A → 替换 B → 清除”和“上传 A → 替换 B → 删 Clip”；断言响应、DB、formal/temp、canonical trash 的精确 bytes 及不存在其他版本文件。同时复跑已有补偿用例，不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_trash_lifecycle.py tests/api/test_c008_slot_overrides.py tests/api/test_c008_clip_delete.py
+    ```
+
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C008 复审同路径 trash 生命周期：同格式 replacement/clear/delete 在合法同名 canonical trash 已存在时继续成功，canonical trash 保留本次最新移入文件，不创建历史版本路径，失败补偿仍一致`；`C008 槽位管理与 override 生命周期：固定编号、启停、R9 解析、上传/清除、ID 媒体、文件与数据库补偿`；`§3.3 删除片段：其分镜释放、片段删除、视频移入 trash`。
+
+- [x] **T18 — 补齐合法非默认 Settings 触发证据**
+  - 依赖：T17。
+  - 交付：不改 Settings 语义；新增独立回归证明 `1 <= SLOT_SOFT_LIMIT <= SLOT_HARD_LIMIT <= 9` 的非默认组合可构造成功并被 C008 规则使用，且已有 `10`/软上限大于硬上限的启动失败证据仍有效。
+  - R：R8；依据 PRD §3.4 R8、§10 环境变量。
+  - 验收方式与命令：新增 `backend/tests/unit/test_c008_review_settings.py`，直接构造生产 `Settings` 并调用生产规则函数，断言非默认 hard/soft 下的精确默认选择数、`selected_by_default` 和 warning 边界，候选全量列表不被截断；不改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/unit/test_c008_review_settings.py tests/unit/test_c008_clip_rules.py
+    ```
+
+  - 计划测试层级：纯函数。
+  - 追溯行：`C008 复审精确触发条件：两个单分镜场景跨场、合法非默认 Settings、时长 MIN/MAX、建片后活资产变更与精确错误 code 均按 C008 公开合同可观测`；`R8 数量提示：候选超过 9 时要求精简至合法子集、最终选择超过 9 阻止创建，启用槽位超过 4 只给软提示`。
+
+- [x] **T19 — 补齐“两个单场景分镜跨场”的 R5a 证据**
+  - 依赖：T18。
+  - 交付：不改 R5a 语义；新增独立 API 用例，精确触发“Shot A 只绑 Scene A，Shot B 只绑 Scene B”，补齐既有用例未证明的整体跨场分支。
+  - R：R5a；依据 PRD §3.4 R5a、§5 preview/create。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_scene_boundary.py`，用生产 API 与真实隔离 PostgreSQL，断言 preview 为 200、violations 精确只含整体 `multiple_scenes` 对应 closed code、零写入；create 为精确 422/`validation_error` 且 Clip/ClipShot/Slot 计数不变。不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_scene_boundary.py
+    ```
+
+  - 计划测试层级：API 集成。
+  - 追溯行：`C008 复审精确触发条件：两个单分镜场景跨场、合法非默认 Settings、时长 MIN/MAX、建片后活资产变更与精确错误 code 均按 C008 公开合同可观测`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`。
+
+- [x] **T20 — 补齐 requested_duration 精确 MIN/MAX PATCH 证据**
+  - 依赖：T19。
+  - 交付：不改 R6 语义；用真实 API 补齐 `CLIP_MIN_SECONDS` 与 `CLIP_MAX_SECONDS` 均可 PATCH，且每次实际变更只增一次 revision、按原值精确持久化的证据。
+  - R：R6；依据 PRD §3.4 R6、§5 Clip PATCH。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_duration_boundaries.py`，用生产 API 与真实隔离 PostgreSQL，对同一 Clip 先后 PATCH MIN/MAX，每次同时断言响应值、DB 值、revision 增量、`stale`、Shot/Slot 与文件不变；不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_duration_boundaries.py
+    ```
+
+  - 计划测试层级：API 集成。
+  - 追溯行：`C008 复审精确触发条件：两个单分镜场景跨场、合法非默认 Settings、时长 MIN/MAX、建片后活资产变更与精确错误 code 均按 C008 公开合同可观测`；`R6 时长：最大值硬校验、最小值软提醒、默认 requested_duration 计算及合法 PATCH`。
+
+- [x] **T21 — 补齐建片后活资产变更的 C008 槽位证据**
+  - 依赖：T20。
+  - 交付：不改槽位表、创建逻辑或快照列。新增独立 API 回归：经正式 create 落槽后修改活资产 name/description 并切换 current image，槽位 name/type 快照与 slot_no 仍为建片时值，R9 的 `asset_current` URL 跟随当前图。本 task 不断言 C009 `{{references}}`、活描述或 input hash。
+  - R：R7、R9；资产级联状态依据 PRD §3.3，槽位读取依据 §3.4 R7/R9 与 §5。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_slot_snapshots.py`，通过生产 Asset/Clip API、真实隔离 PostgreSQL 与隔离 `DATA_DIR` 完成上述序列；断言公开 slots JSON、DB 快照、R9 URL、Clip 精确为 stale 且 revision 不变，以及槽位数/顺序的精确值。不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_slot_snapshots.py
+    ```
+
+  - 计划测试层级：API 集成。
+  - 追溯行：`C008 复审精确触发条件：两个单分镜场景跨场、合法非默认 Settings、时长 MIN/MAX、建片后活资产变更与精确错误 code 均按 C008 公开合同可观测`；`R7 参考资产与槽位：候选并集、首次出场确定性排序、选择子集 1..9、槽位创建后不重排`；`R9 槽位取图优先级：override 图优先于资产当前图`。
+
+- [x] **T22 — 分别证明 Clip/ClipShot/ClipRefSlot 写入阶段的原子回滚**
+  - 依赖：T21。
+  - 交付：不为测试拆分或改写正式创建顺序；新增独立回归，在真实 PostgreSQL 事务的 Clip INSERT、ClipShot INSERT、ClipRefSlot INSERT 语句处分别注入一次确定失败，三种失败均返回 500/`internal_error` 并恢复调用前三表计数，无孤儿关系。
+  - R：R5、R7；事务语义依据 PRD §5 Clip create、§3 强制一致性规则。
+  - 验收方式与命令：新增 `backend/tests/api/test_c008_review_create_atomicity.py`，使用生产 service/API、真实隔离 PostgreSQL 和仅存在于测试的 SQLAlchemy statement listener；每个参数化分支必须先断言确实命中目标 INSERT，finally 移除 listener，不增生产 test hook。不得改已有测试。运行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/api/test_c008_review_create_atomicity.py
+    ```
+
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C008 复审创建原子性：Clip、ClipShot、ClipRefSlot 三个写入阶段分别失败时均回滚全部创建副作用`；`C008 片段 CRUD 与公开合同：稳定读取、输入 PATCH/no-op 状态、结构化错误及删除释放分镜`。
+
+- [x] **T23 — 回填复审追溯、全量验收并重写完成证据**
+  - 依赖：T14-T22 全部完成且各自定向验收通过。
+  - 交付：将 T14-T22 新增用例的真实 pytest node ID 回填到本文引用的每条 TRACEABILITY 行；确认从已审查基线 `a35344d` 起没有任何既有测试被修改/删除/弱化。用实际输出重写 `.work/c008/completion-report.md`，且五节名称与顺序固定为：1. 基线与范围；2. 交付与 AC/追溯映射；3. 命令、退出码与原始输出路径；4. NOTES/DECISIONS/commit 状态；5. 操作 → 观测值。第 5 节记录生产 app+真实 PostgreSQL 的主路径和至少一条异常路径；明确 C008 无前端交付，不得伪报 Director UI。
+  - R：R5、R5a、R6、R7、R8、R9、R12；依据 PRD §3.3、§3.4、§5、§11 M4。
+  - 验收方式与命令：显式设置指向全新隔离库的 `DATABASE_URL`，先跑全部 C008 定向用例，再跑完整 pytest、Alembic、前端 build 和范围审计；下列每条的 stdout/stderr 和退出码均保存为 `.work/c008/` 下独立原始日志，报告第 3 节逐项链接路径并写实际结果，不截断或伪造输出：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio\backend
+    python -m pytest -q tests/unit/test_c008_clip_rules.py tests/unit/test_c008_review_settings.py tests/api/test_c008_clip_preview.py tests/api/test_c008_clip_create.py tests/api/test_c008_clip_concurrency.py tests/api/test_c008_clip_patch.py tests/api/test_c008_slots.py tests/api/test_c008_slot_enabled.py tests/api/test_c008_slot_overrides.py tests/api/test_c008_asset_slot_cascade.py tests/api/test_c008_clip_source_races.py tests/api/test_c008_clip_delete.py tests/api/test_c008_contract_errors.py tests/api/test_c008_review_integer_bounds.py tests/api/test_c008_review_user_note.py tests/api/test_c008_review_override_image.py tests/api/test_c008_review_trash_lifecycle.py tests/api/test_c008_review_scene_boundary.py tests/api/test_c008_review_duration_boundaries.py tests/api/test_c008_review_slot_snapshots.py tests/api/test_c008_review_create_atomicity.py
+    python -m pytest -q
+    python -m alembic current
+    python -m alembic check
+    Set-Location D:\ai_drama_studio\frontend
+    npm run build
+    Set-Location D:\ai_drama_studio
+    git diff --check
+    git diff --name-status a35344d -- backend/tests
+    git diff --name-only aac7f17 -- backend/alembic/versions frontend
+    git diff --name-only -- backend/alembic/versions frontend
+    git diff --unified=0 aac7f17 -- backend frontend | Select-String -Pattern 'minimax|gen_clip_video|generate-video|current-video|clip-videos|context_loop|fl2v|audio|generation_runs|continuity|retry|fallback'
+    rg -n "^\| (R5 |R5a |R6 |R7 |R8 |R9 |C008 |R12 |§3\.3 删除片段)" openspec/TRACEABILITY.md
+    ```
+
+    人工核对 `git diff --name-status a35344d -- backend/tests` 只有 T14-T22 计划的新文件为 `A`，不得出现 `M`/`D`；围栏关键字扫描的每个命中必须逐项解释，不得静默忽略。
+  - 计划测试层级：不新增自动测试。
+  - 层级说明：本 task 只运行并审计 T14-T22 已计划的纯函数、API 集成和跨进程/资源生命周期用例，不再创建用例。
+  - 追溯行：本 change 在 `openspec/TRACEABILITY.md` 中引用的全部 R5/R5a/R6/R7/R8/R9/R12、C008 与 `§3.3 删除片段` 行，包括五条 `C008 复审…` 新行。
+
 - [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - R：无；PRD §11 的可运行可验收原则。
   - 验收方式与命令：只写本轮实际验证的 PostgreSQL/命令/坑，不复制计划值；运行 `git diff -- NOTES.md` 并人工核对每条有本轮原始证据。无新事实则不改文件，并在完成报告逐字写“无”。
@@ -286,11 +444,12 @@
     Set-Location D:\ai_drama_studio
     git status --short
     git diff --check
-    git diff --name-status bffb69b..HEAD
+    git diff --name-status aac7f17
+    git diff --name-status a35344d -- backend/tests
     git log -1 --oneline --decorate
     Get-ChildItem -File openspec/changes/c008 | Select-Object Name
     ```
 
-    期望：`openspec/changes/c008` 精确只有 `spec.md`、`tasks.md`；未勾选项不伪报完成；提交包含本 change 实际交付且不吸收用户已有 `.work/c007` 未跟踪文件或无关改动。
+    期望：`openspec/changes/c008` 精确只有 `spec.md`、`tasks.md`；未勾选项不伪报完成；从 `a35344d` 起既有测试无 `M`/`D`；提交包含本 change 实际交付且不吸收用户已有 `.work/` 审查证据或无关改动。
   - 计划测试层级：不新增自动测试。
   - 追溯行：不适用；commit/文档一致性采用上述人工与 git 验收。

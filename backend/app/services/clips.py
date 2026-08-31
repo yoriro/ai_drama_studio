@@ -903,8 +903,6 @@ def _validated_clip_media_move(
     trash_path = resolve_data_path(
         settings.DATA_DIR, Path("trash") / relative_path
     )
-    if trash_path.exists():
-        raise _source_data_error()
     return formal_path, trash_path
 
 

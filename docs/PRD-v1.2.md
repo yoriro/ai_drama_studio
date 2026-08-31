@@ -326,10 +326,12 @@ tasks            id PK, type ∈ {gen_assets, gen_shots, gen_asset_image, gen_cl
   - response_format 的 guided_json schema:顶层 object 只含必填 `assets` 数组且 `additionalProperties=false`;每项 object 的 `existing_id` 类型为 `["integer","null"]`,`type` 为封闭 enum `["character","scene"]`,`name`/`description` 为 string,四字段全部 required,每项 `additionalProperties=false`;v1 schema 不允许 `prop`。
 - `{{references}}` 结构(仅含启用槽位,按 slot_no 升序):
 
+`reference_name` 按启用槽位压实后的位次编号(`subject1..subjectN`),与 `slot_no` 解耦;`slot_no` 仅为稳定标识。
+
 ```jsonc
-[ { "slot_no": 1, "reference_name": "subject1",
-    "asset_type": "character", "asset_name": "林夏",
-    "asset_description": "...", 
+[ { "slot_no": 3, "reference_name": "subject2",
+    "asset_type": "character", "asset_name": "陈默",
+    "asset_description": "string | null",   // 活资产=入队时当前描述;已删资产=null
     "image_source": "asset_current | override" } ]
 ```
 

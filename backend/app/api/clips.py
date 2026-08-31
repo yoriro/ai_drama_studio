@@ -1,4 +1,5 @@
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 from pydantic import ValidationError
@@ -16,6 +17,7 @@ from app.schemas.clips import (
     ClipSlotEnabledPatch,
     ClipSlotMutationResponse,
     ClipSlotsResponse,
+    POSTGRES_INTEGER_MAX,
 )
 from app.services.clips import (
     create_clip,
@@ -38,7 +40,7 @@ router = APIRouter(tags=["clips"])
     response_model=ClipPreviewResponse,
 )
 async def preview_clip_route(
-    episode_id: int,
+    episode_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     payload: ClipPreviewRequest,
     session: AsyncSession = Depends(get_session),
 ) -> ClipPreviewResponse:
@@ -47,7 +49,7 @@ async def preview_clip_route(
 
 @router.get("/episodes/{episode_id}/clips", response_model=list[ClipResponse])
 async def list_clips_route(
-    episode_id: int,
+    episode_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     session: AsyncSession = Depends(get_session),
 ) -> list[ClipResponse]:
     return await list_clips(session, episode_id)
@@ -59,7 +61,7 @@ async def list_clips_route(
     status_code=201,
 )
 async def create_clip_route(
-    episode_id: int,
+    episode_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     payload: ClipCreateRequest,
     session: AsyncSession = Depends(get_session),
 ) -> ClipResponse:
@@ -68,7 +70,7 @@ async def create_clip_route(
 
 @router.get("/clips/{clip_id}", response_model=ClipResponse)
 async def get_clip_route(
-    clip_id: int,
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     session: AsyncSession = Depends(get_session),
 ) -> ClipResponse:
     return await get_clip(session, clip_id)
@@ -76,7 +78,7 @@ async def get_clip_route(
 
 @router.patch("/clips/{clip_id}", response_model=ClipResponse)
 async def update_clip_route(
-    clip_id: int,
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     payload: ClipPatchRequest,
     session: AsyncSession = Depends(get_session),
 ) -> ClipResponse:
@@ -85,7 +87,7 @@ async def update_clip_route(
 
 @router.delete("/clips/{clip_id}", status_code=204)
 async def delete_clip_route(
-    clip_id: int,
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await delete_clip(session, clip_id)
@@ -94,7 +96,7 @@ async def delete_clip_route(
 
 @router.get("/clips/{clip_id}/slots", response_model=ClipSlotsResponse)
 async def list_clip_slots_route(
-    clip_id: int,
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     session: AsyncSession = Depends(get_session),
 ) -> ClipSlotsResponse:
     return await list_clip_slots(session, clip_id)
@@ -195,7 +197,7 @@ async def _parse_slot_mutation(
 )
 async def update_clip_slot_route(
     request: Request,
-    clip_id: int,
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     slot_no: int = Path(ge=1, le=9),
     session: AsyncSession = Depends(get_session),
 ) -> ClipSlotMutationResponse:

@@ -15,6 +15,9 @@ from pydantic import (
 )
 
 
+POSTGRES_INTEGER_MAX = 2_147_483_647
+
+
 class ClipPreviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -25,8 +28,10 @@ class ClipPreviewRequest(BaseModel):
     def validate_shot_ids(cls, value: list[int]) -> list[int]:
         if not value:
             raise ValueError("shot_ids must not be empty")
-        if any(shot_id <= 0 for shot_id in value):
-            raise ValueError("shot_ids must contain positive integers")
+        if any(shot_id <= 0 or shot_id > POSTGRES_INTEGER_MAX for shot_id in value):
+            raise ValueError(
+                "shot_ids must contain positive PostgreSQL INTEGER values"
+            )
         if len(value) != len(set(value)):
             raise ValueError("shot_ids must not contain duplicates")
         return value
@@ -45,8 +50,10 @@ class ClipCreateRequest(BaseModel):
     def validate_id_lists(cls, value: list[int]) -> list[int]:
         if not value:
             raise ValueError("id lists must not be empty")
-        if any(item <= 0 for item in value):
-            raise ValueError("id lists must contain positive integers")
+        if any(item <= 0 or item > POSTGRES_INTEGER_MAX for item in value):
+            raise ValueError(
+                "id lists must contain positive PostgreSQL INTEGER values"
+            )
         if len(value) != len(set(value)):
             raise ValueError("id lists must not contain duplicates")
         return value
@@ -57,6 +64,13 @@ class ClipCreateRequest(BaseModel):
             if self.requested_duration is None:
                 raise ValueError("requested_duration must not be null")
         return self
+
+    @field_validator("user_note")
+    @classmethod
+    def reject_nul_user_note(cls, value: str | None) -> str | None:
+        if value is not None and "\x00" in value:
+            raise ValueError("user_note must not contain U+0000")
+        return value
 
 
 class ClipPatchRequest(BaseModel):
@@ -75,6 +89,13 @@ class ClipPatchRequest(BaseModel):
         ):
             raise ValueError("requested_duration must not be null")
         return self
+
+    @field_validator("user_note")
+    @classmethod
+    def reject_nul_user_note(cls, value: str | None) -> str | None:
+        if value is not None and "\x00" in value:
+            raise ValueError("user_note must not contain U+0000")
+        return value
 
 
 class ClipRuleMessageResponse(BaseModel):

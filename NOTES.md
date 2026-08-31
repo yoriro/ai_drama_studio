@@ -117,3 +117,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-31 C008 T13 定向套件 `39 passed in 60.53s`，完整 backend `156 passed in 140.17s`；原始输出保存在 `.work/c008/T13-test.log`。
 - 2026-08-31 C008 T13 `npm run build` 成功，Vite 报告 `55 modules transformed`、`built in 448ms`；migration/frontend working diff 为空。
 - 2026-08-31 C008 T13 首次定向命令因 PowerShell `.Substring(14)` 生成非法 DSN，改为 `.Substring(13)` 后同一隔离库定向通过；失败与修正输出均保留在 `.work/c008/T13-test.log`。
+- 2026-08-31 C008 T14-T23 使用全新隔离库 `ai_drama_studio_c008_final_20260831`；Alembic current 为 `6b8e3f0a1d24 (head)`，check 为 `No new upgrade operations detected.`。
+- 2026-08-31 C008 复审定向套件 `51 passed`、完整 backend `168 passed`；原始输出见 `.work/c008/T23-targeted.log` 与 `.work/c008/T23-full-pytest.log`。
+- 2026-08-31 C008 T21 新测试首次结束清理触发 `asset_images_asset_id_fkey`；补充先删图片再删资产后重跑为 `1 passed`，两次原始输出均保留在 `.work/c008/T21-test.log`。
+- 2026-08-31 C008 `npm run build` 成功，Vite 报告 `55 modules transformed`；迁移与前端 working diff 均为空，原始输出见 `.work/c008/T23-frontend-build.log`。
