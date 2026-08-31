@@ -114,7 +114,8 @@ output_node = "9"
 }
 ```
 
-- `vllm/comfy.status` 封闭为 `healthy|unhealthy`；healthy 时 `message=null`，连接、超时、非 2xx 或协议错误时 `message` 为非空、可展示且不含凭据的说明。
+- `vllm.status` 封闭为 `healthy|unhealthy`；vLLM `/health` 任意 2xx 都返回 `healthy` 且 `message=null`，完全忽略响应体，包括空 body 与非 JSON body。vLLM 连接失败、超时、无法形成合法 HTTP 响应或非 2xx 时返回 `unhealthy` 与非空、可展示且不含凭据的说明；不存在 vLLM 畸形 JSON 分支。
+- `comfy.status` 封闭为 `healthy|unhealthy`；Comfy `/system_stats` 必须为 2xx 且 body 为 JSON object 才返回 `healthy/null`，连接失败、超时、无法形成合法 HTTP 响应、非 2xx 或畸形/非 object JSON 时返回 `unhealthy` 与非空、可展示且不含凭据的说明。
 - 服务能响应时 `workflow_bindings.status` 固定为 `valid`，hashes 精确只含 `zimage`；静态 invalid 通过启动失败暴露，不返回伪造的运行中 200。
 - health 不执行推理、sleep/wake/free、workflow submit 或任务 mutation。
 
@@ -124,6 +125,7 @@ output_node = "9"
 
 `POST /api/assets/{asset_id}/generate-image`
 
+- `asset_id` 必须落在 PostgreSQL `INTEGER` 的 `-2147483648..2147483647` 范围内；超出范围在 API 边界返回结构化 422，不访问数据库或任务队列。
 - 请求必须是 JSON object，允许字段仅为 `user_note`、`request_id`；`{}` 合法，缺 body、JSON `null`、数组、未知字段或错误类型为 422。
 - `user_note` 为 string 或 null，省略等同 null；字符串不 trim，null 与空字符串是不同的 R4 输入。前端空白意见发送 null。
 - `request_id` 为 string 或 null，沿用 D-007：去首尾空白后 1..128，保存规范化值；空白/超长为 422。
@@ -190,8 +192,8 @@ R4 输入顺序精确为：
   ```
 
   namespace 字面值的审计来源固定为 `uuid5(NAMESPACE_URL, "ai-drama-studio:gen_asset_image")`；运行时合同是上述 UUID 字面值，不从配置读取。`uuid5` 使用 Python 标准库语义，name 为规范化字符串的 UTF-8 bytes；`str(prompt_uuid)` 必须是 canonical lowercase hyphenated UUID。seed 取同一 UUID 整数的低 63 bits，范围含 `0` 与 `2^63-1`。不得加入 type、target、user_note、当前时间或第二次 hash，不做碰撞 registry、碰撞重试或 fallback。
-- 固定测试向量：原始 `request_id=" abc "` 规范化为 `"abc"`，必须得到 `comfy_prompt_id="f0faf273-5fe9-5726-98be-3d449efdbe8d"` 与 `seed=1782929867419795085`。`input_hash` 仍按 §3.2 计算并排除 seed/prompt id。
-- 查到任意状态的同 request id 时，先比对 type、target 和请求 `user_note`；一致则以既有冻结 payload 返回原 task，后续资产/缓存变化不把幂等重放改成新抽卡；任一不一致为 409。
+- 固定测试向量：原始 `request_id=" abc "` 规范化为 `"abc"`，必须得到 `comfy_prompt_id="f0faf273-5fe9-5726-98be-3d449efdbe8d"` 与内部 `seed=1782929867419795085`。`input_hash` 仍按 §3.2 计算并排除 seed/prompt id；公开 AssetImage JSON 与 debug `input_snapshot.seed` 将该值投影为十进制字符串。
+- 查到任意状态的同 request id 时，先比对 type、target 和该任务类型明确列出的客户端身份字段；`gen_asset_image` 只比较请求 `user_note` 原值，`null`、空字符串和空白字符串互不等价。一致则以既有冻结 payload 返回原 task，后续资产/风格/模板/缓存/workflow 变化不把幂等重放改成新抽卡；任一身份字段不一致为结构化 409。
 - 两个不同新请求必须创建两个 task、保留各自 seed；重复同 request id 只返回一个 task 和同一 seed。
 
 ## 4. 模板、guided_json 与缓存
@@ -305,6 +307,7 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 
 - `DEBUG_PROMPTS=false`：字段精确保持 C003 的 `id,asset_id,sha256,seed,source,is_current,created_at`；不得出现 `file_path,built_prompt,input_hash,input_snapshot,user_note`。
 - `DEBUG_PROMPTS=true`：在上述字段上**只额外**出现 `built_prompt` 与 `input_snapshot`；generated 行两者非 null，uploaded 行两者为 null。仍不返回 `file_path,input_hash,user_note` 独立字段。
+- 上述两种公开响应中的 `seed` 都是原始数据库整数的十进制字符串或 `null`；数据库、task payload 和 worker 内部仍使用 `[0, 2^63-1]` integer。`DEBUG_PROMPTS=true` 时 generated 行 `input_snapshot.seed` 也投影为十进制字符串或 `null`，不改变冻结 payload。
 - 其他资产、项目、episode、task、health 或媒体 API 不因 debug 返回中间提示词。
 
 ### 6.2 资产页
@@ -312,6 +315,8 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 - 每张资产卡新增一个意见 textarea 和“生成图片”按钮；空白意见发送 null。请求中只禁用该卡的重复 HTTP 提交，202 返回后立即恢复，允许用户再次点击形成新 task。
 - 202 后显示真实 task id 和现有任务中心入口；同步错误保留意见并直显 `detail.message`，不自动重发。
 - 页面监听现有 task WS；收到 terminal `gen_asset_image` 后通过 task GET 确认 target 属于当前列表，再重新读取该资产/画廊。断线沿用 D-008 的既有 1/2/5/10 秒观察通道重连且不重发 mutation；重连成功后对当前资产列表执行一次 GET 刷新以补断线窗口。页面重新进入时同样以 GET 真相为准，不依赖 WS 历史或假图片。
+- 首次连接与每次重连都先缓冲 WS 事件，再执行 REST 快照，快照成功后按接收顺序应用缓冲事件；快照失败必须保留可见错误、关闭当前 socket 并沿用既有重连调度，下一连接重新执行同一同步流程，不永久忽略事件或丢失 terminal 更新。
+- WS connect/reconnect 使旧 REST 请求失效时，旧请求不得覆盖新状态或遗留 `refreshing=true`；当前不存在有效刷新请求时 `refreshing=false`，刷新/创建按钮恢复可用。不得增加 polling、fallback 或静默吞错。
 - 画廊显示 generated/uploaded、seed、current 和既有切换/删除动作；首个安全 current 立即出现在当前图，后续生成保留为可选版本。
 - API 返回 debug 字段时，每个版本提供可展开的 built prompt 与格式化 input snapshot；字段不存在时不渲染空调试面板。
 
@@ -347,10 +352,10 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 | AC-01 | [常规] | 对 C007 diff、Alembic current/check 与围栏关键字扫描 | git diff、migration head、表结构 | 零 migration/schema 漂移；无 C008+、围栏机制、retry/fallback/第二队列/registry |
 | AC-02 | [外部输入] | 分别使用原 UI 文件、转换后的 API 文件与 vLLM/Comfy 地址执行 T0 | JSON 顶层、绑定节点、真实 HTTP 结果 | 原 UI JSON 因 `nodes/links` 被拒；转换文件只含数值节点且 `6.inputs.text`、`3.inputs.seed`、输出节点 `9` 均存在；sleep→wake 均为 200、状态为 false→true→false；Comfy 地址探测为 200，T0 解除 |
 | AC-03 | [外部输入] | 分别启动有效 API workflow、缺文件、UI graph、非法 JSON、坏 prompt/seed/output path | 进程退出、日志、worker/task 状态 | 有效者启动且给出 64 hex hash；四类坏输入均在 worker 前非零失败，不 claim task、不 fallback |
-| AC-04 | [外部输入] | health 分别面对双服务健康、单服务连接失败/非 2xx/畸形响应 | `/api/system/health` 与设置页 | HTTP 200 精确 schema；健康为 healthy/null，失败组件为 unhealthy/非空安全 message；binding 仍 valid 且 hash 精确，无 sleep/free/submit |
-| AC-05 | [常规] | 向存在/不存在资产发送 `{}`、合法意见及非法 body | API、task 行 | 合法为 202 + 精确 task_id/queued gen_asset_image；未知 404；缺/null/数组/未知字段 422；请求线程无外部调用 |
+| AC-04 | [外部输入] | health 分别面对 vLLM 2xx 空/非 JSON、vLLM 非 2xx，以及 Comfy 2xx 畸形 JSON/连接失败/非 2xx | `/api/system/health` 与设置页 | vLLM 任意 2xx 均 healthy/null 且忽略 body；vLLM 传输失败或非 2xx、Comfy 畸形 JSON/传输失败均 unhealthy/非空安全 message；binding 仍 valid 且 hash 精确，无 sleep/free/submit |
+| AC-05 | [常规] | 向存在/不存在资产发送 `{}`、合法意见及非法 body、越过 PostgreSQL INTEGER 上下界的 `asset_id` | API、task 行 | 合法为 202 + 精确 task_id/queued gen_asset_image；未知 404；path/body 422；上下界外在访问数据库/队列前返回结构化 422；请求线程无外部调用 |
 | AC-06 | [并发] | 同资产并发两个无 request id 请求；以 `" abc "`/`"abc"` 并发及终态重放；复用 key 改 target 或 user_note | task 数、id、payload seed/prompt id、HTTP | 无 id 创建两 task且 seed/prompt id 独立；两个有 id 请求只一行并返回同 task，精确得到 prompt id `f0faf273-5fe9-5726-98be-3d449efdbe8d`、seed `1782929867419795085`，终态重放仍返回冻结 payload；改 target/note 为 409；无 target active 409 |
-| AC-07 | [事务一致性] | 入队时并发编辑资产/风格/模板，并在入队后替换磁盘 workflow | payload、hash 复算、模型/Comfy mock入参 | payload 顶层/内部字段精确且来自锁定快照；hash 按固定数组一致；worker 用 payload workflow/文本，不重读新值 |
+| AC-07 | [事务一致性] | 入队时由独立数据库连接并发编辑 Asset、Style、Template，并在入队后替换磁盘 workflow | 锁等待/提交屏障、payload、hash 复算、worker 入参 | 三个 writer 在入队事务提交前分别被对应行锁阻塞、提交后全部完成；payload 顶层/内部字段精确且来自锁定快照；hash 按固定数组一致；worker 用同一冻结副本，不重读新值 |
 | AC-08 | [外部输入] | cache miss 时让 vLLM 返回合法、额外字段、空 prompt、非法 JSON/HTTP | vLLM 请求、task、Comfy调用 | 合法恰一 wake/chat、一 user message、精确 schema；非法均 failed、Comfy 0 调用、无 cache/图片，且无隐藏业务 system prompt |
 | AC-09 | [常规] | 先制造稳定 cache hit，再改变 seed、意见、资产描述、风格、模板、model、workflow hash | chat 次数、input_hash、cache、日志 | hit 时 chat=0且只换 seed；仅 seed 变化 hash 不变；其余任一变化 hash 改变并 chat=1；完整 prompt/hash 入库日志 |
 | AC-10 | [跨进程] | 分别执行 cache miss/hit 的成功任务及 sleep 失败 | 按时序记录的真实客户端调用、Comfy队列、task | miss 为 wake→chat→sleep→Comfy→free；hit 无 wake/chat但有 sleep→Comfy→free；sleep 失败时 Comfy 0 调用；任一时刻无两种推理重叠 |
@@ -358,7 +363,7 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 | AC-12 | [跨进程] | queued cancel、running 首次/重复 cancel、interrupt 失败、取消与最终提交竞态 | cancel 响应、interrupt 次数、task/图片/cache/file | queued 0 interrupt；running 首次 1 次 targeted interrupt，重复 0 次；interrupt 失败有 warning但取消意图保留；竞态只有 canceled+无业务写入或 done+完整产物一种胜方 |
 | AC-13 | [事务一致性] | source revision 未变/已变且分别有/无 current 完成任务 | Asset/AssetImage/Shot/Clip/task 同事务结果 | 未变且无 current 才自动 current并 revision+1/级联；其余图为非 current；所有成功均保存快照产物；图片/cache/current/done 不可部分提交 |
 | AC-14 | [事务一致性] | rename 后强制数据库失败、trash 补偿失败、主错误叠加 free 失败 | DATA_DIR、trash、DB、error_msg/log | DB 无图/cache/done；正常补偿把正式文件移入 trash；补偿/free 失败与主错误同时可诊断；temp 始终删除、无后台重试 |
-| AC-15 | [常规] | 浏览器连续提交两次并等 terminal，再切 current/删除非 current/刷新 | 资产页、任务中心、媒体 URL、API真相 | 两 task id、两个 seed/版本；画廊从 API 刷新，首个安全版本 current，后续可切换/删除；错误保留意见并直显 message，无假数据/轮询 |
+| AC-15 | [常规] | 浏览器连续提交两次并等 terminal，再切 current/删除非 current/刷新；延迟 REST 时触发 WS 重连；首次 REST 快照失败后恢复服务 | 资产页、任务中心、媒体 URL、API真相 | 两 task id、两个 seed/版本；画廊从 API 刷新，首个安全版本 current，后续可切换/删除；旧 REST 失效后 `refreshing=false` 且按钮可用；快照失败错误可见并关闭 socket，下一连接按序同步 terminal/REST 状态；无假数据/轮询 |
 | AC-16 | [常规] | 分别以 DEBUG_PROMPTS=false/true 读取 generated 与 uploaded 图片并打开资产页 | JSON keys、页面 DOM、其他 API | false 无中间字段；true 仅图片项额外含 built_prompt/input_snapshot（uploaded 为 null）并可展开；其他 API不泄露 file_path/prompt |
 | AC-17 | [常规] | 覆盖同步 404/409/422/500 与异步外部/文件失败 | HTTP body、task详情、日志 | HTTP 固定 code/message 且语义不互换；异步 task failed/error_msg 完整、不重试、不把错误包装成 done/图片 |
 | AC-18 | [常规] | 运行完整后端、前端构建、Alembic 与范围检查 | 命令退出码、TRACEABILITY、git diff | 计划测试全通过并回填准确 node ID；既有测试未改；build/check/diff 通过；未验收的真实外部门槛明确报告且 task 不勾选 |

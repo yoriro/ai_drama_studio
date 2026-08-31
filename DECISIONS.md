@@ -46,10 +46,10 @@
 
 ## D-007 request_id 是规范化后的全局幂等标识
 
-- 决定：接受 `request_id` 的任务入口必须先去除首尾空白，并要求规范化后长度为 1..128；它在全部 task type 和全部状态之间是全局 key。已有相同 key 且 `type`、`target_id`、payload 的 JSON 结构相等时返回原 task；任一项不同时判为冲突。比较现有 JSON 结构，不新增内容 hash、签名或 canonical serialization。
-- 理由：数据库现有部分唯一索引只覆盖 active task，不能定义终态重复提交；由 service 对规范化 key 和原始请求结构作完整判定，才能在不改 schema 的情况下保持全生命周期幂等。
+- 决定：接受 `request_id` 的任务入口必须先去除首尾空白，并要求规范化后长度为 1..128；它在全部 task type 和全部状态之间是全局 key。幂等比较只包含 task type、`target_id` 和该任务类型明确列出的客户端请求身份字段，不比较完整服务端执行 payload。`gen_asset_image` 的唯一身份字段是 `user_note`，按原值比较；`null`、空字符串和空白字符串互不等价。身份一致时返回原 task 与原冻结 payload，资产、风格、模板、缓存或 workflow 后续变化不影响重放；任一身份字段不同则返回结构化 409。
+- 理由：数据库现有部分唯一索引只覆盖 active task，不能定义终态重复提交；客户端请求身份与服务端执行快照职责不同，不能因后续环境快照变化破坏同一请求的全局幂等重放。
 - 影响：C007 `gen_asset_image`、C009 `gen_clip_video` 及任何复用通用入队服务的后续客户端。
-- 来源：C004 proposal 的用户裁决 OQ-3、spec §6.2 与 T9 确立。
+- 来源：C004 proposal 的用户裁决 OQ-3、spec §6.2 与 T9 确立；2026-08-30 Sol 对 C007 最终修复的裁决。
 
 ## D-008 WS 是提交后的非持久观察流，REST 是重建状态的权威来源
 
@@ -78,3 +78,17 @@
 - 理由：模板和动态约束由对应 change 的业务输入决定；把它们藏进共享客户端会形成第二份不可见规则，并使入队快照无法准确复现实际请求。
 - 影响：C005/C006 已有结构化 LLM 调用，以及 C007/C009 后续 prompt 构建和任何新增 vLLM task。
 - 来源：C005 T2 确立最小 structured client、T3-T4 分离渲染与传输；C006 依赖该客户端并继续由自身构造动态 schema。
+
+## D-012 资产图片 seed 内部保持整数、公开表示为十进制字符串
+
+- 决定：数据库、task payload、UUIDv5 映射和提交给 Comfy 的资产图片 seed 始终使用 `[0, 2^63-1]` integer；所有公开 AssetImage JSON 的 `seed` 以及 `DEBUG_PROMPTS` 下 `input_snapshot.seed` 投影为十进制 string 或 `null`。不增加迁移、第二字段、通用 bigint 框架或双类型兼容合同。
+- 理由：后端与 Comfy 需要完整 63-bit 整数语义，JavaScript `number` 无法无损表示全部公开值；边界投影隔离内部计算与前端显示精度。
+- 影响：C007 资产图片 API、debug 响应和前端 `AssetImage.seed` 类型；内部 worker 与数据库合同不变。
+- 来源：2026-08-30 Sol 对 C007 最终修复的 seed 表示裁决。
+
+## D-013 健康检查遵循各真实上游协议
+
+- 决定：vLLM `/health` 任意 2xx 都是 `healthy/null`，完全忽略响应体；连接失败、超时、无法形成合法 HTTP 响应和非 2xx 是 `unhealthy`。Comfy `/system_stats` 必须同时满足 2xx 与 JSON object；畸形 JSON 是 Comfy 协议错误。不存在 vLLM 畸形 JSON 分支。
+- 理由：两个上游的健康端点协议不同，健康检查只验证各自真实合同，避免用另一服务的响应体要求污染诊断语义。
+- 影响：C007 `/api/system/health`、启动探测和设置页诊断；health 不触发 GPU mutation。
+- 来源：2026-08-30 Sol 对 C007 最终修复的 health 协议裁决。

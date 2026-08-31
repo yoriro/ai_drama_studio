@@ -105,3 +105,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-30 按既有 vLLM 启动命令重启 `/mnt/d/llm_models/Qwen3-30B-A3B-Instruct-2507-AWQ-4bit`；8001 `/health` 实测 HTTP 200、空 body，原始输出见 `.work/c007/Sol-vllm-restart-20260830-*.log`。
 - 2026-08-30 隔离库 `ai_drama_studio_c007_seed_20260830` 上公开 seed API 用例 `1 passed`，63-bit seed 原样返回十进制字符串；内部 seed 整数用例未改且通过。
 - 2026-08-30 全量 backend 为 `109 passed, 1 failed`；唯一失败是 `test_health_timeout_is_unhealthy_without_gpu_mutation` 实际访问已启动的 8001 并收到 healthy，原始输出见 `.work/c007/C007-seed-contract-full-backend.log`。
+- 2026-08-31 C007 final repair：生产任务查询为空，Comfy `http://127.0.0.1:8188/queue` 实测 `queue_running=0`、`queue_pending=0`；原始前置检查见 `.work/c007/final-repair-vllm-preconditions.log`。
+- 2026-08-31 按既有 vLLM 命令仅将 `gpu-memory-utilization` 改为 `0.91` 启动；因 `Free memory ... 21.31/23.99 GiB` 小于所需 `21.83 GiB` 失败，原始日志见 `.work/c007/final-repair-vllm-091.*.log`。
+- 2026-08-31 vLLM 进程最终未运行，`8001/health` 无响应；未执行 sleep/wake/chat，未降低 `max-model-len` 或继续猜参数。

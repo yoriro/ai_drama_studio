@@ -50,7 +50,12 @@ def _asset_image_payload(
     payload = AssetImageResponse.model_validate(image).model_dump(mode="json")
     if include_debug:
         payload["built_prompt"] = image.built_prompt
-        payload["input_snapshot"] = image.input_snapshot
+        input_snapshot = image.input_snapshot
+        if input_snapshot is not None:
+            input_snapshot = dict(input_snapshot)
+            if input_snapshot.get("seed") is not None:
+                input_snapshot["seed"] = str(input_snapshot["seed"])
+        payload["input_snapshot"] = input_snapshot
     return payload
 
 
@@ -60,7 +65,9 @@ def _asset_image_payload(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def generate_asset_image_route(
-    asset_id: Annotated[int, Path(le=2_147_483_647)],
+    asset_id: Annotated[
+        int, Path(ge=-2_147_483_648, le=2_147_483_647)
+    ],
     payload: GenerateAssetImageRequest,
     request: Request,
     session: AsyncSession = Depends(get_session),

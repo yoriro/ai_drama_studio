@@ -129,6 +129,11 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
       return !disposed && activeSocket === socket;
     }
 
+    function invalidateRestRequest(): void {
+      restRequestRef.current += 1;
+      setRefreshing(false);
+    }
+
     function applyEntries(loadedEntries: AssetEntry[]): void {
       entriesRef.current = loadedEntries;
       setEntries(loadedEntries);
@@ -167,7 +172,7 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
 
       const socket = openTaskWebSocket();
       activeSocket = socket;
-      restRequestRef.current += 1;
+      invalidateRestRequest();
       let synchronized = false;
       let synchronizationFailed = false;
       const bufferedEvents: TaskEvent[] = [];
@@ -264,10 +269,15 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
       async function synchronize(): Promise<void> {
         synchronized = false;
         synchronizationFailed = false;
+        const requestId = ++restRequestRef.current;
+        setRefreshing(true);
         setLoadState("loading");
         try {
           const loadedEntries = await readEntries();
-          if (!isActive(socket)) {
+          if (
+            !isActive(socket) ||
+            requestId !== restRequestRef.current
+          ) {
             return;
           }
 
@@ -279,7 +289,10 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
           setLoadState("ready");
           events.forEach(processEvent);
         } catch (error: unknown) {
-          if (!isActive(socket)) {
+          if (
+            !isActive(socket) ||
+            requestId !== restRequestRef.current
+          ) {
             return;
           }
 
@@ -287,6 +300,15 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
           bufferedEvents.length = 0;
           setLoadError(error);
           setLoadState("error");
+          closeWebSocket(socket);
+          scheduleReconnect();
+        } finally {
+          if (
+            isActive(socket) &&
+            requestId === restRequestRef.current
+          ) {
+            setRefreshing(false);
+          }
         }
       }
 
@@ -324,6 +346,7 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
         if (!isActive(socket)) {
           return;
         }
+        invalidateRestRequest();
         activeSocket = null;
         scheduleReconnect();
       };
