@@ -49,12 +49,12 @@ C007 交付 ROADMAP 中的 M3 资产出图纵向闭环：应用启动时加载�
 | 来源 | 开工或验收门槛 | 当前证据 | 缺失项与结论 |
 |---|---|---|---|
 | PRD §12.1：Z-Image API workflow JSON + §8 节点绑定 | C007 开工前必须有可直接放入 `/prompt.prompt` 的 API JSON，并确认 prompt/seed/output 绑定 | 原文件 `F:\ComfyUI\user\default\workflows\Z_Image_Turbo_官方工作流.json` 为 10073-byte UI graph；已保留原文件并生成 `F:\ComfyUI\user\default\workflows\Z_Image_Turbo_官方工作流_api.json`（3411 bytes，SHA-256 `e9790bece3462691ebaf63d849bf1940beec62f9149fb6d475be859c47e41eaa`）。转换文件顶层仅含节点 `3,6,7,8,9,13,16,17,18`，绑定为 `6.inputs.text`、`3.inputs.seed`、`9`；node 11 的 UI bypass 已解析为 `16→3`。它与 Comfy 成功历史 prompt `104082aa-e8d1-4a42-8343-26d5ab8cbc4a` 除合法 seed 外逐字段一致，并通过当前 `/object_info` 的 class、必填输入、引用、sampler 和 seed 范围检查 | **满足**：Luna 在 T0 重跑文件结构与绑定检查后，使用转换后的 API 文件作为 T1 输入；不得改用原 UI graph，也不得把成功历史中的临时 prompt/seed 覆盖进交付文件 |
-| PRD §12.2：`zimage` 模板内容可先占位 | 正式模板不是 C007 开工门槛；T13 配置门槛为单一模板精确包含三个变量、按 `asset.type` 二选一执行 §4.1 人物/场景分支、要求封闭 JSON 输出且只描述 1344×1024；T14 验收门槛为两类资产均走真实运行通路并通过可判定语义检查 | 2026-08-30 本轮 GET 实测 API 已读回需求方提供的 2117 字人物模板，三个变量存在；但正文仍两次要求 `3:2`、要求裸 prompt 正文，且没有 scene 分支。需求方随后确认保留 1344×1024 workflow 及 §4.1 场景合同 | **不阻塞 T1-T12，阻塞 T13-T14**：当前人物模板不能作为正式单模板通过；T13 必须先按 §4.1 合并场景分支、JSON 输出与实际画幅并逐字读回，T14 再分别验收两类真实图片；不得把临时业务 prompt 藏入代码，不得以人物模板冒充场景覆盖 |
+| PRD §12.2：`zimage` 模板内容可先占位 | 正式模板不是 C007 开工门槛；T13 配置门槛为单一模板精确包含三个变量、按 `asset.type` 二选一执行 §4.1 人物/场景分支、要求封闭 JSON 输出且只描述 1344×1024；T14 验收门槛为两类资产均走真实运行通路并逐项记录可判定语义检查 | 2026-08-30 T13 已通过设置 API 写入并逐字读回 2770 字正式模板，`READBACK_MATCH=True`，占位符顺序为 `asset,style,user_note`，同一正文包含 character/scene 二选一分支、1344×1024 与唯一 `prompt` JSON 输出合同。T14 的人物 task `235/248/249` 与场景 task `250` 均经生产 PostgreSQL、vLLM、Comfy、workflow、媒体与 task/WS 通路完成，人物图片 `31/32/33`、场景图片 `34` 均为 1344×1024 PNG，场景首版自动 current；人工视觉偏差及需求方裁决已如实记录在 TRACEABILITY，不伪写为满足 | **满足**：T13 配置门槛和 T14 真实通路门槛均有证据；正式内容继续只允许一个 `zimage` key，不得回退为仅人物模板、3:2、裸文本输出或代码侧隐藏业务 prompt |
 | PRD §12.3：vLLM `--enable-sleep-mode` 且 sleep/wake 可用 | C007 开工前须有一次真实 sleep(level 1)→wake 成功证据；验证时不得有正在执行的生产任务 | WSL 当前进程命令含 `--enable-sleep-mode`；`http://127.0.0.1:8001/health` 为 200；2026-08-28 验证时 running task 为 0，初始 `/is_sleeping=false`，POST `/sleep?level=1` 为 200 且随后 `/is_sleeping=true`，POST `/wake_up` 为 200 且最终 `/is_sleeping=false` | **满足**：真实往返通过，验证后 vLLM 已恢复 awake |
 | PRD §12.4：Postgres DSN、Comfy/vLLM 地址端口 | 实现与验收环境均须可达；地址不得写入业务 payload | PostgreSQL `127.0.0.1:5432` 已被 C001-C006 使用；vLLM `127.0.0.1:8001` 当前健康；用户确认 Comfy 端口 8188，`127.0.0.1:8188/system_stats` 当前 200，ComfyUI `0.33.0`、RTX 4090 | 地址门槛满足；实现仍从 `DATABASE_URL`、`VLLM_BASE_URL`、`COMFY_BASE_URL` 读取，不硬编码证据地址 |
 | ROADMAP 前序 C006 | C006 归档且回归通过后才能进入 C007 | Git 当前提交为 `Archive completed C006 change`；TRACEABILITY 已回填 C006 用例 | 满足 |
 
-当前 C007 的 T1-T12 门槛均已满足。§12.2 的正式双分支单模板是 T13 配置门槛和 T14 真实资产语义出图验收门槛；在写入前可以完成结构、事务、竞态、mock 与 UI 能力，但不得把占位模板或仅人物模板的结果写成最终验收通过。
+当前 C007 的 PRD §12 开工门槛与 §12.2 正式双分支单模板配置门槛均已满足。T20 因完成报告引用的 HTTP 原始日志不存在而重新开放，仅表示最终复验的证据链需要重做，不把已经完成的外部依赖门槛倒写为未满足；不得补写旧日志或用 mock 代替新的真实请求/响应。
 
 ## 1. 可观察行为
 
@@ -317,6 +317,7 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 - 页面监听现有 task WS；收到 terminal `gen_asset_image` 后通过 task GET 确认 target 属于当前列表，再重新读取该资产/画廊。断线沿用 D-008 的既有 1/2/5/10 秒观察通道重连且不重发 mutation；重连成功后对当前资产列表执行一次 GET 刷新以补断线窗口。页面重新进入时同样以 GET 真相为准，不依赖 WS 历史或假图片。
 - 首次连接与每次重连都先缓冲 WS 事件，再执行 REST 快照，快照成功后按接收顺序应用缓冲事件；快照失败必须保留可见错误、关闭当前 socket 并沿用既有重连调度，下一连接重新执行同一同步流程，不永久忽略事件或丢失 terminal 更新。
 - WS connect/reconnect 使旧 REST 请求失效时，旧请求不得覆盖新状态或遗留 `refreshing=true`；当前不存在有效刷新请求时 `refreshing=false`，刷新/创建按钮恢复可用。不得增加 polling、fallback 或静默吞错。
+- socket 保持连接时，任何 WS 事件都可以使在途画廊 REST 快照变旧；变旧响应不得写入 entries/load state/error，但只要该刷新仍对应一次待完成的创建、切换 current、删除或 terminal 同步，就必须在最新事件 revision 上合并或补发 REST 快照，直至最新快照成功应用或最新一次失败形成可见错误。terminal task id 去重不得抑制这次补刷新；在最新快照成功前不得显示“画廊已刷新”，所有有效刷新结束后 `refreshing=false` 且按钮可用。不得以轮询、自动 mutation 重发或应用旧响应代替补刷新。
 - 画廊显示 generated/uploaded、seed、current 和既有切换/删除动作；首个安全 current 立即出现在当前图，后续生成保留为可选版本。
 - API 返回 debug 字段时，每个版本提供可展开的 built prompt 与格式化 input snapshot；字段不存在时不渲染空调试面板。
 
@@ -352,7 +353,7 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 | AC-01 | [常规] | 对 C007 diff、Alembic current/check 与围栏关键字扫描 | git diff、migration head、表结构 | 零 migration/schema 漂移；无 C008+、围栏机制、retry/fallback/第二队列/registry |
 | AC-02 | [外部输入] | 分别使用原 UI 文件、转换后的 API 文件与 vLLM/Comfy 地址执行 T0 | JSON 顶层、绑定节点、真实 HTTP 结果 | 原 UI JSON 因 `nodes/links` 被拒；转换文件只含数值节点且 `6.inputs.text`、`3.inputs.seed`、输出节点 `9` 均存在；sleep→wake 均为 200、状态为 false→true→false；Comfy 地址探测为 200，T0 解除 |
 | AC-03 | [外部输入] | 分别启动有效 API workflow、缺文件、UI graph、非法 JSON、坏 prompt/seed/output path | 进程退出、日志、worker/task 状态 | 有效者启动且给出 64 hex hash；四类坏输入均在 worker 前非零失败，不 claim task、不 fallback |
-| AC-04 | [外部输入] | health 分别面对 vLLM 2xx 空/非 JSON、vLLM 非 2xx，以及 Comfy 2xx 畸形 JSON/连接失败/非 2xx | `/api/system/health` 与设置页 | vLLM 任意 2xx 均 healthy/null 且忽略 body；vLLM 传输失败或非 2xx、Comfy 畸形 JSON/传输失败均 unhealthy/非空安全 message；binding 仍 valid 且 hash 精确，无 sleep/free/submit |
+| AC-04 | [外部输入] | health 分别面对 vLLM 2xx 空/非 JSON、vLLM 超时/连接失败/非 2xx，以及 Comfy 2xx 畸形 JSON/连接失败/非 2xx | `/api/system/health`、本地慢服务命中计数与设置页 | vLLM 任意 2xx 均 healthy/null 且忽略 body；连接本地随机端口慢服务时该服务至少收到一次请求且 vLLM 为 unhealthy/超时 message；其他 vLLM 传输失败或非 2xx、Comfy 畸形 JSON/传输失败均 unhealthy/非空安全 message；binding 仍 valid 且 hash 精确，无 sleep/free/submit，测试不连接生产 8001 |
 | AC-05 | [常规] | 向存在/不存在资产发送 `{}`、合法意见及非法 body、越过 PostgreSQL INTEGER 上下界的 `asset_id` | API、task 行 | 合法为 202 + 精确 task_id/queued gen_asset_image；未知 404；path/body 422；上下界外在访问数据库/队列前返回结构化 422；请求线程无外部调用 |
 | AC-06 | [并发] | 同资产并发两个无 request id 请求；以 `" abc "`/`"abc"` 并发及终态重放；复用 key 改 target 或 user_note | task 数、id、payload seed/prompt id、HTTP | 无 id 创建两 task且 seed/prompt id 独立；两个有 id 请求只一行并返回同 task，精确得到 prompt id `f0faf273-5fe9-5726-98be-3d449efdbe8d`、seed `1782929867419795085`，终态重放仍返回冻结 payload；改 target/note 为 409；无 target active 409 |
 | AC-07 | [事务一致性] | 入队时由独立数据库连接并发编辑 Asset、Style、Template，并在入队后替换磁盘 workflow | 锁等待/提交屏障、payload、hash 复算、worker 入参 | 三个 writer 在入队事务提交前分别被对应行锁阻塞、提交后全部完成；payload 顶层/内部字段精确且来自锁定快照；hash 按固定数组一致；worker 用同一冻结副本，不重读新值 |
@@ -363,7 +364,7 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 | AC-12 | [跨进程] | queued cancel、running 首次/重复 cancel、interrupt 失败、取消与最终提交竞态 | cancel 响应、interrupt 次数、task/图片/cache/file | queued 0 interrupt；running 首次 1 次 targeted interrupt，重复 0 次；interrupt 失败有 warning但取消意图保留；竞态只有 canceled+无业务写入或 done+完整产物一种胜方 |
 | AC-13 | [事务一致性] | source revision 未变/已变且分别有/无 current 完成任务 | Asset/AssetImage/Shot/Clip/task 同事务结果 | 未变且无 current 才自动 current并 revision+1/级联；其余图为非 current；所有成功均保存快照产物；图片/cache/current/done 不可部分提交 |
 | AC-14 | [事务一致性] | rename 后强制数据库失败、trash 补偿失败、主错误叠加 free 失败 | DATA_DIR、trash、DB、error_msg/log | DB 无图/cache/done；正常补偿把正式文件移入 trash；补偿/free 失败与主错误同时可诊断；temp 始终删除、无后台重试 |
-| AC-15 | [常规] | 浏览器连续提交两次并等 terminal，再切 current/删除非 current/刷新；延迟 REST 时触发 WS 重连；首次 REST 快照失败后恢复服务 | 资产页、任务中心、媒体 URL、API真相 | 两 task id、两个 seed/版本；画廊从 API 刷新，首个安全版本 current，后续可切换/删除；旧 REST 失效后 `refreshing=false` 且按钮可用；快照失败错误可见并关闭 socket，下一连接按序同步 terminal/REST 状态；无假数据/轮询 |
+| AC-15 | [并发] | 浏览器连续提交两次并等 terminal，再切 current/删除非 current/刷新；延迟 REST 时触发 WS 重连；首次 REST 快照失败后恢复服务；socket 保持连接时延迟一次画廊 REST，并在等待期间经生产任务 API/EventBus 发布一条无关非终态 WS 事件 | 资产页、任务中心、媒体 URL、REST 请求序列、WS 事件、按钮/提示、API真相 | 两 task id、两个 seed/版本；画廊从 API 刷新，首个安全版本 current，后续可切换/删除；断线使旧 REST 失效后 `refreshing=false` 且按钮可用；快照失败错误可见并关闭 socket，下一连接按序同步 terminal/REST 状态；保持连接的旧响应不写 UI，事件后至少一个绑定最新 revision 的 REST 快照成功应用，DOM 与 API 真相一致，成功前不显示“画廊已刷新”，结束后按钮可用；无假数据/轮询/自动 mutation 重发 |
 | AC-16 | [常规] | 分别以 DEBUG_PROMPTS=false/true 读取 generated 与 uploaded 图片并打开资产页 | JSON keys、页面 DOM、其他 API | false 无中间字段；true 仅图片项额外含 built_prompt/input_snapshot（uploaded 为 null）并可展开；其他 API不泄露 file_path/prompt |
 | AC-17 | [常规] | 覆盖同步 404/409/422/500 与异步外部/文件失败 | HTTP body、task详情、日志 | HTTP 固定 code/message 且语义不互换；异步 task failed/error_msg 完整、不重试、不把错误包装成 done/图片 |
 | AC-18 | [常规] | 运行完整后端、前端构建、Alembic 与范围检查 | 命令退出码、TRACEABILITY、git diff | 计划测试全通过并回填准确 node ID；既有测试未改；build/check/diff 通过；未验收的真实外部门槛明确报告且 task 不勾选 |
@@ -378,12 +379,13 @@ Asset 在运行中被删除使 task failed 且不留正式文件/图片行。Ass
 | AC-07、AC-08、AC-09 | `R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`；风格/模板分支同时归属 `§3.3 编辑风格或模板：分镜与片段不动、文件不删，下次生成因 hash 失配重建 prompt` |
 | AC-10、AC-11、AC-12 | `C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`；取消状态同时归属 `§6.1 取消：queued 直接 canceled；running 记录 cancel_requested_at，并在安全点中断` |
 | AC-13、AC-14 | `C007 资产出图事务与文件一致性：生成 PNG 校验/sha256/原子落盘、首版 current、修订竞态保存非 current、缓存/图片/done 同事务、失败补偿入 trash` |
+| AC-15 | `C007 AssetPage REST/WS 刷新竞态：失效旧请求不覆盖状态且不遗留 refreshing`；`C007 AssetPage 初始快照失败恢复：socket 关闭、可见错误、既有重连后重新按序同步`；`C007 AssetPage 保持连接的事件/REST 竞态：旧响应失效后补发最新快照且成功提示不早于应用` |
 | AC-16 | `R11 提示词可见性：默认 API 不返回中间提示词，DEBUG_PROMPTS=true 时详情返回 built_prompt 与 input_snapshot` |
 | AC-19 | `C007 Z-Image 类型语义：单一 zimage 模板按 asset.type 生成 1344×1024 人物四视图或单幅连续场景，并使用封闭 prompt JSON` |
-| AC-01、AC-02、AC-15、AC-17、AC-18 中纯文档/真实外部/UI/范围部分 | 不适合新增独立自动测试：UI 无现有前端测试框架，外部 gate/mock 不能证明真实 GPU/workflow，文档与范围不是运行时行为。替代方式为 T0 真实 HTTP/文件检查、真实浏览器、现有 pytest、`npm run build`、Alembic、git/range scan；运行时错误分支仍由上述归属用例覆盖 |
+| AC-01、AC-02、AC-17、AC-18 中纯文档/真实外部/UI/范围部分 | 不适合新增独立自动测试：UI 无现有前端测试框架，外部 gate/mock 不能证明真实 GPU/workflow，文档与范围不是运行时行为。替代方式为 T0 真实 HTTP/文件检查、真实浏览器、现有 pytest、`npm run build`、Alembic、git/range scan；运行时错误分支仍由上述归属用例覆盖 |
 
 AC-19 不新增自动测试：正式模板是经设置 API 维护的外部运行数据，人物一致性、单幅场景构图和可辨识人物等图像语义也不能由 mock 或仓库内固定像素夹具证明。替代验收固定为 T14 走生产 app lifespan、真实 PostgreSQL、真实 vLLM、真实 Comfy workflow、正式媒体存储和 task/WS 通路，保存模板读回、两类 input snapshot/rendered prompt/built prompt、task 终态、PNG 尺寸、页面/图片截图与逐项人工真假判定；真实响应体不经生产 API 暴露，封闭 JSON 合同以 snapshot schema、task done 和已落库非空 built prompt 联合证明。该通路能证明本环境中的真实结果，不能证明未来任意 seed 都满足审美质量。
 
 自动的任务系统 mock 必须走生产 `TaskQueue`、三键 payload、PostgreSQL mutation、worker handler、文件服务和事件通路，只替换 vLLM/Comfy transport 与随机源；它能证明调用顺序、竞态、事务和文件补偿，不能证明真实 GPU 显存释放、真实 Z-Image 节点或图片质量。跨进程/资源生命周期验收使用生产 app lifespan、真实 PostgreSQL、隔离 `DATA_DIR` 和真实或协议等价的独立 HTTP/WS 进程；最终 T0/T14 的真实 vLLM/Comfy 回合才证明外部版本与 RTX 4090 分时。
 
-C007 不计划增加独立 demo、验收 endpoint 或生产 acceptance driver；若执行阶段发现必须自建此类装置，须先回到本 spec/tasks 单列前置 task，不能夹带到被验收 task。
+C007 不增加生产 demo、验收 endpoint 或长期 acceptance driver。最终审查后的 T21 仅授权在 `.work/c007/probe-assetpage-ws-refresh.py` 交付一次性验收装置，并且必须先于生产修复 task 完成：它运行生产前端构建、生产 app lifespan、真实 PostgreSQL、资产 REST、任务入队 API/EventBus 与 `/ws/tasks` 通路；本地代理只延迟一次画廊 REST 响应，隔离 app 在 queued 事件发布后停止 worker，避免进入 vLLM/Comfy。该装置能证明保持连接时真实 WS 事件使旧 REST 失效后，前端是否补发最新快照、提示与 `refreshing` 是否满足 AC-15；不能证明生产网络延迟分布、worker/GPU 或外部生成质量，后几项仍分别由任务系统、T20 与 T14 证据覆盖。装置及原始输出只保存在 `.work/c007`，不得进入生产包或新增 endpoint。
