@@ -28,7 +28,7 @@ C007 本轮测试窄例外（需求方于 2026-08-30 明确授权）：仅允许
 | C007 AC-10 生产 handler 资源生命周期：跨进程 wake/chat → sleep → Comfy submit/progress/history → free，且 vLLM 与 Comfy 活跃区间不重叠 | 跨进程/资源生命周期 | `backend/tests/task_system/test_c007_review_regressions.py::test_gen_asset_image_handler_process_lifecycle_has_non_overlapping_inference_intervals` |
 | C007 AssetPage REST/WS 刷新竞态：失效旧请求不覆盖状态且不遗留 refreshing | 人工浏览器 | `.work/c007/final-repair-browser.log`（延迟 REST 后触发 WS 重连的操作→观测记录） |
 | C007 AssetPage 初始快照失败恢复：socket 关闭、可见错误、既有重连后重新按序同步 | 人工浏览器 | `.work/c007/final-repair-browser.log`（快照失败→恢复服务→下一连接同步的操作→观测记录） |
-| C007 vLLM 0.91 真实复验：health、sleep/wake、structured chat、后端 health 与最终 level-1 sleep | 真实外部环境 | `.work/c007/final-repair-vllm-http.log`、`.work/c007/final-repair-vllm-poll.log` |
+| C007 vLLM 0.91 真实复验：health、sleep/wake、structured chat、后端 health 与最终 level-1 sleep | 真实外部环境 | `.work/c007/final-repair-vllm-retry-091.out.log`、`.work/c007/final-repair-vllm-retry-091.err.log`、`.work/c007/final-repair-vllm-retry-http.log`、`.work/c007/final-repair-vllm-retry-preconditions.log` |
 | R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422 | 纯函数 + API 集成 | 待填 |
 | R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检 | 纯函数 + API 集成 + 任务系统 mock | `backend/tests/task_system/test_c006_gen_shots.py::test_gen_shots_uses_snapshot_prompt_and_dynamic_schema`; `backend/tests/api/test_c006_shots.py::test_shot_patch_accepts_zero_and_multiple_scene_bindings`（C006 覆盖生成/PATCH 接受零场景与多场景；双场景不可组片及生成前复检待 C008-C009） |
 | R6 时长：最大值硬校验、最小值软提醒、默认 requested_duration 计算及合法 PATCH | 纯函数 + API 集成 | 待填 |

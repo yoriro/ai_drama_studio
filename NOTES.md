@@ -108,3 +108,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-31 C007 final repair：生产任务查询为空，Comfy `http://127.0.0.1:8188/queue` 实测 `queue_running=0`、`queue_pending=0`；原始前置检查见 `.work/c007/final-repair-vllm-preconditions.log`。
 - 2026-08-31 按既有 vLLM 命令仅将 `gpu-memory-utilization` 改为 `0.91` 启动；因 `Free memory ... 21.31/23.99 GiB` 小于所需 `21.83 GiB` 失败，原始日志见 `.work/c007/final-repair-vllm-091.*.log`。
 - 2026-08-31 vLLM 进程最终未运行，`8001/health` 无响应；未执行 sleep/wake/chat，未降低 `max-model-len` 或继续猜参数。
+- 2026-08-31 第二次按既有命令仅将 `gpu-memory-utilization` 设为 `0.91` 成功启动 vLLM；保留 `max-model-len=16384`、`--enable-sleep-mode`、原模型/served name/generation-config 与 `VLLM_USE_FLASHINFER_SAMPLER=0`。
+- 2026-08-31 真实 vLLM `/health` 为 HTTP 200 空 body；`/sleep?level=1` 与 `/wake_up` 为 200，`/is_sleeping` 依次为 true/false。
+- 2026-08-31 真实最小 structured chat 为 HTTP 200，封闭 JSON 输出 `{"answer":"ok"}`；后端 `/api/system/health` 的 vLLM 为 `healthy/null`。
+- 2026-08-31 最终 vLLM `/is_sleeping` 为 `{"is_sleeping":true}`，进程保持运行；Comfy `/queue` 最终为 200 且 running/pending 均为空。

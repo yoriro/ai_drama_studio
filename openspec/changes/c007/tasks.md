@@ -340,7 +340,7 @@
   - R：R11；PRD §9；spec §6.2、AC-15。
   - 验收命令：`npm run build`；并按 AC-15 记录真实浏览器延迟 REST→WS 重连→按钮状态。
   - 追溯行：`C007 AssetPage REST/WS 刷新竞态：失效旧请求不覆盖状态且不遗留 refreshing`。
-  - 2026-08-31 实际结果：生产 build 成功；真实浏览器在 set-current 同步操作分发约 30ms 后中断后端，页面保留资产且 `创建资产` 按钮 `enabled=true`。浏览器控制面未提供可读取的 REST 延迟响应事件，未将该操作冒充为延迟 REST 窗口证据，故本 task 保持未勾选；原始记录见 `.work/c007/final-repair-browser.log`。
+  - 2026-08-31 实际结果：生产 build 成功；真实浏览器在 set-current 同步操作分发约 30ms 后中断后端，页面保留资产且 `创建资产` 按钮 `enabled=true`；本轮又在版本 31 切换时安排 Vite 250ms 后中断，恢复后页面仍保留画廊。浏览器控制面未提供可读取的 REST 延迟响应事件，未将这些操作冒充为完整延迟 REST 窗口证据，故本 task 保持未勾选；原始记录见 `.work/c007/final-repair-browser.log`。
 
 - [ ] T17 修复 AssetPage 初始快照失败后的 socket 重连同步
   - 依赖：T16；无新增 endpoint、polling、fallback 或测试特判。
@@ -348,7 +348,7 @@
   - R：R11；PRD §9；spec §6.2、AC-15。
   - 验收命令：`npm run build`；并按 AC-15 记录真实浏览器快照失败→恢复服务→下一连接同步事件与 REST 的逐步观测。
   - 追溯行：`C007 AssetPage 初始快照失败恢复：socket 关闭、可见错误、既有重连后重新按序同步`。
-  - 2026-08-31 实际结果：真实浏览器在后端停止时显示 `protocol_error：API response was not valid JSON`；后端恢复后下一次页面连接重新显示资产卡、版本画廊和健康诊断。该恢复使用手动 reload，未独立观测自动 reconnect backoff 或 terminal 事件窗口，故本 task 保持未勾选；原始记录见 `.work/c007/final-repair-browser.log`。
+  - 2026-08-31 实际结果：首次页面请求失败时真实浏览器显示 `protocol_error：API response was not valid JSON`，但该次是 `EpisodeWorkspacePage` 父级请求失败，不能作为 AssetPage 快照失败证据。补充的同一路由、已挂载 AssetPage 走查中，停止 Vite 使真实 WS close；恢复 Vite 后未手动 reload，页面自动重连并通过新的 REST 快照将临时版本 31 显示为 `current: true`，随后恢复版本 30。自动重连路径已观察，但 AssetPage 自身“快照失败→可见错误”的独立窗口和 terminal 事件窗口仍未同时观测，故本 task 保持未勾选；原始记录见 `.work/c007/final-repair-browser.log`。
 
 - [x] T18 增加 AC-07 三类资源独立连接锁证据
   - 依赖：T14；不得修改 `test_enqueue_snapshot_wins_concurrent_source_edit_and_worker_uses_copy`。
@@ -366,13 +366,13 @@
   - 追溯行：`C007 health 真实 transport 协议矩阵：按 vLLM/Comfy 各自上游合同判定 healthy/unhealthy`。
   - 2026-08-31 实际结果：隔离本地 HTTP transport seam 定向测试 `4 passed in 3.41s`，覆盖 vLLM 空 body、非 JSON body、非 2xx 及 Comfy 畸形 JSON；原始输出见 `.work/c007/final-repair-t19.log`。
 
-- [ ] T20 按 0.91 显存参数完成 vLLM 真实复验并保持 level-1 sleep
+- [x] T20 按 0.91 显存参数完成 vLLM 真实复验并保持 level-1 sleep
   - 依赖：T15、T19；先确认无生产任务且 Comfy `queue_running`/`queue_pending` 均为 0，只有该前提成立才允许 `/free`。
   - 改动范围：仅按 NOTES.md 既有命令把 `gpu-memory-utilization` 改为 `0.91`，保留 `max-model-len=16384`、`enable-sleep-mode`、原模型/served name/generation-config 与 `VLLM_USE_FLASHINFER_SAMPLER=0`。真实记录 `/health`、sleep、wake、最小 structured chat、后端 health，最后保持进程运行且 engine level-1 sleep；0.91 失败即保存日志停止。
   - R：PRD §7、§8、§12；spec §2.2-§2.3、AC-02、AC-04、AC-10。
   - 验收命令：按 `.work/c007/final-repair-vllm-*.log` 保存每次命令原始输出；不以 mock 或旧日志代替。
   - 追溯行：`C007 vLLM 0.91 真实复验：health、sleep/wake、structured chat、后端 health 与最终 level-1 sleep`。
-  - 2026-08-31 实际结果：确认生产任务为空、Comfy `queue_running=0`、`queue_pending=0` 后按原启动合同仅改 `gpu-memory-utilization=0.91`；vLLM 启动失败，原始错误为 `Free memory on device cuda:0 (21.31/23.99 GiB) ... desired ... 21.83 GiB`。按规则停止，未执行 sleep/wake/chat/后端 vLLM healthy 验收，进程未运行；本 task 保持未勾选。原始日志见 `.work/c007/final-repair-vllm-091.out.log`、`.work/c007/final-repair-vllm-091.err.log`、`.work/c007/final-repair-vllm-poll.log`、`.work/c007/final-repair-vllm-http.log`。
+  - 2026-08-31 实际结果：第一次按 0.91 启动因当时可用显存 21.31/23.99 GiB 小于所需 21.83 GiB 失败并按规则停止；随后再次确认生产任务为空、Comfy `queue_running=0`、`queue_pending=0`，按同一启动合同仅使用 `gpu-memory-utilization=0.91` 成功启动。真实 `/health` 为 HTTP 200 空 body；sleep/wake 状态依次为 true/false；structured chat 为 HTTP 200，封闭输出 `{"answer":"ok"}`；后端 health 为 HTTP 200 且 `vllm.status=healthy`、`vllm.message=null`；最终 `/is_sleeping` 为 `{"is_sleeping":true}`，vLLM 进程保持运行。原始日志见 `.work/c007/final-repair-vllm-091.out.log`、`.work/c007/final-repair-vllm-091.err.log`、`.work/c007/final-repair-vllm-retry-091.out.log`、`.work/c007/final-repair-vllm-retry-091.err.log`、`.work/c007/final-repair-vllm-retry-http.log`、`.work/c007/final-repair-vllm-retry-preconditions.log`。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - R：无；PRD 章节：不适用，依据 AGENTS §7 的真实环境与命令证据纪律。
