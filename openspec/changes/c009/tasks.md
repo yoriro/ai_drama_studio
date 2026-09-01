@@ -296,7 +296,7 @@
 
     期望：全部通过；无恒真、只判非空/存在性或未校验数量内容的弱断言。
 
-- [ ] **T17 — 真实生产通路验收给定模板与 MiniMax workflow**
+- [x] **T17 — 真实生产通路验收给定模板与 MiniMax workflow**
 
   - **依赖：** T0-T16；PRD §12 四项现场门槛全部满足。任一不满足立即阻塞并列当前证据，不修改代码伪造通过。
   - **交付：** 用 NOTES 隔离库、生产 Uvicorn、真实 vLLM/Comfy，先确认queue空；通过正式 `PATCH /api/prompt-templates/minimaxh3` 写入给定模板并 GET逐字读回；用正式API分别生成1-reference与至少2-reference视频（其中一条requested_duration=5），观察WS/task/DB/log/history/media/MP4；再触发一条真实可控异常。结束确认vLLM sleeping、Comfy free/queue空。所有原始证据写 `.work/c009/`，不新增driver。
