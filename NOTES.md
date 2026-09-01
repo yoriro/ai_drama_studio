@@ -125,3 +125,8 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-08-31 C008 T25 定向错误合同集 `7 passed`，完整 backend `169 passed`；原始输出见 `.work/c008/T25-targeted-pytest.log` 与 `.work/c008/T25-full-pytest.log`。
 - 2026-08-31 C008 T25 `npm run build` 成功，Vite 报告 `55 modules transformed`；backend/app、migration、frontend 相对 `1e21f55` 的 diff 均为空。
 - 2026-08-31 C008 T25 测试 diff 相对 `1e21f55` 只有 `backend/tests/api/test_c008_review_error_codes.py` 为 `A`，无 `M`/`D`。
+- 2026-09-01 C009 T17 真实验收使用全新库 `ai_drama_studio_c009_t17_20260901_02`；生产 Uvicorn/vLLM/Comfy 地址为 `127.0.0.1:8000/8001/8188`，health 返回双 workflow hash valid。
+- 2026-09-01 C009 T17 给定 MiniMax 模板正式 PATCH/GET 逐字相等；真实 1-reference 与 2-reference 任务均产生 `requested_duration=5`、`actual_duration=5.166667` 的可下载 MP4。
+- 2026-09-01 C009 T17 无 current 图片的活资产经正式 API 产生 R10 immediate failed task：未 claim、无视频/缓存；结束时 vLLM sleeping=true、Comfy queue running/pending 均为空。
+- 2026-09-01 C009 T18 新库 `ai_drama_studio_c009_t18_20260901_01` 的 Alembic current 为 `6b8e3f0a1d24 (head)`、check 无新操作，完整 pytest 为 `323 passed`。
+- 2026-09-01 C009 T18 `npm --prefix frontend run build` 实测通过；C009 本轮未交付前端 UI。

@@ -343,7 +343,7 @@
 
     T0 必须把纯SHA另存 `.work/c009/baseline-sha.txt` 供命令读取。期望：upgrade/current/check唯一既有head且check无操作；完整pytest/build均exit0；migration/frontend无C009 diff；最后一条 rg 无输出（exit 1，表示没有未回填数据行）；范围外关键字只能出现在既有围栏/枚举预留或spec/tasks否定说明，不得出现在新增实现。
 
-- [ ] **T19 — 形成可审查的 C009 完成报告与走查证据索引**
+- [x] **T19 — 形成可审查的 C009 完成报告与走查证据索引**
 
   - **依赖：** T18。
   - **交付：** 创建不提交的 `.work/c009/completion-report.md`，固定五节：1) baseline/commit范围与文件→task映射；2) checkbox/TRACE用例ID；3)隔离库 migration/完整pytest/build原始结果；4)真实外部依赖与资源最终态；5)“操作 → 观测值”走查。第5节覆盖1-reference、多-reference、take切换/媒体与至少一条异常（R10立即failed或真实外部failed），逐项引用原始日志；未验证项明确写未验证。
@@ -352,21 +352,21 @@
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 真实 MiniMax workflow/template 视频闭环`。
   - **验收方式与人工检查：** 执行 `Get-Content -Raw .work/c009/completion-report.md`，逐条反查 T00-T18 log、git commits、TRACE IDs、DB/task/media记录；期望五节齐全，第5节每条同时有操作、原始观测值、期望真假结论，不能只有“页面/任务正常”“测试全绿”。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`。
   - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
   - **R：** 无；PRD §3.2、§6.1 与需求方 2026-09-01 C009 裁决。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 多任务 generation_state 聚合与重启恢复`；`C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等`。
   - **验收方式与人工检查：** 完成报告逐项列“立即failed任务、多任务聚合、user_note三态、public seed、全局request-id事务锁”是否应进入 DECISIONS及理由；本 task 不自行修改 DECISIONS。无候选时精确写“DECISIONS.md 候选项：无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4，AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
