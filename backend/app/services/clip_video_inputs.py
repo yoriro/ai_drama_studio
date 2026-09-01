@@ -60,6 +60,8 @@ _REFERENCE_PROMPT_FIELDS = (
     "asset_description",
     "image_source",
 )
+_C009_REFERENCE_COUNT = 9
+_C009_PATH_FORBIDDEN = frozenset("*[]|?")
 
 
 MINIMAXH3_SCHEMA: dict[str, object] = {
@@ -374,6 +376,269 @@ def project_clip_video_references(
             {field: copy.deepcopy(reference[field]) for field in _REFERENCE_PROMPT_FIELDS}
         )
     return tuple(projected)
+
+
+def _workflow_input_location(
+    workflow: Mapping[str, object], path: object, field: str
+) -> tuple[dict[str, object], str]:
+    if not isinstance(path, str):
+        raise ValueError(f"{field} must be a text path")
+    segments = path.split(".")
+    if (
+        len(segments) < 3
+        or not segments[0].isdigit()
+        or segments[1] != "inputs"
+        or any(
+            not segment
+            or any(character in segment for character in _C009_PATH_FORBIDDEN)
+            for segment in segments
+        )
+    ):
+        raise ValueError(f"{field} must use an exact workflow input path")
+    node = workflow.get(segments[0])
+    if not isinstance(node, dict):
+        raise ValueError(f"{field} node does not exist")
+    inputs = node.get("inputs")
+    if not isinstance(inputs, dict):
+        raise ValueError(f"{field} node inputs must be an object")
+    input_key = ".".join(segments[2:])
+    if input_key not in inputs:
+        raise ValueError(f"{field} does not exist")
+    return inputs, input_key
+
+
+def _workflow_node(
+    workflow: Mapping[str, object], node_id: str, field: str
+) -> dict[str, object]:
+    node = workflow.get(node_id)
+    if not isinstance(node, dict):
+        raise ValueError(f"{field} node does not exist")
+    return node
+
+
+def _validate_minimax_binding_for_injection(
+    workflow: dict[str, object],
+    *,
+    prompt_path: object,
+    seed_path: object,
+    duration_path: object,
+    ref_image_paths: object,
+    ref_consumer_paths: object,
+) -> tuple[tuple[str, ...], tuple[tuple[dict[str, object], str], ...]]:
+    prompt_inputs, prompt_key = _workflow_input_location(
+        workflow, prompt_path, "prompt_path"
+    )
+    if not isinstance(prompt_inputs[prompt_key], str):
+        raise ValueError("prompt_path leaf must be a string")
+    seed_inputs, seed_key = _workflow_input_location(
+        workflow, seed_path, "seed_path"
+    )
+    if isinstance(seed_inputs[seed_key], bool) or not isinstance(
+        seed_inputs[seed_key], int
+    ):
+        raise ValueError("seed_path leaf must be an integer")
+    duration_inputs, duration_key = _workflow_input_location(
+        workflow, duration_path, "duration_path"
+    )
+    duration_value = duration_inputs[duration_key]
+    if isinstance(duration_value, bool) or not isinstance(
+        duration_value, (int, float)
+    ) or not math.isfinite(float(duration_value)):
+        raise ValueError("duration_path leaf must be a finite number")
+
+    image_paths = _require_sequence(ref_image_paths, "ref_image_paths")
+    consumer_paths = _require_sequence(
+        ref_consumer_paths, "ref_consumer_paths"
+    )
+    if len(image_paths) != _C009_REFERENCE_COUNT:
+        raise ValueError("ref_image_paths must contain exactly 9 paths")
+    if len(consumer_paths) != _C009_REFERENCE_COUNT:
+        raise ValueError("ref_consumer_paths must contain exactly 9 paths")
+
+    image_node_ids: list[str] = []
+    consumer_locations: list[tuple[dict[str, object], str]] = []
+    for index, (image_path, consumer_path) in enumerate(
+        zip(image_paths, consumer_paths, strict=True)
+    ):
+        image_segments = image_path.split(".") if isinstance(image_path, str) else []
+        image_inputs, image_key = _workflow_input_location(
+            workflow, image_path, f"ref_image_paths[{index}]"
+        )
+        image_node_id = image_segments[0]
+        image_node = _workflow_node(
+            workflow, image_node_id, f"ref_image_paths[{index}]"
+        )
+        if image_key != "image" or image_node.get("class_type") != "LoadImage":
+            raise ValueError(
+                f"ref_image_paths[{index}] must reference a LoadImage image input"
+            )
+        expected_sentinel = f"__C009_REFERENCE_{index + 1:02d}__.png"
+        if image_inputs[image_key] != expected_sentinel:
+            raise ValueError(
+                f"ref_image_paths[{index}] contains a preset instead of the C009 sentinel"
+            )
+        if image_node_id in image_node_ids:
+            raise ValueError("reference image nodes must be unique")
+        image_node_ids.append(image_node_id)
+
+        consumer_segments = (
+            consumer_path.split(".")
+            if isinstance(consumer_path, str)
+            else []
+        )
+        consumer_inputs, consumer_key = _workflow_input_location(
+            workflow, consumer_path, f"ref_consumer_paths[{index}]"
+        )
+        consumer_node = _workflow_node(
+            workflow,
+            consumer_segments[0],
+            f"ref_consumer_paths[{index}]",
+        )
+        expected_consumer_key = f"ref_images.ref_image_{index}"
+        if (
+            consumer_key != expected_consumer_key
+            or consumer_node.get("class_type") != "MiniMaxH3ReferenceToVideo"
+        ):
+            raise ValueError(
+                f"ref_consumer_paths[{index}] must reference the H3 consumer input"
+            )
+        link = consumer_inputs[consumer_key]
+        if (
+            not isinstance(link, list)
+            or len(link) != 2
+            or link[0] != image_node_id
+            or isinstance(link[1], bool)
+            or link[1] != 0
+        ):
+            raise ValueError(
+                f"ref_consumer_paths[{index}] is not linked to its image node"
+            )
+        consumer_locations.append((consumer_inputs, consumer_key))
+
+    return tuple(image_node_ids), tuple(consumer_locations)
+
+
+def _validate_no_removed_workflow_references(
+    value: object, removed_node_ids: frozenset[str], field: str
+) -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            _validate_no_removed_workflow_references(
+                item, removed_node_ids, f"{field}.{key}"
+            )
+        return
+    if isinstance(value, (list, tuple)):
+        if (
+            len(value) == 2
+            and value[0] in removed_node_ids
+            and isinstance(value[1], int)
+            and not isinstance(value[1], bool)
+        ):
+            raise ValueError(f"{field} contains an orphaned reference")
+        for index, item in enumerate(value):
+            _validate_no_removed_workflow_references(
+                item, removed_node_ids, f"{field}[{index}]"
+            )
+        return
+    if isinstance(value, str) and "__C009_REFERENCE_" in value:
+        raise ValueError(f"{field} contains a C009 reference sentinel")
+
+
+def inject_minimaxh3_workflow_inputs(
+    workflow: Mapping[str, object],
+    *,
+    prompt_path: str,
+    seed_path: str,
+    duration_path: str,
+    ref_image_paths: Sequence[str],
+    ref_consumer_paths: Sequence[str],
+    built_prompt: str,
+    seed: int,
+    requested_duration: int,
+    upload_paths: Sequence[str],
+) -> dict[str, object]:
+    """Deep-copy a validated binding and inject the selected references."""
+
+    if not isinstance(workflow, Mapping):
+        raise ValueError("workflow must be an object")
+    if not isinstance(built_prompt, str) or not built_prompt.strip():
+        raise ValueError("built_prompt must be non-empty text")
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= _SEED_MASK:
+        raise ValueError("seed must be a 63-bit integer")
+    if (
+        isinstance(requested_duration, bool)
+        or not isinstance(requested_duration, int)
+        or requested_duration <= 0
+    ):
+        raise ValueError("requested_duration must be a positive integer")
+
+    copied = copy.deepcopy(dict(workflow))
+    image_node_ids, consumer_locations = _validate_minimax_binding_for_injection(
+        copied,
+        prompt_path=prompt_path,
+        seed_path=seed_path,
+        duration_path=duration_path,
+        ref_image_paths=ref_image_paths,
+        ref_consumer_paths=ref_consumer_paths,
+    )
+    paths = _require_sequence(upload_paths, "upload_paths")
+    if not 1 <= len(paths) <= _C009_REFERENCE_COUNT:
+        raise ValueError("upload_paths must contain between 1 and 9 paths")
+    safe_paths: list[str] = []
+    for index, path in enumerate(paths):
+        safe_path, _ = _safe_image_path(path, f"upload_paths[{index}]")
+        if "__C009_REFERENCE_" in safe_path:
+            raise ValueError("upload_paths must not contain a C009 sentinel")
+        if safe_path in safe_paths:
+            raise ValueError("upload_paths must be unique")
+        safe_paths.append(safe_path)
+
+    prompt_inputs, prompt_key = _workflow_input_location(
+        copied, prompt_path, "prompt_path"
+    )
+    seed_inputs, seed_key = _workflow_input_location(copied, seed_path, "seed_path")
+    duration_inputs, duration_key = _workflow_input_location(
+        copied, duration_path, "duration_path"
+    )
+    prompt_inputs[prompt_key] = built_prompt
+    seed_inputs[seed_key] = seed
+    duration_inputs[duration_key] = requested_duration
+
+    kept_node_ids = set(image_node_ids[: len(safe_paths)])
+    for index, path in enumerate(safe_paths):
+        image_inputs, image_key = _workflow_input_location(
+            copied, ref_image_paths[index], f"ref_image_paths[{index}]"
+        )
+        image_inputs[image_key] = path
+
+    removed_node_ids = frozenset(image_node_ids[len(safe_paths) :])
+    for index in range(len(safe_paths), _C009_REFERENCE_COUNT):
+        image_node_id = image_node_ids[index]
+        del copied[image_node_id]
+        consumer_inputs, consumer_key = consumer_locations[index]
+        del consumer_inputs[consumer_key]
+
+    _validate_no_removed_workflow_references(copied, removed_node_ids, "workflow")
+    load_image_ids = {
+        node_id
+        for node_id, node in copied.items()
+        if isinstance(node, Mapping) and node.get("class_type") == "LoadImage"
+    }
+    if load_image_ids != kept_node_ids:
+        raise ValueError("workflow contains a preset or orphaned LoadImage node")
+    for index in range(len(safe_paths)):
+        image_inputs, image_key = _workflow_input_location(
+            copied, ref_image_paths[index], f"ref_image_paths[{index}]"
+        )
+        if image_inputs[image_key] != safe_paths[index]:
+            raise ValueError("workflow reference image path was not injected")
+        consumer_inputs, consumer_key = _workflow_input_location(
+            copied, ref_consumer_paths[index], f"ref_consumer_paths[{index}]"
+        )
+        if consumer_inputs[consumer_key] != [image_node_ids[index], 0]:
+            raise ValueError("workflow reference consumer is orphaned")
+    _validate_no_removed_workflow_references(copied, frozenset(), "workflow")
+    return copied
 
 
 def _compact_json(value: object, field: str) -> str:

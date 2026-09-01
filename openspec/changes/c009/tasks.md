@@ -87,7 +87,7 @@
 
     期望：全部通过；断言精确 JSON bytes/字段/顺序/值，不只判非空或 hash 不相等。
 
-- [ ] **T4 — 实现 1..9 references 的工作流深拷贝注入与裁剪**
+- [x] **T4 — 实现 1..9 references 的工作流深拷贝注入与裁剪**
 
   - **依赖：** T1、T3。
   - **交付：** 在 C009 input/workflow 模块按 binding 深拷贝并注入 built_prompt、整数 seed、requested_duration 秒、前 N 个安全 upload 路径；删除 k>N 的 LoadImage nodes 和逐项 consumer keys，submit 前验证无 sentinel/orphan/preset，原 snapshot 不变。不得用空串、第一张图或预设图填未用位置；不得在后端把秒换成帧。
