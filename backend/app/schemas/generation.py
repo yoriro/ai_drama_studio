@@ -23,6 +23,26 @@ class GenerateAssetImageResponse(BaseModel):
     task_id: int = Field(gt=0)
 
 
+class GenerateClipVideoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    user_note: StrictStr | None = None
+    request_id: StrictStr | None = None
+
+    @field_validator("user_note", "request_id")
+    @classmethod
+    def reject_postgres_nul(cls, value: str | None) -> str | None:
+        if value is not None and "\x00" in value:
+            raise ValueError("request_id and user_note must not contain U+0000")
+        return value
+
+
+class GenerateClipVideoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: int = Field(gt=0)
+
+
 class GenerateAssetsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

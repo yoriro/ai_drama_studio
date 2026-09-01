@@ -19,6 +19,10 @@ from app.schemas.clips import (
     ClipSlotsResponse,
     POSTGRES_INTEGER_MAX,
 )
+from app.schemas.generation import (
+    GenerateClipVideoRequest,
+    GenerateClipVideoResponse,
+)
 from app.services.clips import (
     create_clip,
     delete_clip,
@@ -30,6 +34,8 @@ from app.services.clips import (
     update_clip_slot_enabled,
     update_clip_slot_override,
 )
+from app.services.generate_clip_video import enqueue_generate_clip_video
+from app.tasks.queue import TaskConflictError, TaskQueue, TaskValidationError
 
 
 router = APIRouter(tags=["clips"])
@@ -74,6 +80,36 @@ async def get_clip_route(
     session: AsyncSession = Depends(get_session),
 ) -> ClipResponse:
     return await get_clip(session, clip_id)
+
+
+@router.post(
+    "/clips/{clip_id}/generate-video",
+    response_model=GenerateClipVideoResponse,
+    status_code=202,
+)
+async def generate_clip_video_route(
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
+    payload: GenerateClipVideoRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> GenerateClipVideoResponse:
+    queue: TaskQueue = request.app.state.task_queue
+    try:
+        result = await enqueue_generate_clip_video(
+            session,
+            queue,
+            clip_id,
+            user_note=payload.user_note,
+            user_note_provided="user_note" in payload.model_fields_set,
+            request_id=payload.request_id,
+            workflow_binding=request.app.state.minimax_workflow_binding_snapshot,
+        )
+    except TaskValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except TaskConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await queue.publish_committed(result)
+    return GenerateClipVideoResponse(task_id=result.task.id)
 
 
 @router.patch("/clips/{clip_id}", response_model=ClipResponse)

@@ -18,6 +18,7 @@ def test_c008_openapi_paths_handlers_and_error_contract() -> None:
         "/api/episodes/{episode_id}/clips/preview",
         "/api/episodes/{episode_id}/clips",
         "/api/clips/{clip_id}",
+        "/api/clips/{clip_id}/generate-video",
         "/api/clips/{clip_id}/slots",
         "/api/clips/{clip_id}/slots/{slot_no}",
         "/media/slot-overrides/{slot_id}",

@@ -168,7 +168,7 @@
 
     期望：全部通过；每个 transition 在另一连接只能同时看到旧旧或新新，不出现新 Task+旧 Clip。
 
-- [ ] **T9 — 交付 generate-video API 与完整 enqueue/立即失败合同**
+- [x] **T9 — 交付 generate-video API 与完整 enqueue/立即失败合同**
 
   - **依赖：** T2、T3、T7、T8。
   - **交付：** 增加严格 request/response schema、route 与 enqueue service；实现 user_note 三态/identity-first、R5/R5a/R10 复检、立即 failed Task、成功 payload 三键、活 assets/references、template/style/workflow快照、R4 cache判定、seed/prompt_id及 post-commit event。当前 task 只接受单事务确定性/任务 mock，不在此项宣称跨连接锁屏障（由 T10）。按 TRACEABILITY 窄授权只在既有 C008 contract 用例的精确 `expected_paths` 增加 `/api/clips/{clip_id}/generate-video`；本项不得提前加入 `gen_clip_video` handler或 T15 take paths，其他断言逐字不动。
