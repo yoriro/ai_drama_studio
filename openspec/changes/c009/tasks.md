@@ -103,7 +103,7 @@
 
     期望：全部通过；1/2/9 三种输出都满足真实 workflow 结构，而不是仅构造最小假 JSON。
 
-- [ ] **T5 — 扩展 Comfy client 的图片上传并封闭视频输出解析**
+- [x] **T5 — 扩展 Comfy client 的图片上传并封闭视频输出解析**
 
   - **依赖：** T4。
   - **交付：** 在现有 ComfyClient 增加 multipart `/upload/image`，复用既有 submit/WS/history/view/interrupt/free；新增 C009 upload/history parser，按 spec §6.3 校验字段类型、数量、路径 segments、长度、type/format/output node，系统生成 task/reference 文件名，不读取 fullpath。HTTP/JSON/stream 异常原样抛出，无 retry/fallback。
