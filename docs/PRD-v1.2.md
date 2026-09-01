@@ -12,6 +12,13 @@
 2. **gen_assets 修订归属**:`episodes.assets_generated_script_revision` 写入任务入队快照中的 `script_revision`,生成期间剧本若被编辑,完成后仍须显示“资产提取基于旧剧本”。
 3. **script2assets 调用合同**:现有资产以只含 `id/type/name/description` 的紧凑 JSON 数组注入;无资产时为 `[]`;模板整体作为单条 user message;结构由 guided_json 的封闭 JSON schema 硬约束;默认温度为 `0.2`。
 
+### C009 实施裁决补充(2026-09-01)
+
+1. **生成复检失败通路**:合法 `generate-video` 请求若在入队事务复检 R5/R5a/R10 失败,仍创建并返回一条立即 `failed` 的 Task(HTTP 202 + task_id);该 Task 不进入 queued、不被 claim、不序列化生成输入且不调用 vLLM/Comfy。请求形状错误仍为 422,资源不存在为 404,request_id 身份冲突为 409。
+2. **多任务 generation_state**:同一 Clip 存在多条 gen_clip_video Task 时按聚合值投影:任一 running → generating;否则任一 queued → queued;否则按 `finished_at DESC,id DESC` 取最新非 canceled 的 done/failed → ready/failed;没有非 canceled Task → empty。canceled 不作为生成结果,也不抹掉更早终态。
+3. **generate-video user_note**:字段省略时沿用 Clip 当前值且不写库;显式提供(含 null、空串、空白)时在入队同一事务按 PATCH 语义先持久化再快照,实际变化 revision+1/stale,no-op 不变。request_id 查找先于 mutation,重放不得再次修改;省略/null/空串/空白为不同请求身份与 hash 输入。
+4. **ClipVideo seed 公开类型**:数据库、任务 payload 与工作流内 seed 保持 63-bit integer;ClipVideo API 及 `DEBUG_PROMPTS=true` 的公开 input_snapshot 以十进制 string 返回,避免 JavaScript number 精度损失;不新增或修改 schema。
+
 ### v1.2 相对 v1.1(导演台补充)
 
 1. 新增 **R5a 同场景约束**:片段内所选分镜的场景类资产去重后至多 1 个;未绑场景的分镜可加入任意片段,全特写的「纯人物片段」合法;绑定 ≥2 个场景的分镜不能组入任何片段;gen_clip_video 入队前复检 R5/R5a。
@@ -108,7 +115,7 @@ context loop 融合;单 shot 局部重生成;fl2v(首帧用户上传);音频路�
 - **完成判定(反竞态)**:任务成功时逐一比对 `source_revisions` 与实体当前 revision:
   - 全部一致 → 片段 freshness=fresh,涉及分镜 status=normal;
   - 任一不一致 → 产物照常保存为 take/版本,但片段保持 stale、分镜保持 changed,**不得**回写 normal/fresh。
-  - generation_state 无条件按结果置 ready / failed。
+  - generation_state 不由单个视频任务无条件覆盖;gen_clip_video 按本节上方 C009 多任务聚合裁决投影,且与 freshness 正交。
 - **剧本编辑语义(Q5)**:PATCH 剧本仅 `script_revision += 1`,不删除、不重生成任何东西;当 `assets_generated_script_revision < script_revision` 时剧本页与资产页显示"资产提取基于旧剧本"角标,分镜同理;用户明确点击生成才更新。
 - **风格/模板编辑语义(Q3)**:修改即时生效于**后续**生成;不追溯、不标记已生成结果、不做版本化。因风格/模板内容参与 input_hash,下次生成会自动重建提示词;产物行落库的 built_prompt/input_snapshot 保证可追溯。
 
@@ -124,14 +131,14 @@ context loop 融合;单 shot 局部重生成;fl2v(首帧用户上传);音频路�
 | 编辑分镜(文本/绑定) | 该分镜 → changed | 含它的片段 → stale | 不删 |
 | 编辑风格 / 模板 | 不动 | 不动(hash 失配,下次生成自动重建 prompt) | 不删 |
 | 删除片段 | 其分镜释放 | 删除 | 视频移入 trash |
-| 片段生成成功且修订未变 | 其分镜 → normal | ready + fresh | 新 take 落盘 |
+| 片段生成成功且修订未变 | 其分镜 → normal | fresh;generation_state 按 C009 多任务聚合(无其他 active 时 ready) | 新 take 落盘 |
 
 changed/stale 仅为提醒态,不阻断任何操作。
 
 ### 3.4 片段与参考资产
 
-- **R5 连续与独占**:片段的分镜按 order_index 严格连续;一个分镜同时至多属于一个片段,由 `clip_shots.shot_id UNIQUE` 数据库约束保证;违规 422。
-- **R5a 同场景**:所选分镜绑定的场景类资产去重后至多 1 个,否则 422。未绑定场景的分镜不参与判定,可加入任意片段;全部未绑场景的「纯人物片段」合法(无场景槽位,R10 只检查启用槽位)。绑定 ≥2 个场景的分镜不能组入任何片段(preview 列入 violations),须先在分镜页修正绑定。**生成复检**:创建后用户可能修改绑定破坏约束,故 gen_clip_video 入队前复检 R5/R5a,违规任务直接失败并指明原因。
+- **R5 连续与独占**:片段的分镜按 order_index 严格连续;一个分镜同时至多属于一个片段,由 `clip_shots.shot_id UNIQUE` 数据库约束保证;preview/create 的违规为 422,gen_clip_video 入队复检违规按 C009 裁决创建立即 failed Task并返回 202/task_id。
+- **R5a 同场景**:所选分镜绑定的场景类资产去重后至多 1 个,否则 422。未绑定场景的分镜不参与判定,可加入任意片段;全部未绑场景的「纯人物片段」合法(无场景槽位,R10 只检查启用槽位)。绑定 ≥2 个场景的分镜不能组入任何片段(preview 列入 violations),须先在分镜页修正绑定。**生成复检**:创建后用户可能修改绑定破坏约束,故 gen_clip_video 入队事务复检 R5/R5a;违规时按 C009 裁决创建立即 failed Task并指明原因,route 返回 202/task_id。
 - **R6 时长**:Σ duration_est ≤ `CLIP_MAX_SECONDS`(默认 15,硬校验);< `CLIP_MIN_SECONDS`(默认 5)仅软提醒。`requested_duration = clamp(ceil(Σ duration_est), MIN, MAX)` 为默认值,预检时展示("分镜估算 11.4s → 实际请求 12s"),用户可在创建面板或 PATCH 中修改(整数秒,范围内)。生成时按秒传入工作流 duration 输入(Q6 定案);产出后探测真实时长写入 `actual_duration`。
 - **R7 参考资产选择与槽位(取代 v1.0 的"创建前停用槽位")**:
   1. `POST /episodes/{id}/clips/preview` 提交 shot_ids,返回:连续/占用校验结果、Σ duration_est 与建议 requested_duration、候选参考资产列表(所选分镜绑定资产并集,**人物按其在所选分镜序列中的首次出场先后排序、场景垫底**,同一分镜内多个人物并列时按 asset_id 升序;默认全选,>9 时默认预选前 9 个)、violations/warnings。
@@ -140,7 +147,7 @@ changed/stale 仅为提醒态,不阻断任何操作。
   4. 未入选的资产仍保留在分镜语义(其信息仍出现在 shots 描述中),只是不作为参考图输入。
 - **R8 数量提示**:候选 >9 必须精简至 ≤9 才能创建(后端校验);启用槽位 >4 时界面黄色提示"建议 4 张以内"(软)。
 - **R9 槽位取图优先级**:override 图 > 该资产 is_current 版本图;人物四视图整图直接作为参考图。
-- **R10 缺图即失败**:生成视频时任一**启用**槽位无可用图 → 任务失败,error_msg 指明槽位号与原因。
+- **R10 缺图即失败**:生成视频时任一**启用**槽位无可用图 → 按 C009 裁决创建立即 failed Task,error_msg 指明槽位号与原因;该任务不进入 worker或外部服务。
 - **R12 资产删除后的槽位处置(Q7)**:`clip_ref_slots.asset_id` 置 NULL(ON DELETE SET NULL),槽位号与名称/类型快照保留,前端显示"原资产已删除";该片段 → stale;再次生成前用户必须停用该槽位或上传 override,否则触发 R10 失败。不自动压缩、不重排槽位号。
 
 ### 3.5 提示词可见性
@@ -261,7 +268,7 @@ tasks            id PK, type ∈ {gen_assets, gen_shots, gen_asset_image, gen_cl
   GET/PATCH/DELETE    /clips/{id}                          PATCH: user_note/requested_duration
   GET                 /clips/{id}/slots                    含已删资产快照展示
   PATCH               /clips/{id}/slots/{slot_no}          {enabled?} 或 multipart override 上传/清除
-  GET                 /clips/{id}/videos
+  GET                 /clips/{id}/videos                   seed 公开为十进制 string;DEBUG 时 snapshot seed 同样为 string
   PUT                 /clips/{id}/current-video            body: {video_id}
   DELETE              /clip-videos/{id}                    is_current 禁删(409)
 
@@ -318,7 +325,7 @@ tasks            id PK, type ∈ {gen_assets, gen_shots, gen_asset_image, gen_cl
   - script2assets:`{{script}} {{style}} {{existing_assets}}`
   - script2shots:`{{script}} {{style}} {{assets}}`
   - zimage:`{{asset}} {{style}} {{user_note}}`
-  - minimaxh3:`{{shots}} {{references}} {{style}} {{user_note}}`
+  - minimaxh3:`{{shots}} {{references}} {{style}} {{requested_duration}} {{user_note}}`
 - `script2assets` 调用与注入合同:
   - 模板渲染后的完整内容作为单条 user message;若客户端必须提供 system message,只允许通用一句“你是结构化数据生成器,只输出 JSON”,不得把任何业务规则藏入代码侧 system message。
   - `{{script}}` 注入任务入队时的剧本文本快照;`{{style}}` 注入任务入队时项目风格内容快照。
