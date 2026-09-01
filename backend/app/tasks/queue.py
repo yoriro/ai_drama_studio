@@ -80,6 +80,7 @@ ACTIVE_STATUSES: tuple[TaskStatus, ...] = ("queued", "running")
 HEARTBEAT_INTERVAL_SECONDS = 10.0
 # Stable project-specific PostgreSQL session advisory lock key.
 ADVISORY_LOCK_KEY = 0x41495F4452414D41
+REQUEST_ID_LOCK_NAMESPACE = "ai_drama_studio:request_id:"
 
 _PAYLOAD_KEYS = frozenset(
     {"input_snapshot", "input_hash", "source_revisions"}
@@ -585,6 +586,26 @@ class TaskQueue:
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def acquire_request_id_lock(
+        self, session: AsyncSession, request_id: str
+    ) -> str:
+        """Acquire the transaction-scoped lock for one normalized request id."""
+
+        normalized = normalize_request_id(request_id)
+        if normalized is None:
+            raise TaskValidationError("request_id is required")
+        await session.execute(
+            text(
+                "SELECT pg_advisory_xact_lock("
+                "hashtextextended(:lock_namespace || :request_id, 0))"
+            ),
+            {
+                "lock_namespace": REQUEST_ID_LOCK_NAMESPACE,
+                "request_id": normalized,
+            },
+        )
+        return normalized
 
     async def enqueue(
         self,

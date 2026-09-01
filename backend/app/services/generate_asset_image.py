@@ -81,6 +81,7 @@ async def enqueue_generate_asset_image(
 
     async with session.begin():
         if normalized_request_id is not None:
+            await queue.acquire_request_id_lock(session, normalized_request_id)
             existing = await queue.find_request(session, normalized_request_id)
             if existing is not None:
                 if not _matches_request_identity(existing, asset_id, user_note):

@@ -136,7 +136,7 @@
 
     期望：依赖可从干净 backend 环境导入；全部测试通过；测试主动清空 PATH 中 ffprobe 可见性后仍能解析；无 temp/orphan。
 
-- [ ] **T7 — 为全局 request_id 增加统一 transaction-scoped 临界区**
+- [x] **T7 — 为全局 request_id 增加统一 transaction-scoped 临界区**
 
   - **依赖：** T0。
   - **交付：** 在 TaskQueue 暴露一个 PostgreSQL transaction-scoped request-id lock helper；既有公开入口中只有 gen_asset_image 接受 request_id，令其在首次 `find_request`/业务 mutation 前调用，C009 后续复用。gen_assets/gen_shots 没有该字段，不修改。使用数据库对 normalized 完整字符串+固定命名空间计算 lock key，不新增 migration/lock table/Python hash/重试；无 request_id 不加锁。保持既有可见身份语义。
