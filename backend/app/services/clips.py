@@ -48,6 +48,10 @@ from app.services.clip_rules import (
     evaluate_clip_selection,
     slot_warnings,
 )
+from app.services.video_files import (
+    clip_video_paths,
+    validated_clip_media_move,
+)
 
 
 _VISIBLE_ASSET_TYPES = ("character", "scene")
@@ -863,47 +867,18 @@ async def update_clip_slot_override(
         _raise_slot_cleanup_errors(primary_error, cleanup_errors)
 
 
-def _clip_video_relative_path(
-    episode: Episode, clip: Clip, video: ClipVideo
-) -> Path:
-    if min(int(episode.project_id), int(episode.id), int(clip.id), int(video.id)) <= 0:
-        raise ValueError("clip video identifiers must be positive")
-    return Path(
-        "projects",
-        str(episode.project_id),
-        "episodes",
-        str(episode.id),
-        "clips",
-        str(clip.id),
-        f"{video.id}.mp4",
-    )
-
-
-def _clip_video_paths(
-    episode: Episode, clip: Clip, video: ClipVideo
-) -> tuple[Path, Path, Path]:
-    relative_path = _clip_video_relative_path(episode, clip, video)
-    formal_path = resolve_data_path(settings.DATA_DIR, relative_path)
-    trash_path = resolve_data_path(
-        settings.DATA_DIR, Path("trash") / relative_path
-    )
-    return relative_path, formal_path, trash_path
-
-
 def _validated_clip_media_move(
     relative_path_value: str,
     expected_relative_path: Path,
 ) -> tuple[Path, Path]:
-    relative_path = Path(relative_path_value)
-    if relative_path.as_posix() != expected_relative_path.as_posix():
-        raise _source_data_error()
-    formal_path = resolve_data_path(settings.DATA_DIR, relative_path)
-    if not formal_path.is_file():
-        raise _source_data_error()
-    trash_path = resolve_data_path(
-        settings.DATA_DIR, Path("trash") / relative_path
-    )
-    return formal_path, trash_path
+    try:
+        return validated_clip_media_move(
+            settings.DATA_DIR,
+            relative_path_value,
+            expected_relative_path,
+        )
+    except ValueError as exc:
+        raise _source_data_error() from exc
 
 
 async def delete_clip(session: AsyncSession, clip_id: int) -> None:
@@ -984,8 +959,12 @@ async def delete_clip(session: AsyncSession, clip_id: int) -> None:
 
             for video in videos:
                 try:
-                    expected_relative_path, _, _ = _clip_video_paths(
-                        episode, clip, video
+                    expected_relative_path, _, _ = clip_video_paths(
+                        settings.DATA_DIR,
+                        int(episode.project_id),
+                        int(episode.id),
+                        int(clip.id),
+                        int(video.id),
                     )
                 except ValueError as exc:
                     raise _source_data_error() from exc

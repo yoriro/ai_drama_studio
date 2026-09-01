@@ -119,7 +119,7 @@
 
     期望：全部通过；所有敌意返回值在 submit/view 前被拒绝，测试不连接真实 8188。
 
-- [ ] **T6 — 引入成熟视频容器解析依赖与本地 MP4 临时文件合同**
+- [x] **T6 — 引入成熟视频容器解析依赖与本地 MP4 临时文件合同**
 
   - **依赖：** T0。
   - **交付：** 在 `backend/pyproject.toml` 增加唯一成熟 Python 视频容器依赖（PyAV/`av`）；把 C008 `clips.py` 中已存在的 ClipVideo canonical relative/formal/trash path 逻辑原样提取为共享 video file 模块，并让 C008 delete 与 C009 共用这一个来源；在同模块增加系统 temp 路径、流式写入、至少一个 video stream、单一 container duration→finite positive seconds与sha256。不得复制第二套path规则、调用 PATH ffprobe/ffmpeg、手写容器解析或以 requested_duration fallback。
