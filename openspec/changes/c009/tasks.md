@@ -71,7 +71,7 @@
 
     期望：全部通过；专用测试证明 minimaxh3 坏绑定在 claim 前失败；三既有文件 diff 只涉及 hashes fixture/断言且没有 skip/改名/删除/弱断言。
 
-- [ ] **T3 — 实现 shots/references/template/hash/seed 的纯函数合同**
+- [x] **T3 — 实现 shots/references/template/hash/seed 的纯函数合同**
 
   - **依赖：** T1。
   - **交付：** 新增单一职责的 C009 input 模块，交付 spec §5-§6.1：shots 全量快照与公开投影、enabled references 压实编号、活值/删除快照规则所需的纯数据验证、紧凑模板渲染、封闭 minimaxh3 schema/输出校验、R4 八成员序列化/hash；按 `GEN_CLIP_VIDEO_NAMESPACE=17c124be-f03e-5a69-b4e5-e3a63f62994b` 与仅含规范化 request_id 的 name 生成 UUIDv5 prompt id并取同一 UUID 低 63 bits 为 seed，无 request_id 使用随机 63-bit seed/UUID4。不要访问数据库、文件或网络。
