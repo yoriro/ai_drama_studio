@@ -232,7 +232,7 @@
 
     期望：stub 确实收到请求；vLLM/Comfy活跃区间无重叠；hit不chat但sleep；所有分支free且本地服务/子进程/端口退出；只看 mock method list 不算通过。
 
-- [ ] **T13 — 完成 MP4 探测、ClipVideo/cache/freshness 与 done 的原子提交并注册 handler**
+- [x] **T13 — 完成 MP4 探测、ClipVideo/cache/freshness 与 done 的原子提交并注册 handler**
 
   - **依赖：** T6、T8、T11。
   - **交付：** 新增 C009 commit service：验证 temp MP4/actual_duration/sha、锁 Task/Clip/source/current takes、插 row取 id、canonical rename、首 take current、cache miss更新、source revision反竞态、调用 queue.complete与聚合；数据库失败移 formal 到 canonical trash，temp总清理，主/补偿错误同时保留。保留 T11 `gen_clip_video_handler` 为返回 `GeneratedClipVideo | None` 的可测试生成 core；新增唯一正式队列适配器 `gen_clip_video_task_handler`，顺序执行 core → commit service → committed event并阻止 outer complete 重复副作用。只有本项成功后才把该适配器以 `gen_clip_video` key 加入 main handler map，使公开 route 首次形成完整端到端执行路径。按 TRACEABILITY 窄授权仅在此时向既有 C008 contract 用例的精确 handler 列表增加 `gen_clip_video`，不得改动 path集合或其他断言；同时只把 C007 `test_pipeline_handler_registration` 的视频 handler 不存在断言替换为生产 `gen_clip_video_task_handler` identity，保留资产 handler identity及该文件其他测试原样。

@@ -32,6 +32,7 @@ def test_c008_openapi_paths_handlers_and_error_contract() -> None:
     assert sorted(app.state.task_handlers) == [
         "gen_asset_image",
         "gen_assets",
+        "gen_clip_video",
         "gen_shots",
     ]
     assert all(

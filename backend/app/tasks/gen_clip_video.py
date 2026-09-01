@@ -14,6 +14,7 @@ import httpx
 from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
+from app.db.session import async_session_factory
 from app.integrations.comfy import (
     ComfyClient,
     parse_comfy_upload_response,
@@ -618,3 +619,23 @@ async def gen_clip_video_handler(
     finally:
         if wake_succeeded and not sleep_attempted:
             await vllm.sleep()
+
+
+async def gen_clip_video_task_handler(
+    task: ClaimedTask, context: WorkerContext
+) -> None:
+    generated = await gen_clip_video_handler(task, context)
+    if generated is None:
+        return
+    from app.services.clip_video_commit import commit_generated_clip_video
+
+    async with async_session_factory() as session:
+        completed = await commit_generated_clip_video(
+            session,
+            context.queue,
+            task,
+            generated,
+            data_dir=settings.DATA_DIR,
+        )
+    if completed is not None:
+        await context.queue.publish_committed(completed)

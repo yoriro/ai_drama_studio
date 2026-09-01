@@ -267,7 +267,11 @@ def test_client_protocol() -> None:
 def test_pipeline_handler_registration() -> None:
     from app.main import create_app
     from app.tasks.gen_asset_image import gen_asset_image_handler
+    from app.tasks.gen_clip_video import gen_clip_video_task_handler
 
     application = create_app()
     assert application.state.task_handlers["gen_asset_image"] is gen_asset_image_handler
-    assert "gen_clip_video" not in application.state.task_handlers
+    assert (
+        application.state.task_handlers["gen_clip_video"]
+        is gen_clip_video_task_handler
+    )
