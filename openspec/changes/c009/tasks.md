@@ -235,18 +235,18 @@
 - [ ] **T13 — 完成 MP4 探测、ClipVideo/cache/freshness 与 done 的原子提交并注册 handler**
 
   - **依赖：** T6、T8、T11。
-  - **交付：** 新增 C009 commit service：验证 temp MP4/actual_duration/sha、锁 Task/Clip/source/current takes、插 row取 id、canonical rename、首 take current、cache miss更新、source revision反竞态、调用 queue.complete与聚合；数据库失败移 formal 到 canonical trash，temp总清理，主/补偿错误同时保留。handler core 接上该服务并阻止 outer complete 重复副作用；只有本项成功后才把唯一 gen_clip_video handler 加入 main handler map，使公开 route 首次形成完整端到端执行路径。按 TRACEABILITY 窄授权仅在此时向既有 C008 contract 用例的精确 handler 列表增加 `gen_clip_video`，不得改动 path集合或其他断言。
+  - **交付：** 新增 C009 commit service：验证 temp MP4/actual_duration/sha、锁 Task/Clip/source/current takes、插 row取 id、canonical rename、首 take current、cache miss更新、source revision反竞态、调用 queue.complete与聚合；数据库失败移 formal 到 canonical trash，temp总清理，主/补偿错误同时保留。handler core 接上该服务并阻止 outer complete 重复副作用；只有本项成功后才把唯一 gen_clip_video handler 加入 main handler map，使公开 route首次形成完整端到端执行路径。按 TRACEABILITY 窄授权仅在此时向既有 C008 contract 用例的精确 handler 列表增加 `gen_clip_video`，不得改动 path集合或其他断言；同时只把 C007 `test_pipeline_handler_registration` 的视频 handler 不存在断言替换为生产 `gen_clip_video_handler` identity，保留资产 handler identity及该文件其他测试原样。
   - **R：** R4、R11；PRD §3.2、§3.3、§6.2、§6.4。
   - **计划测试层级：** 跨进程/资源生命周期。
-  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 MP4 探测、文件/数据库事务与同步补偿`；`§3.3 片段生成成功且修订未变：相关分镜 normal、片段 fresh、新 take 落盘；无其他 active 视频任务时 ready，有 active 时按 C009 聚合`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C007 GPU/Comfy 资源生命周期：cache miss wake/chat、提交前 sleep、WS progress/history 输出、取消 interrupt、finally free，且 vLLM/Comfy 不并发`；`C009 MP4 探测、文件/数据库事务与同步补偿`；`§3.3 片段生成成功且修订未变：相关分镜 normal、片段 fresh、新 take 落盘；无其他 active 视频任务时 ready，有 active 时按 C009 聚合`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
   - **验收方式与命令：** 新增 `backend/tests/task_system/test_c009_clip_video_commit.py`，覆盖首/后续 take、全等/Clip/Shot/Asset drift或删除、actual偏差、每个DB写阶段失败、formal/trash补偿和补偿失败；运行：
 
     ```powershell
     Set-Location backend
-    python -m pytest -q tests/api/test_c008_contract_errors.py tests/task_system/test_c009_video_files.py tests/task_system/test_c009_clip_video_commit.py
+    python -m pytest -q tests/api/test_c008_contract_errors.py tests/task_system/test_c007_resource_lifecycle.py::test_pipeline_handler_registration tests/task_system/test_c009_video_files.py tests/task_system/test_c009_clip_video_commit.py
     ```
 
-    期望：全部通过；另一连接只见旧整体或 ClipVideo/cache/status/done/聚合新整体；失败无未报告 temp/formal/orphan row。
+    期望：全部通过；C008 精确 handler 集合与 C007 两个生产 handler identity 同时成立；另一连接只见旧整体或 ClipVideo/cache/status/done/聚合新整体；失败无未报告 temp/formal/orphan row。
 
 - [ ] **T14 — 验证 cancel 与视频最终提交的原子胜方及多任务交错**
 
