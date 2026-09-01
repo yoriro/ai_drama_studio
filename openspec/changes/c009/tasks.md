@@ -319,7 +319,7 @@
 
     将占位 id 换为本次真实 API 返回值并在日志记录映射。期望：health精确双hash；模板content逐字相等；两任务done、MP4可播放、seed string、actual_duration>0、上传/Subject顺序一致、无preset/音频；异常Task failed且完整原因/无retry/副作用；最终外部资源空闲。完成报告明确区分“合同/通路已证明”与“审美未自动证明”。
 
-- [ ] **T18 — 回填 TRACEABILITY 并执行隔离库全量验证与范围审计**
+- [x] **T18 — 回填 TRACEABILITY 并执行隔离库全量验证与范围审计**
 
   - **依赖：** T1-T17 全部计划验收通过。
   - **交付：** 把所有 C009 `待填` 回填为真实 pytest node ID或T17原始证据路径；每个新增测试至少归属一行，删除阶段性重复/无归属新测试（不得删改既有测试）；在全新库跑 migration/完整pytest/前端build；审计 baseline..HEAD 每个文件对应task、零migration/UI/围栏/重试/versioning；不在失败时勾选。
