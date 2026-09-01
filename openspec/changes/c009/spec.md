@@ -152,7 +152,16 @@ R4 序列化使用 UTF-8、无 NaN 的确定性紧凑 JSON，成员精确为：
 7. `VLLM_MODEL`；
 8. MiniMax workflow 原始 bytes 的 SHA256。
 
-sha256 结果与 `clips.prompt_input_hash` 相同且 prompt_cache 为非空文本时，payload.cached_prompt 使用其快照并跳过 vLLM chat；不同则 cached_prompt=null 并重建。hash 相同但 cache 为空是 persisted inconsistency，API 500 且不创建 Task。每个成功请求仍生成新的 63-bit seed 与 Comfy prompt UUID；非 null request_id 使用 C009 固定 UUIDv5 namespace 得到可复现 seed/prompt_id，无 request_id 使用安全随机值。
+sha256 结果与 `clips.prompt_input_hash` 相同且 prompt_cache 为非空文本时，payload.cached_prompt 使用其快照并跳过 vLLM chat；不同则 cached_prompt=null 并重建。hash 相同但 cache 为空是 persisted inconsistency，API 500 且不创建 Task。每个成功请求仍生成新的 63-bit seed 与 Comfy prompt UUID；无 request_id 使用 `[0,2^63-1]` 安全随机 seed 与 UUID4 prompt id；非 null request_id 的确定性映射冻结为：
+
+```python
+GEN_CLIP_VIDEO_NAMESPACE = UUID("17c124be-f03e-5a69-b4e5-e3a63f62994b")
+prompt_uuid = uuid5(GEN_CLIP_VIDEO_NAMESPACE, normalized_request_id)
+comfy_prompt_id = str(prompt_uuid)
+seed = prompt_uuid.int & 0x7FFF_FFFF_FFFF_FFFF
+```
+
+namespace 字面值的审计来源是 `uuid5(NAMESPACE_URL, "ai-drama-studio:gen_clip_video")`，运行时以该 UUID 字面常量为准，不读取配置且不得复用 C007 `gen_asset_image` namespace。`normalized_request_id` 只使用既有 `normalize_request_id()` 的结果，即原始值去首尾空白后保留大小写、内部空白与其余 Unicode；UUIDv5 name 不拼 task type、Clip id、user_note、当前时间或第二次 hash。`str(prompt_uuid)` 为 canonical lowercase hyphenated UUID，seed 取同一 UUID 的低 63 bits。固定测试向量：原始 `request_id=" abc "` 规范化为 `"abc"`，必须得到 `comfy_prompt_id="3088d9e1-4253-5fff-896e-87e5f5312d20"`、内部 `seed=679630015510424864`。
 
 payload 顶层精确三键；成功入队的 `source_revisions` 精确为 `{"clip":{"id","revision"},"shots":[{"id","revision"},...],"assets":[{"id","revision"},...]}`，shots 按 clip position、assets 按 id 且只含仍存活并被启用 reference 使用者。Style/Template 修改按 PRD §3.3 不追溯现有任务，不纳入完成 freshness 比对，但内容已冻结且参与 hash。
 
@@ -307,7 +316,7 @@ C009 不交付生产 demo、额外验收 endpoint、长期 driver 或第二套�
 | AC-03 | [外部输入] | 用给定模板及缺/未知/未闭合 placeholder，向 vLLM 返回正常、额外键、null、空白、错误类型、非法 JSON | 单条 messages、guided schema、Comfy 调用、Task/error | shots/references 为紧凑有序 JSON，五变量来自快照，无隐藏 system 业务 prompt；只有精确非空 prompt 继续；其他均 failed、Comfy submit=0、无 retry/副作用 |
 | AC-04 | [事务一致性] | 槽位 1/3 enabled，分别覆盖活资产+current、活资产+override、删资产+override、删资产无 override、disabled 无图，并在活资产 name/description/current image 改后入队 | payload references/media/hash、Task、SQL snapshot | 成功列表按 slot_no 且命名 subject1/subject2；活资产取当前 name/type/description，override 仍带活 description；删资产 override 用快照 name/type+null description；disabled 排除；删资产无 override 产生 202 failed R10 且不序列化/外调 |
 | AC-05 | [并发] | 显式 user_note 分别省略/null/空串/空白/相同值，并让两连接并发 PATCH/slot/asset mutation 与 enqueue | Clip revision/note/freshness、payload/source revisions、worker 使用值 | 省略不写且取锁内当前值；显式值精确持久化，实际变化只 revision+1/stale、no-op 不变；快照是一个可串行化胜方而非混合事实；worker 不回读新值 |
-| AC-06 | [并发] | 相同 request_id 同时从同/不同进程提交相同请求、不同 clip/user_note presence/value，并与 gen_asset_image 同 id 竞争；终态后重放 | advisory lock、Task rows、Clip revision、HTTP | 所有接受request_id的生成入口使用同一transaction lock；同身份精确一行且均202同task_id；不同身份精确一胜方其余409；重放不再mutation/重算；无id可创建多条 |
+| AC-06 | [并发] | 相同 request_id 同时从同/不同进程提交相同请求、不同 clip/user_note presence/value，并与 gen_asset_image 同 id 竞争；终态后重放；以原始 `" abc "` 验证固定映射 | advisory lock、Task rows、Clip revision、HTTP、冻结 payload | 所有接受request_id的生成入口使用同一transaction lock；同身份精确一行且均202同task_id；不同身份精确一胜方其余409；重放不再mutation/重算；无id可创建多条；固定向量得到 prompt id `3088d9e1-4253-5fff-896e-87e5f5312d20` 与 seed `679630015510424864` |
 | AC-07 | [事务一致性] | 在入队时分别制造 R5 不连续/独占漂移、R5a 跨场/单镜双场、R10 各缺图原因，并带/不带实际 user_note mutation | HTTP/task/payload/Clip/queue/vLLM/Comfy | HTTP 均 202；Task 直接 failed、progress0、started null、finished/error 非空、input_hash null且理由含规则/slot；从未 queued/claimed/外调；user_note 实际变化与 failed Task 同事务；只有 canceled/failed 历史时聚合符合 §8 |
 | AC-08 | [外部输入] | 对 clip/video path、request/current body 提交 signed INTEGER 上下界外、bool/float/string、未知字段、U+0000、空白/超长 request_id、错误 content type | HTTP body、SQL 计数、Task/DB副作用 | 所有边界错误在 SQL/入队前 422/validation_error 且字段集合精确；范围内未知资源 404/not_found；合法空串/空白 user_note 原样保存；无 task/文件副作用 |
 | AC-09 | [常规] | 对 R4 八类成员逐项改变，分别恢复所有序列化成员、只恢复 Shot 文本但保留新 revision，并只换 seed | serialized bytes/hash、vLLM call/cache/payload | 每个成员变化 hash 变化；所有成员含 revision 精确恢复才 hash 相同；文本恢复但 revision 不同仍 hash 不同；cache hit 跳过 chat但 seed/prompt_id 新；hash不同chat一次；hash相同cache空同步500；失败不更新cache，成功才与done同事务更新 |

@@ -74,11 +74,11 @@
 - [ ] **T3 — 实现 shots/references/template/hash/seed 的纯函数合同**
 
   - **依赖：** T1。
-  - **交付：** 新增单一职责的 C009 input 模块，交付 spec §5-§6.1：shots 全量快照与公开投影、enabled references 压实编号、活值/删除快照规则所需的纯数据验证、紧凑模板渲染、封闭 minimaxh3 schema/输出校验、R4 八成员序列化/hash、C009 UUIDv5/随机 63-bit seed 与 prompt_id。不要访问数据库、文件或网络。
+  - **交付：** 新增单一职责的 C009 input 模块，交付 spec §5-§6.1：shots 全量快照与公开投影、enabled references 压实编号、活值/删除快照规则所需的纯数据验证、紧凑模板渲染、封闭 minimaxh3 schema/输出校验、R4 八成员序列化/hash；按 `GEN_CLIP_VIDEO_NAMESPACE=17c124be-f03e-5a69-b4e5-e3a63f62994b` 与仅含规范化 request_id 的 name 生成 UUIDv5 prompt id并取同一 UUID 低 63 bits 为 seed，无 request_id 使用随机 63-bit seed/UUID4。不要访问数据库、文件或网络。
   - **R：** R4、R9、R12；PRD §3.1、§3.4、§7。
   - **计划测试层级：** 纯函数。
   - **追溯行：** `C009 MiniMax prompt、完整 input_hash 与 cache`；`C009 references 活值/删除快照/压实编号与 R9`；`R4 input_hash 缓存：输入一致复用 prompt 只换 seed，输入变化重建并更新缓存`。
-  - **验收方式与命令：** 新增 `backend/tests/unit/test_c009_clip_video_inputs.py`，至少包含 slot1/3→subject1/2、三种资产存活分支、每个 hash member 单变、所有成员精确恢复得同hash而文本恢复但revision变化仍异hash、null/空串/空白区分、模板 placeholder/输出敌意矩阵、固定 UUIDv5 向量与 seed 上下界；运行：
+  - **验收方式与命令：** 新增 `backend/tests/unit/test_c009_clip_video_inputs.py`，至少包含 slot1/3→subject1/2、三种资产存活分支、每个 hash member 单变、所有成员精确恢复得同hash而文本恢复但revision变化仍异hash、null/空串/空白区分、模板 placeholder/输出敌意矩阵；固定 UUIDv5 向量必须断言原始 `request_id=" abc "` → normalized `"abc"` → prompt id `3088d9e1-4253-5fff-896e-87e5f5312d20`、seed `679630015510424864`，并覆盖随机 seed 上下界；运行：
 
     ```powershell
     Set-Location backend
