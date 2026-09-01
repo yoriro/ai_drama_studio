@@ -12,6 +12,8 @@ C007 最终审查测试窄例外（需求方于 2026-08-31 明确授权）：仅
 
 C009 health 测试窄演进授权（需求方于 2026-09-01 明确授权）：仅 `backend/tests/api/test_system.py`、`backend/tests/api/test_c007_health.py`、`backend/tests/api/test_c007_health_transport.py` 可把既有精确 zimage-only workflow hashes fixture/断言演进为精确 `zimage + minimaxh3`；必须逐项保留各文件原有的应用基础设施、结构化错误、状态/message、探测次数、无 GPU mutation 与禁止真实外部网络断言，不得改名、skip、删除、改弱或修改任何其他既有测试。C009 新行为仍须由下表 C009 专用行的独立新增用例覆盖。
 
+C009 对 C008 范围基线的分阶段窄演进授权（需求方于 2026-09-01 授权 Sol 裁决）：仅 `backend/tests/api/test_c008_contract_errors.py::test_c008_openapi_paths_handlers_and_error_contract` 可随当前 change 的实际交付阶段演进精确集合：T9 只增加 `/api/clips/{clip_id}/generate-video`，T13 只增加 `gen_clip_video` handler，T15 只增加 `/api/clips/{clip_id}/videos` 与 `/api/clips/{clip_id}/current-video`。不得提前加入后续项，不得把精确相等改为子集/存在性断言；全部既有 C008 path、slot content type/schema、slot media、404、422、闭合错误体及 public path 不含内部 `gen_clip_video`/`minimax` 名称的断言必须逐字保留。不得改名、skip、删除、修改其他既有测试或以该用例替代 C009 专用 API/任务测试；例外在 C009 归档时失效。
+
 | 规则 / 场景 | 计划测试层级 | 用例 ID（待填） |
 |---|---|---|
 | C001 基础设施 smoke（C007/C009 合法演进）：FastAPI 应用可启动，`/docs` 可访问，`/api/system/health` 返回当前双工作流诊断且测试不连接真实外部网络，通用 API 错误体符合约定 | API 集成 | `backend/tests/api/test_system.py::test_infrastructure_smoke`; `backend/tests/api/test_c009_health.py::test_c009_health_exposes_two_workflow_hashes`; `backend/tests/api/test_c009_health.py::test_c009_invalid_minimax_binding_rejects_startup_before_worker_claim` |

@@ -171,15 +171,15 @@
 - [ ] **T9 — 交付 generate-video API 与完整 enqueue/立即失败合同**
 
   - **依赖：** T2、T3、T7、T8。
-  - **交付：** 增加严格 request/response schema、route 与 enqueue service；实现 user_note 三态/identity-first、R5/R5a/R10 复检、立即 failed Task、成功 payload 三键、活 assets/references、template/style/workflow快照、R4 cache判定、seed/prompt_id及 post-commit event。当前 task 只接受单事务确定性/任务 mock，不在此项宣称跨连接锁屏障（由 T10）。
+  - **交付：** 增加严格 request/response schema、route 与 enqueue service；实现 user_note 三态/identity-first、R5/R5a/R10 复检、立即 failed Task、成功 payload 三键、活 assets/references、template/style/workflow快照、R4 cache判定、seed/prompt_id及 post-commit event。当前 task 只接受单事务确定性/任务 mock，不在此项宣称跨连接锁屏障（由 T10）。按 TRACEABILITY 窄授权只在既有 C008 contract 用例的精确 `expected_paths` 增加 `/api/clips/{clip_id}/generate-video`；本项不得提前加入 `gen_clip_video` handler或 T15 take paths，其他断言逐字不动。
   - **R：** R4、R5、R5a、R6、R9、R10、R12；PRD §3.1-§3.4、§5、§6.1-§6.2、§7。
   - **计划测试层级：** 任务系统 mock。
-  - **追溯行：** `C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等`；`C009 立即 failed Task 与结构化错误`；`C009 references 活值/删除快照/压实编号与 R9`；`R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`；`R10 缺图即失败：任一启用槽位无可用图时任务失败并指出槽位与原因`。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等`；`C009 立即 failed Task 与结构化错误`；`C009 references 活值/删除快照/压实编号与 R9`；`R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`；`R10 缺图即失败：任一启用槽位无可用图时任务失败并指出槽位与原因`。
   - **验收方式与命令：** 新增 `backend/tests/api/test_c009_generate_video.py` 与 `backend/tests/task_system/test_c009_enqueue_video.py`；精确覆盖 `{}`、三态 note、replay/no-id、成功 payload、cache hit/miss、slot分支、与gen_asset_image同request_id跨type竞争，以及每种 R5/R5a/R10 failed task 的 status/timestamps/error/无 claim/无外调；运行：
 
     ```powershell
     Set-Location backend
-    python -m pytest -q tests/api/test_c009_generate_video.py tests/task_system/test_c009_enqueue_video.py
+    python -m pytest -q tests/api/test_c008_contract_errors.py tests/api/test_c009_generate_video.py tests/task_system/test_c009_enqueue_video.py
     ```
 
     期望：全部通过；R5/R5a/R10 route 精确 202而非409/422，Task从未 queued；同步404/409/422/500分流与 spec 一致。
@@ -235,15 +235,15 @@
 - [ ] **T13 — 完成 MP4 探测、ClipVideo/cache/freshness 与 done 的原子提交并注册 handler**
 
   - **依赖：** T6、T8、T11。
-  - **交付：** 新增 C009 commit service：验证 temp MP4/actual_duration/sha、锁 Task/Clip/source/current takes、插 row取 id、canonical rename、首 take current、cache miss更新、source revision反竞态、调用 queue.complete与聚合；数据库失败移 formal 到 canonical trash，temp总清理，主/补偿错误同时保留。handler core 接上该服务并阻止 outer complete 重复副作用；只有本项成功后才把唯一 gen_clip_video handler 加入 main handler map，使公开 route 首次形成完整端到端执行路径。
+  - **交付：** 新增 C009 commit service：验证 temp MP4/actual_duration/sha、锁 Task/Clip/source/current takes、插 row取 id、canonical rename、首 take current、cache miss更新、source revision反竞态、调用 queue.complete与聚合；数据库失败移 formal 到 canonical trash，temp总清理，主/补偿错误同时保留。handler core 接上该服务并阻止 outer complete 重复副作用；只有本项成功后才把唯一 gen_clip_video handler 加入 main handler map，使公开 route 首次形成完整端到端执行路径。按 TRACEABILITY 窄授权仅在此时向既有 C008 contract 用例的精确 handler 列表增加 `gen_clip_video`，不得改动 path集合或其他断言。
   - **R：** R4、R11；PRD §3.2、§3.3、§6.2、§6.4。
   - **计划测试层级：** 跨进程/资源生命周期。
-  - **追溯行：** `C009 MP4 探测、文件/数据库事务与同步补偿`；`§3.3 片段生成成功且修订未变：相关分镜 normal、片段 fresh、新 take 落盘；无其他 active 视频任务时 ready，有 active 时按 C009 聚合`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 MP4 探测、文件/数据库事务与同步补偿`；`§3.3 片段生成成功且修订未变：相关分镜 normal、片段 fresh、新 take 落盘；无其他 active 视频任务时 ready，有 active 时按 C009 聚合`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
   - **验收方式与命令：** 新增 `backend/tests/task_system/test_c009_clip_video_commit.py`，覆盖首/后续 take、全等/Clip/Shot/Asset drift或删除、actual偏差、每个DB写阶段失败、formal/trash补偿和补偿失败；运行：
 
     ```powershell
     Set-Location backend
-    python -m pytest -q tests/task_system/test_c009_video_files.py tests/task_system/test_c009_clip_video_commit.py
+    python -m pytest -q tests/api/test_c008_contract_errors.py tests/task_system/test_c009_video_files.py tests/task_system/test_c009_clip_video_commit.py
     ```
 
     期望：全部通过；另一连接只见旧整体或 ClipVideo/cache/status/done/聚合新整体；失败无未报告 temp/formal/orphan row。
@@ -267,15 +267,15 @@
 - [ ] **T15 — 交付 take list/current/delete 与 ID 媒体生命周期**
 
   - **依赖：** T13。
-  - **交付：** 增加 ClipVideoResponse 与 list/current schemas/routes/services、current no-op/跨Clip校验/唯一切换、current禁删、noncurrent canonical trash/DB补偿，以及 `/media/clip-videos/{id}` canonical重算/`video/mp4`。不改Clip/Shot状态，不返回file_path。
+  - **交付：** 增加 ClipVideoResponse 与 list/current schemas/routes/services、current no-op/跨Clip校验/唯一切换、current禁删、noncurrent canonical trash/DB补偿，以及 `/media/clip-videos/{id}` canonical重算/`video/mp4`。不改Clip/Shot状态，不返回file_path。按 TRACEABILITY 窄授权仅在此时向既有 C008 contract 用例的精确 `expected_paths` 增加 `/api/clips/{clip_id}/videos` 与 `/api/clips/{clip_id}/current-video`，不得改动 handler集合或其他断言。
   - **R：** 无；PRD §5 片段/媒体 API、§3.3、§6.4。
   - **计划测试层级：** 跨进程/资源生命周期。
-  - **追溯行：** `C009 take 列表、current、删除与媒体生命周期`。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 take 列表、current、删除与媒体生命周期`。
   - **验收方式与命令：** 新增 `backend/tests/api/test_c009_clip_videos.py` 与 `backend/tests/api/test_c009_clip_video_lifecycle.py`，覆盖id ASC、唯一current/no-op/跨Clip、current409、noncurrent204、坏path/缺文件、DB失败/恢复失败、同名canonical trash；运行：
 
     ```powershell
     Set-Location backend
-    python -m pytest -q tests/api/test_c009_clip_videos.py tests/api/test_c009_clip_video_lifecycle.py
+    python -m pytest -q tests/api/test_c008_contract_errors.py tests/api/test_c009_clip_videos.py tests/api/test_c009_clip_video_lifecycle.py
     ```
 
     期望：全部通过；每条错误精确 status/code/message；文件与DB在正常/失败/双失败路径均与spec一致。
