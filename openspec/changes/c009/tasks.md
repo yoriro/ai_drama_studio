@@ -200,7 +200,7 @@
 
     期望：全部通过；每条竞态只得到两个可串行化结果之一，payload/worker 只用一份冻结副本，无混合字段、死锁或额外重试。
 
-- [ ] **T11 — 实现 gen_clip_video worker core 的 prompt/GPU/Comfy/取消主流水线**
+- [x] **T11 — 实现 gen_clip_video worker core 的 prompt/GPU/Comfy/取消主流水线**
 
   - **依赖：** T4、T5、T6、T9。
   - **交付：** 新增可直接测试但尚不加入 main handler map 的唯一 gen_clip_video handler core；只读 ClaimedTask payload，实现 cache miss wake/chat/严格 prompt、cache hit skip chat、两路均 sleep、按序 upload、动态 workflow submit、WS progress/history/view 到 temp、各安全点 cancel、`finally free` 与主/cleanup双错误。扩展 cancel API 对 running gen_clip_video 使用 snapshot prompt_id best-effort interrupt；最终 ClipVideo DB commit 与正式 handler 注册由 T13 一次接通，T11 结束时不得暴露一个会 done 但无 take 的生产 handler。

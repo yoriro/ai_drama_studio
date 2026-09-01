@@ -20,7 +20,7 @@ ws_router = APIRouter(tags=["tasks"])
 logger = logging.getLogger("app.api.tasks")
 
 
-async def _interrupt_running_asset_image(request: Request, task: Task) -> None:
+async def _interrupt_running_comfy_task(request: Request, task: Task) -> None:
     snapshot = task.payload["input_snapshot"]
     prompt_id = snapshot["comfy_prompt_id"]
     try:
@@ -88,9 +88,9 @@ async def cancel_task(
     if (
         change.changed
         and change.task.status == "running"
-        and change.task.type == "gen_asset_image"
+        and change.task.type in {"gen_asset_image", "gen_clip_video"}
     ):
-        await _interrupt_running_asset_image(request, change.task)
+        await _interrupt_running_comfy_task(request, change.task)
     return change.task
 
 
