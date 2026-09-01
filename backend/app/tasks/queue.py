@@ -47,7 +47,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
 from app.db.session import engine
-from app.models import Task
+from app.models import Clip, Task
 from app.tasks.events import TaskEvent, TaskEventPublisher
 
 
@@ -312,6 +312,58 @@ async def _require_task(session: AsyncSession, task_id: int) -> Task:
     return task
 
 
+async def aggregate_clip_generation_state(
+    session: AsyncSession, clip_id: int
+) -> str:
+    """Project one Clip state from its non-canceled video tasks."""
+
+    clip = await session.scalar(
+        select(Clip)
+        .where(Clip.id == clip_id)
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )
+    if clip is None:
+        raise TaskQueueError(f"clip {clip_id} does not exist")
+
+    priority = case(
+        (Task.status == "running", 0),
+        (Task.status == "queued", 1),
+        else_=2,
+    )
+    result = await session.execute(
+        select(Task.status)
+        .where(
+            Task.type == "gen_clip_video",
+            Task.target_id == clip_id,
+            Task.status.in_(("running", "queued", "done", "failed")),
+        )
+        .order_by(
+            priority,
+            Task.finished_at.desc().nulls_last(),
+            Task.id.desc(),
+        )
+        .limit(1)
+    )
+    selected_status = result.scalar_one_or_none()
+    if selected_status == "running":
+        projected_state = "generating"
+    elif selected_status == "queued":
+        projected_state = "queued"
+    elif selected_status == "done":
+        projected_state = "ready"
+    elif selected_status == "failed":
+        projected_state = "failed"
+    else:
+        projected_state = "empty"
+
+    if clip.generation_state != projected_state:
+        clip.generation_state = projected_state
+        clip.updated_at = _utc_now()
+        await session.flush()
+    return projected_state
+
+
 class TaskQueue:
     """PostgreSQL queue operations with no implicit transaction commits."""
 
@@ -373,6 +425,10 @@ class TaskQueue:
             .returning(Task)
         )
         tasks = list(result.scalars().all())
+        for clip_id in sorted(
+            {task.target_id for task in tasks if task.type == "gen_clip_video"}
+        ):
+            await aggregate_clip_generation_state(session, clip_id)
         return [
             TaskChange(task=task, changed=True, event=_event_for(task, "任务失败：server restarted"))
             for task in tasks
@@ -403,6 +459,7 @@ class TaskQueue:
         if task is None:
             current = await _require_task(session, queued.id)
             return TaskChange(task=current, changed=False)
+        await self._project_task_clip(session, task)
         return TaskChange(task=task, changed=True, event=_event_for(task, "任务执行中"))
 
     async def heartbeat(
@@ -438,6 +495,7 @@ class TaskQueue:
         if task is None:
             current = await _require_task(session, task_id)
             return TaskChange(task=current, changed=False)
+        await self._project_task_clip(session, task)
         event = _event_for(task, "任务执行中") if progress_changed else None
         return TaskChange(task=task, changed=True, event=event)
 
@@ -463,6 +521,7 @@ class TaskQueue:
         if task is None:
             current = await _require_task(session, task_id)
             return TaskChange(task=current, changed=False)
+        await self._project_task_clip(session, task)
         return TaskChange(task=task, changed=True, event=_event_for(task, "任务完成"))
 
     async def fail(
@@ -484,6 +543,7 @@ class TaskQueue:
         if task is None:
             current = await _require_task(session, task_id)
             return TaskChange(task=current, changed=False)
+        await self._project_task_clip(session, task)
         if isinstance(error, BaseException) and error.__traceback__ is not None:
             logger.error(
                 "task failed id=%s type=%s target_id=%s",
@@ -538,6 +598,7 @@ class TaskQueue:
         )
         task = result.scalar_one_or_none()
         if task is not None:
+            await self._project_task_clip(session, task)
             message = "任务已取消" if task.status == "canceled" else "已请求取消"
             return TaskChange(task=task, changed=True, event=_event_for(task, message))
 
@@ -569,6 +630,7 @@ class TaskQueue:
         if task is None:
             current = await _require_task(session, task_id)
             return TaskChange(task=current, changed=False)
+        await self._project_task_clip(session, task)
         return TaskChange(task=task, changed=True, event=_event_for(task, "任务已取消"))
 
     async def find_request(
@@ -690,10 +752,46 @@ class TaskQueue:
                 existing_task=winner,
             ) from exc
 
+        await self._project_task_clip(session, task)
         return EnqueueResult(
             task=task,
             created=True,
             event=_event_for(task, "任务已排队"),
+        )
+
+    async def record_failed(
+        self,
+        session: AsyncSession,
+        task_type: str,
+        target_id: int,
+        payload: Mapping[str, Any],
+        error: BaseException | str,
+        request_id: str | None = None,
+    ) -> EnqueueResult:
+        """Insert one terminal failed task inside the caller's transaction."""
+
+        checked_type = _validate_task_type(task_type)
+        checked_target = _validate_target_id(target_id)
+        checked_payload = validate_payload(payload)
+        normalized_request = normalize_request_id(request_id)
+        error_msg = _format_error(error)
+        task = Task(
+            type=checked_type,
+            target_id=checked_target,
+            request_id=normalized_request,
+            payload=checked_payload,
+            status="failed",
+            progress=0.0,
+            error_msg=error_msg,
+            finished_at=_utc_now(),
+        )
+        session.add(task)
+        await session.flush()
+        await self._project_task_clip(session, task)
+        return EnqueueResult(
+            task=task,
+            created=True,
+            event=_event_for(task, f"任务失败：{error_msg}"),
         )
 
     async def publish_committed(
@@ -787,6 +885,13 @@ class TaskQueue:
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def _project_task_clip(
+        session: AsyncSession, task: Task
+    ) -> None:
+        if task.type == "gen_clip_video":
+            await aggregate_clip_generation_state(session, task.target_id)
 
     @staticmethod
     def _ensure_request_match(

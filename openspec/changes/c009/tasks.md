@@ -152,7 +152,7 @@
 
     期望：全部通过；探针明确观察锁前/等待/提交后顺序，不以 sleep-only 或最终行数替代锁屏障。
 
-- [ ] **T8 — 增加 Clip generation_state 的事务内生命周期聚合**
+- [x] **T8 — 增加 Clip generation_state 的事务内生命周期聚合**
 
   - **依赖：** T7。
   - **交付：** 新增单一生产聚合函数与一个明确 queue lifecycle callback/协调入口；为后续R5/R5a/R10增加queue拥有的“直接记录terminal failed”方法（payload仍精确三键、progress0、started null、finished/error非空、同事务事件），并在queued enqueue、立即failed、claim、done、worker failed、cancel、restart recovery的当前事务中，按running>queued>最新non-canceled terminal>empty锁Clip并投影。只改值时updated_at，不增Clip revision/不改freshness；不 `FOR UPDATE` 全部Task，不建projection/generation_runs/registry。
