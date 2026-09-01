@@ -216,7 +216,7 @@
 
     期望：全部通过；测试不连接真实外部端口；失败均一次 failed且无 retry/fallback/cache/take/formal。
 
-- [ ] **T12 — 定向证明跨进程 GPU/Comfy 资源生命周期**
+- [x] **T12 — 定向证明跨进程 GPU/Comfy 资源生命周期**
 
   - **依赖：** T11。
   - **交付：** 新增跨进程/真实 HTTP stub 测试，不新增生产 demo；运行生产 handler/clients，记录 wake/chat/sleep 与 Comfy upload/submit/history/view/free 的真实时间区间、cache hit路径和中途 transport failure。若测试暴露实现问题，只修生产根因并重跑。
