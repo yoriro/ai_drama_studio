@@ -1,0 +1,29 @@
+[comfy.minimaxh3]
+workflow = "workflows/minimax_h3_ref2v.json"
+prompt_path = "138.inputs.value"
+seed_path = "129.inputs.noise_seed"
+duration_path = "132.inputs.value"
+ref_image_paths = [
+  "137.inputs.image",
+  "139.inputs.image",
+  "146.inputs.image",
+  "400.inputs.image",
+  "401.inputs.image",
+  "402.inputs.image",
+  "403.inputs.image",
+  "404.inputs.image",
+  "405.inputs.image",
+]
+ref_consumer_paths = [
+  "186.inputs.ref_images.ref_image_0",
+  "186.inputs.ref_images.ref_image_1",
+  "186.inputs.ref_images.ref_image_2",
+  "186.inputs.ref_images.ref_image_3",
+  "186.inputs.ref_images.ref_image_4",
+  "186.inputs.ref_images.ref_image_5",
+  "186.inputs.ref_images.ref_image_6",
+  "186.inputs.ref_images.ref_image_7",
+  "186.inputs.ref_images.ref_image_8",
+]
+optional_refs = false
+output_node = "168"

@@ -37,7 +37,7 @@
 
     期望：baseline 是单一 SHA；archive spec 存在、active c008 不存在；workflow hash 精确 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`，模板 hash 精确 `e2a1638cf13e2853a263ebe7db383d2c7ce222780bc4a937ca38845c48d63f7a`。任一不符立即阻塞，不自行重做工件。
 
-- [ ] **T1 — 入仓唯一 MiniMax API workflow 与独立闭合绑定快照**
+- [x] **T1 — 入仓唯一 MiniMax API workflow 与独立闭合绑定快照**
 
   - **依赖：** T0。
   - **交付：** 新增且只新增一个 `backend/workflows/minimax_h3_ref2v.json`，与需求方 API JSON 字节一致；保留现有 zimage-only `bindings.toml`、`load_binding_snapshot()` 和全部断言原样，新增唯一 `backend/workflows/minimaxh3.toml`（只含 `[comfy.minimaxh3]`）及显式 MiniMax snapshot loader，复用现有底层读取/路径/API object校验并增加 spec §6.2 的 prompt/seed/duration、九对 ref image/consumer、optional_refs=false 与 output node。不得按默认/临时路径特判，不建集合registry/version/兼容入口。

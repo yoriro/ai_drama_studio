@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -15,8 +16,10 @@ import tomli
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BINDING_PATH = _BACKEND_ROOT / "workflows" / "bindings.toml"
+DEFAULT_MINIMAX_BINDING_PATH = _BACKEND_ROOT / "workflows" / "minimaxh3.toml"
 _NODE_ID = re.compile(r"^[0-9]+$")
 _PATH_FORBIDDEN = frozenset("*[]|?")
+_MINIMAX_REFERENCE_COUNT = 9
 
 
 class WorkflowBindingError(ValueError):
@@ -67,6 +70,45 @@ class WorkflowBindingSnapshot:
             "hash": self.workflow_hash,
             "prompt_path": self.prompt_path,
             "seed_path": self.seed_path,
+            "output_node": self.output_node,
+            "definition": _thaw_json(self.definition),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class MiniMaxWorkflowBindingSnapshot:
+    """Validated MiniMax H3 binding and a read-only workflow snapshot."""
+
+    name: str
+    workflow_path: Path
+    workflow_hash: str
+    prompt_path: str
+    seed_path: str
+    duration_path: str
+    ref_image_paths: tuple[str, ...]
+    ref_consumer_paths: tuple[str, ...]
+    optional_refs: bool
+    output_node: str
+    definition: Mapping[str, Any]
+
+    @property
+    def hash(self) -> str:
+        """Return the raw workflow hash used by the input contract."""
+
+        return self.workflow_hash
+
+    def workflow_payload(self) -> dict[str, Any]:
+        """Return a detached workflow object for injection."""
+
+        return {
+            "name": self.name,
+            "hash": self.workflow_hash,
+            "prompt_path": self.prompt_path,
+            "seed_path": self.seed_path,
+            "duration_path": self.duration_path,
+            "ref_image_paths": list(self.ref_image_paths),
+            "ref_consumer_paths": list(self.ref_consumer_paths),
+            "optional_refs": self.optional_refs,
             "output_node": self.output_node,
             "definition": _thaw_json(self.definition),
         }
@@ -266,6 +308,212 @@ def load_binding_snapshot(
         workflow_hash=workflow_hash,
         prompt_path=prompt_path,
         seed_path=seed_path,
+        output_node=output_node,
+        definition=_freeze_json(workflow),
+    )
+
+
+def _resolve_minimax_path(
+    workflow: Mapping[str, Any], path: str, context: str
+) -> object:
+    """Resolve an API workflow input path with Comfy's dotted input keys."""
+
+    segments = path.split(".")
+    if any(
+        not segment or any(character in segment for character in _PATH_FORBIDDEN)
+        for segment in segments
+    ):
+        raise WorkflowBindingError(
+            f"{context} must use exact dot-separated object keys"
+        )
+    if len(segments) < 3:
+        raise WorkflowBindingError(f"{context} must include node.inputs.path")
+
+    inputs = _resolve_object_path(
+        workflow, f"{segments[0]}.inputs", context
+    )
+    if not isinstance(inputs, Mapping):
+        raise WorkflowBindingError(f"{context} inputs must be an object")
+    input_key = ".".join(segments[2:])
+    if input_key not in inputs:
+        raise WorkflowBindingError(
+            f"{context} does not exist at input {input_key}"
+        )
+    return inputs[input_key]
+
+
+def _require_minimax_path_list(
+    value: object, context: str
+) -> tuple[str, ...]:
+    if not isinstance(value, list) or len(value) != _MINIMAX_REFERENCE_COUNT:
+        raise WorkflowBindingError(
+            f"{context} must contain exactly {_MINIMAX_REFERENCE_COUNT} paths"
+        )
+    paths = tuple(
+        _require_non_empty_string(item, f"{context}[{index}]")
+        for index, item in enumerate(value)
+    )
+    if len(set(paths)) != _MINIMAX_REFERENCE_COUNT:
+        raise WorkflowBindingError(f"{context} paths must be unique")
+    return paths
+
+
+def load_minimax_binding_snapshot(
+    binding_path: str | Path = DEFAULT_MINIMAX_BINDING_PATH,
+    *,
+    backend_root: str | Path | None = None,
+) -> MiniMaxWorkflowBindingSnapshot:
+    """Load and validate the independent MiniMax H3 workflow binding."""
+
+    resolved_binding_path = Path(binding_path).resolve()
+    binding = _read_binding(resolved_binding_path)
+    _require_exact_keys(binding, {"comfy"}, "workflow binding")
+    comfy = _require_mapping(binding["comfy"], "workflow binding comfy")
+    _require_exact_keys(comfy, {"minimaxh3"}, "workflow binding comfy")
+    minimax = _require_mapping(
+        comfy["minimaxh3"], "workflow binding comfy.minimaxh3"
+    )
+    _require_exact_keys(
+        minimax,
+        {
+            "workflow",
+            "prompt_path",
+            "seed_path",
+            "duration_path",
+            "ref_image_paths",
+            "ref_consumer_paths",
+            "optional_refs",
+            "output_node",
+        },
+        "workflow binding comfy.minimaxh3",
+    )
+
+    workflow_value = _require_non_empty_string(
+        minimax["workflow"], "workflow binding workflow"
+    )
+    prompt_path = _require_non_empty_string(
+        minimax["prompt_path"], "workflow binding prompt_path"
+    )
+    seed_path = _require_non_empty_string(
+        minimax["seed_path"], "workflow binding seed_path"
+    )
+    duration_path = _require_non_empty_string(
+        minimax["duration_path"], "workflow binding duration_path"
+    )
+    output_node = _require_non_empty_string(
+        minimax["output_node"], "workflow binding output_node"
+    )
+    if _NODE_ID.fullmatch(output_node) is None:
+        raise WorkflowBindingError("workflow binding output_node must be a node id")
+    optional_refs = minimax["optional_refs"]
+    if optional_refs is not False:
+        raise WorkflowBindingError("workflow binding optional_refs must be false")
+
+    ref_image_paths = _require_minimax_path_list(
+        minimax["ref_image_paths"], "workflow binding ref_image_paths"
+    )
+    ref_consumer_paths = _require_minimax_path_list(
+        minimax["ref_consumer_paths"], "workflow binding ref_consumer_paths"
+    )
+
+    root = _BACKEND_ROOT if backend_root is None else Path(backend_root)
+    workflow_path = _resolve_workflow_path(
+        root, workflow_value, resolved_binding_path
+    )
+    workflow, workflow_hash = _read_workflow(workflow_path)
+
+    prompt_value = _resolve_minimax_path(
+        workflow, prompt_path, "prompt_path"
+    )
+    if not isinstance(prompt_value, str):
+        raise WorkflowBindingError("prompt_path leaf must be a string")
+    seed_value = _resolve_minimax_path(workflow, seed_path, "seed_path")
+    if isinstance(seed_value, bool) or not isinstance(seed_value, int):
+        raise WorkflowBindingError("seed_path leaf must be an integer")
+    duration_value = _resolve_minimax_path(
+        workflow, duration_path, "duration_path"
+    )
+    if isinstance(duration_value, bool) or not isinstance(
+        duration_value, (int, float)
+    ) or not math.isfinite(float(duration_value)):
+        raise WorkflowBindingError(
+            "duration_path leaf must be a finite number"
+        )
+    if output_node not in workflow:
+        raise WorkflowBindingError(
+            f"output_node does not exist in workflow: {output_node}"
+        )
+    output = _require_mapping(workflow[output_node], f"workflow node {output_node}")
+    if output.get("class_type") != "VHS_VideoCombine":
+        raise WorkflowBindingError(
+            "output_node must reference a VHS_VideoCombine node"
+        )
+
+    for index, (image_path, consumer_path) in enumerate(
+        zip(ref_image_paths, ref_consumer_paths, strict=True)
+    ):
+        image_value = _resolve_minimax_path(
+            workflow, image_path, f"ref_image_paths[{index}]"
+        )
+        image_segments = image_path.split(".")
+        image_node_id = image_segments[0]
+        image_node = _require_mapping(
+            workflow.get(image_node_id),
+            f"workflow node {image_node_id}",
+        )
+        if image_node.get("class_type") != "LoadImage":
+            raise WorkflowBindingError(
+                f"ref_image_paths[{index}] must reference a LoadImage node"
+            )
+        expected_sentinel = f"__C009_REFERENCE_{index + 1:02d}__.png"
+        if image_value != expected_sentinel:
+            raise WorkflowBindingError(
+                f"ref_image_paths[{index}] must use the C009 reference sentinel"
+            )
+
+        consumer_segments = consumer_path.split(".")
+        expected_consumer_key = f"ref_image_{index}"
+        if consumer_segments[1:] != [
+            "inputs",
+            "ref_images",
+            expected_consumer_key,
+        ]:
+            raise WorkflowBindingError(
+                f"ref_consumer_paths[{index}] has an invalid H3 input path"
+            )
+        consumer_value = _resolve_minimax_path(
+            workflow, consumer_path, f"ref_consumer_paths[{index}]"
+        )
+        consumer_node_id = consumer_segments[0]
+        consumer_node = _require_mapping(
+            workflow.get(consumer_node_id),
+            f"workflow node {consumer_node_id}",
+        )
+        if consumer_node.get("class_type") != "MiniMaxH3ReferenceToVideo":
+            raise WorkflowBindingError(
+                f"ref_consumer_paths[{index}] must reference the H3 consumer"
+            )
+        if (
+            not isinstance(consumer_value, list)
+            or len(consumer_value) != 2
+            or consumer_value[0] != image_node_id
+            or isinstance(consumer_value[1], bool)
+            or consumer_value[1] != 0
+        ):
+            raise WorkflowBindingError(
+                f"ref_consumer_paths[{index}] is not linked to its image node"
+            )
+
+    return MiniMaxWorkflowBindingSnapshot(
+        name="minimaxh3",
+        workflow_path=workflow_path,
+        workflow_hash=workflow_hash,
+        prompt_path=prompt_path,
+        seed_path=seed_path,
+        duration_path=duration_path,
+        ref_image_paths=ref_image_paths,
+        ref_consumer_paths=ref_consumer_paths,
+        optional_refs=False,
         output_node=output_node,
         definition=_freeze_json(workflow),
     )
