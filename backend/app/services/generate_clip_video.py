@@ -224,6 +224,31 @@ async def _other_clip_shot_ids(
     return {int(shot_id) for shot_id in result.scalars().all()}
 
 
+async def _discover_and_lock_enabled_assets(
+    session: AsyncSession, clip_id: int
+) -> None:
+    discovery_result = await session.execute(
+        select(ClipRefSlot.asset_id)
+        .where(
+            ClipRefSlot.clip_id == clip_id,
+            ClipRefSlot.enabled.is_(True),
+            ClipRefSlot.asset_id.is_not(None),
+        )
+        .order_by(ClipRefSlot.asset_id, ClipRefSlot.id)
+    )
+    asset_ids = sorted(
+        {int(asset_id) for asset_id in discovery_result.scalars().all()}
+    )
+    if not asset_ids:
+        return
+    await session.execute(
+        select(Asset)
+        .where(Asset.id.in_(asset_ids))
+        .order_by(Asset.id)
+        .with_for_update()
+    )
+
+
 def _rule_failure(
     result_violations: tuple[object, ...],
 ) -> tuple[str, str] | None:
@@ -525,6 +550,8 @@ async def enqueue_generate_clip_video(
                 ):
                     raise _request_conflict(existing)
                 return EnqueueResult(task=existing, created=False)
+
+        await _discover_and_lock_enabled_assets(session, clip_id)
 
         clip = await session.scalar(
             select(Clip).where(Clip.id == clip_id).with_for_update()

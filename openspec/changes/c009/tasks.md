@@ -184,7 +184,7 @@
 
     期望：全部通过；R5/R5a/R10 route 精确 202而非409/422，Task从未 queued；同步404/409/422/500分流与 spec 一致。
 
-- [ ] **T10 — 加固 enqueue 与源 mutation 的 Clip 行提交屏障**
+- [x] **T10 — 加固 enqueue 与源 mutation 的 Clip 行提交屏障**
 
   - **依赖：** T9。
   - **交付：** 只读发现 enabled 槽位活 asset ids后先按id锁 Asset，再锁目标 Clip作为 C006/C008 正式 Clip/Slot/Shot/Asset mutation 的提交屏障，随后重读关系/Shot/绑定/Slot/current Image并复检；仅对不会回写 Clip 的 Project/Style/Template 行在 Clip 后加锁。不得锁 Shot/AssetImage/全部Task，也不得先持Clip再等待Asset而形成与既有 Asset→Clip mutation 的反向锁序；不改 C008 mutation语义、不建新锁层。确认 explicit user_note mutation 与 failed/queued Task 同事务。
