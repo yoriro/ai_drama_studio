@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.session import get_session
 from app.models import AssetImage, Clip, ClipRefSlot, Episode
 from app.services.asset_files import resolve_data_path, slot_override_relative_path
+from app.services.clip_videos import get_clip_video_media
 from app.schemas.clips import POSTGRES_INTEGER_MAX
 
 
@@ -97,3 +98,12 @@ async def read_slot_override_media(
         raise _slot_override_media_error(slot_id, str(exc)) from exc
 
     return FileResponse(path, media_type=mime_type)
+
+
+@router.get("/media/clip-videos/{video_id}", response_class=FileResponse)
+async def read_clip_video_media(
+    video_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> FileResponse:
+    path = await get_clip_video_media(session, video_id)
+    return FileResponse(path, media_type="video/mp4")

@@ -17,6 +17,8 @@ from app.schemas.clips import (
     ClipSlotEnabledPatch,
     ClipSlotMutationResponse,
     ClipSlotsResponse,
+    ClipVideoResponse,
+    CurrentClipVideoRequest,
     POSTGRES_INTEGER_MAX,
 )
 from app.schemas.generation import (
@@ -33,6 +35,11 @@ from app.services.clips import (
     update_clip,
     update_clip_slot_enabled,
     update_clip_slot_override,
+)
+from app.services.clip_videos import (
+    delete_clip_video,
+    list_clip_videos,
+    set_current_clip_video,
 )
 from app.services.generate_clip_video import enqueue_generate_clip_video
 from app.tasks.queue import TaskConflictError, TaskQueue, TaskValidationError
@@ -110,6 +117,46 @@ async def generate_clip_video_route(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     await queue.publish_committed(result)
     return GenerateClipVideoResponse(task_id=result.task.id)
+
+
+@router.get("/clips/{clip_id}/videos", response_model=list[ClipVideoResponse])
+async def list_clip_videos_route(
+    clip_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, object]]:
+    return await list_clip_videos(
+        session,
+        clip_id,
+        include_debug=request.app.state.settings.DEBUG_PROMPTS,
+    )
+
+
+@router.put(
+    "/clips/{clip_id}/current-video",
+    response_model=ClipVideoResponse,
+)
+async def set_current_clip_video_route(
+    clip_id: int,
+    payload: CurrentClipVideoRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    return await set_current_clip_video(
+        session,
+        clip_id,
+        payload.video_id,
+        include_debug=request.app.state.settings.DEBUG_PROMPTS,
+    )
+
+
+@router.delete("/clip-videos/{video_id}", status_code=204)
+async def delete_clip_video_route(
+    video_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await delete_clip_video(session, video_id)
+    return Response(status_code=204)
 
 
 @router.patch("/clips/{clip_id}", response_model=ClipResponse)

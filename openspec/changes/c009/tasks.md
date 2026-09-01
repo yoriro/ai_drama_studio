@@ -264,7 +264,7 @@
 
     期望：取消胜方=canceled且无 take/cache/formal；提交胜方=done且完整 take，后 cancel 409；任一时刻聚合优先级精确且不改 freshness/revision。
 
-- [ ] **T15 — 交付 take list/current/delete 与 ID 媒体生命周期**
+- [x] **T15 — 交付 take list/current/delete 与 ID 媒体生命周期**
 
   - **依赖：** T13。
   - **交付：** 增加 ClipVideoResponse 与 list/current schemas/routes/services、current no-op/跨Clip校验/唯一切换、current禁删、noncurrent canonical trash/DB补偿，以及 `/media/clip-videos/{id}` canonical重算/`video/mp4`。不改Clip/Shot状态，不返回file_path。按 TRACEABILITY 窄授权仅在此时向既有 C008 contract 用例的精确 `expected_paths` 增加 `/api/clips/{clip_id}/videos` 与 `/api/clips/{clip_id}/current-video`，不得改动 handler集合或其他断言。

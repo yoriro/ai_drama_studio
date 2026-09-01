@@ -149,6 +149,20 @@ class ClipResponse(BaseModel):
     updated_at: datetime
 
 
+class ClipVideoResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: int = Field(gt=0)
+    clip_id: int = Field(gt=0)
+    sha256: str = Field(min_length=1)
+    seed: str = Field(min_length=1)
+    requested_duration: int = Field(gt=0)
+    actual_duration: float | None
+    is_current: bool
+    media_url: str = Field(min_length=1)
+    created_at: datetime
+
+
 class ClipSlotResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -183,3 +197,9 @@ class ClipSlotMutationResponse(BaseModel):
 
     slot: ClipSlotResponse
     warnings: list[ClipRuleMessageResponse]
+
+
+class CurrentClipVideoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    video_id: StrictInt = Field(gt=0, le=POSTGRES_INTEGER_MAX)
