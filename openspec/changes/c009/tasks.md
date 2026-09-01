@@ -248,7 +248,7 @@
 
     期望：全部通过；C008 精确 handler 集合与 C007 两个生产 handler identity 同时成立；另一连接只见旧整体或 ClipVideo/cache/status/done/聚合新整体；失败无未报告 temp/formal/orphan row。
 
-- [ ] **T14 — 验证 cancel 与视频最终提交的原子胜方及多任务交错**
+- [x] **T14 — 验证 cancel 与视频最终提交的原子胜方及多任务交错**
 
   - **依赖：** T13。
   - **交付：** 新增竞态回归测试，覆盖 cancel marker在最终事务前/中/后、多任务 active优先与 immediate failed 插队；如失败只修 queue/commit/aggregate根因。不得通过 sleep碰运气或放宽为“任一状态”。
