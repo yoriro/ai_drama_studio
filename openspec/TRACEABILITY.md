@@ -14,7 +14,7 @@ C009 health 测试窄演进授权（需求方于 2026-09-01 明确授权）：�
 
 C009 对 C008 范围基线的分阶段窄演进授权（需求方于 2026-09-01 授权 Sol 裁决）：仅 `backend/tests/api/test_c008_contract_errors.py::test_c008_openapi_paths_handlers_and_error_contract` 可随当前 change 的实际交付阶段演进精确集合：T9 只增加 `/api/clips/{clip_id}/generate-video`，T13 只增加 `gen_clip_video` handler，T15 只增加 `/api/clips/{clip_id}/videos` 与 `/api/clips/{clip_id}/current-video`。不得提前加入后续项，不得把精确相等改为子集/存在性断言；全部既有 C008 path、slot content type/schema、slot media、404、422、闭合错误体及 public path 不含内部 `gen_clip_video`/`minimax` 名称的断言必须逐字保留。不得改名、skip、删除、修改其他既有测试或以该用例替代 C009 专用 API/任务测试；例外在 C009 归档时失效。
 
-C009 对 C007 handler 注册基线的窄演进授权（需求方于 2026-09-01 授权 Sol 裁决）：仅 T13 可修改 `backend/tests/task_system/test_c007_resource_lifecycle.py::test_pipeline_handler_registration`，保留资产图片 handler 的生产 import 与 identity 断言，新增生产视频 handler import，并把视频 handler 不存在断言替换为 `application.state.task_handlers["gen_clip_video"] is gen_clip_video_handler`。不得修改该函数其他内容或该文件其他测试，不得改为只判存在、skip、改名、删除、延迟生产注册或测试特判；T13 新增用例仍须独立覆盖视频 handler 执行与原子提交。
+C009 对 C007 handler 注册基线的窄演进授权（需求方于 2026-09-01 授权 Sol 裁决）：仅 T13 可修改 `backend/tests/task_system/test_c007_resource_lifecycle.py::test_pipeline_handler_registration`，保留资产图片 handler 的生产 import 与 identity 断言，新增生产队列适配器 import，并把视频 handler 不存在断言替换为 `application.state.task_handlers["gen_clip_video"] is gen_clip_video_task_handler`。T11 `gen_clip_video_handler` 是返回生成结果的 core，不符合返回 `None` 的正式 `TaskHandler` identity；不得据此改变生产 map。不得修改该函数其他内容或该文件其他测试，不得改为只判存在、skip、改名、删除、延迟生产注册或测试特判；T13 新增用例仍须独立覆盖适配器调用一次 core、原子提交与事件发布。
 
 | 规则 / 场景 | 计划测试层级 | 用例 ID（待填） |
 |---|---|---|
