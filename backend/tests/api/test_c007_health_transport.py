@@ -102,7 +102,10 @@ def test_health_follows_upstream_protocol_contracts(case: str) -> None:
         if case not in {"vllm_non_2xx", "comfy_malformed_json"}:
             assert body["vllm"] == {"status": "healthy", "message": None}
         assert body["workflow_bindings"]["status"] == "valid"
-        assert set(body["workflow_bindings"]["hashes"]) == {"zimage"}
+        assert set(body["workflow_bindings"]["hashes"]) == {
+            "zimage",
+            "minimaxh3",
+        }
         assert server.paths.count("/health") == 2
         assert server.paths.count("/system_stats") == 2
         assert all(

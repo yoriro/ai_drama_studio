@@ -54,7 +54,7 @@
 
     期望：pytest 全绿；仓库 workflow hash 精确为 T0 值；错误 fixture 均抛明确 WorkflowBindingError；未改既有 C007 test。
 
-- [ ] **T2 — 启动加载双绑定并演进 health 双 hash**
+- [x] **T2 — 启动加载双绑定并演进 health 双 hash**
 
   - **依赖：** T1。
   - **交付：** lifespan 在 worker claim 前分别加载现有 zimage 快照与新增 MiniMax 快照；保留现有 `app.state.workflow_binding_snapshot` 指向 zimage，并增加明确的 MiniMax state，不建立通用 registry。health service/route 显式接收两个 hash，成功响应 `hashes` key 精确 `zimage,minimaxh3`，其他 vLLM/Comfy status/message 与一次探测合同不变。坏任一 binding 均拒绝启动。

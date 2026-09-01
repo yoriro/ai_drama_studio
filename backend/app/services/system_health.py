@@ -40,7 +40,8 @@ async def build_health_response(
     *,
     vllm_probe: HealthProbe,
     comfy_probe: HealthProbe,
-    workflow_hash: str,
+    zimage_hash: str,
+    minimaxh3_hash: str,
 ) -> HealthResponse:
     vllm = await probe_health("vLLM", vllm_probe)
     comfy = await probe_health("ComfyUI", comfy_probe)
@@ -50,6 +51,6 @@ async def build_health_response(
         workflow_bindings=WorkflowBindings(
             status="valid",
             message=None,
-            hashes={"zimage": workflow_hash},
+            hashes={"zimage": zimage_hash, "minimaxh3": minimaxh3_hash},
         ),
     )

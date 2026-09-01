@@ -5,6 +5,9 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+MINIMAX_WORKFLOW_HASH = "bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780"
+
+
 class _HealthyClient:
     def __init__(self) -> None:
         self.health_calls = 0
@@ -43,7 +46,8 @@ def test_infrastructure_smoke(monkeypatch) -> None:
             "status": "valid",
             "message": None,
             "hashes": {
-                "zimage": "e9790bece3462691ebaf63d849bf1940beec62f9149fb6d475be859c47e41eaa"
+                "zimage": "e9790bece3462691ebaf63d849bf1940beec62f9149fb6d475be859c47e41eaa",
+                "minimaxh3": MINIMAX_WORKFLOW_HASH,
             },
         },
     }

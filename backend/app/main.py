@@ -27,8 +27,10 @@ from app.db.session import async_session_factory, dispose_engine, engine
 from app.integrations.comfy import ComfyClient
 from app.integrations.workflow_binding import (
     DEFAULT_BINDING_PATH,
+    DEFAULT_MINIMAX_BINDING_PATH,
     WorkflowBindingError,
     load_binding_snapshot,
+    load_minimax_binding_snapshot,
 )
 from app.services.system_health import build_health_response
 from app.services.vllm import VLLMClient
@@ -108,7 +110,20 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
                 "Application startup rejected: invalid Z-Image workflow binding"
             )
             raise
+        try:
+            minimax_binding_snapshot = load_minimax_binding_snapshot(
+                application.state.minimax_binding_path,
+                backend_root=application.state.minimax_binding_root,
+            )
+        except WorkflowBindingError:
+            logging.getLogger("app.lifecycle").exception(
+                "Application startup rejected: invalid MiniMax H3 workflow binding"
+            )
+            raise
         application.state.workflow_binding_snapshot = binding_snapshot
+        application.state.minimax_workflow_binding_snapshot = (
+            minimax_binding_snapshot
+        )
         application.state.vllm_client = application.state.vllm_client_factory(
             str(app_settings.VLLM_BASE_URL)
         )
@@ -118,7 +133,8 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         startup_health = await build_health_response(
             vllm_probe=application.state.vllm_client.health,
             comfy_probe=application.state.comfy_client.health,
-            workflow_hash=binding_snapshot.workflow_hash,
+            zimage_hash=binding_snapshot.workflow_hash,
+            minimaxh3_hash=minimax_binding_snapshot.workflow_hash,
         )
         lifecycle_logger = logging.getLogger("app.lifecycle")
         lifecycle_logger.info(
@@ -197,6 +213,8 @@ def create_app(
     startup_prepare: Callable[[], Awaitable[None]] | None = None,
     binding_path: str | Path | None = None,
     binding_root: str | Path | None = None,
+    minimax_binding_path: str | Path | None = None,
+    minimax_binding_root: str | Path | None = None,
     vllm_client_factory: HealthClientFactory | None = None,
     comfy_client_factory: HealthClientFactory | None = None,
 ) -> FastAPI:
@@ -215,6 +233,16 @@ def create_app(
     )
     application.state.binding_root = (
         None if binding_root is None else Path(binding_root)
+    )
+    application.state.minimax_binding_path = (
+        DEFAULT_MINIMAX_BINDING_PATH
+        if minimax_binding_path is None
+        else Path(minimax_binding_path)
+    )
+    application.state.minimax_binding_root = (
+        None
+        if minimax_binding_root is None
+        else Path(minimax_binding_root)
     )
     application.state.vllm_client_factory = (
         VLLMClient if vllm_client_factory is None else vllm_client_factory
