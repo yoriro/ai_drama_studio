@@ -11,7 +11,7 @@
 
 ## 任务
 
-- [ ] **T0 — 锁定 C009 baseline 与外部依赖开工证据**
+- [x] **T0 — 锁定 C009 baseline 与外部依赖开工证据**
 
   - **依赖：** C008 已归档且 C009 spec/tasks/PRD/TRACEABILITY 规划提交完成；无实现 task 先于本项。
   - **交付：** 在 `.work/c009/` 保存 baseline commit、`git status --short`、C008 archive/changes 位置、两个需求方工件路径/字节数/SHA256，以及 Comfy/vLLM/DB 当前仅“可达/不可达”的现场结果；不启动模型、不提交 workflow、不修改仓库。
