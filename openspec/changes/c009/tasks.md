@@ -280,7 +280,7 @@
 
     期望：全部通过；每条错误精确 status/code/message；文件与DB在正常/失败/双失败路径均与spec一致。
 
-- [ ] **T16 — 收紧 C009 API 敌意输入、seed/DEBUG 与错误体**
+- [x] **T16 — 收紧 C009 API 敌意输入、seed/DEBUG 与错误体**
 
   - **依赖：** T9、T15。
   - **交付：** 对 generate/list/current/delete/media 的 path/body/content type/unknown/U+0000/request_id 边界做统一校验；public ClipVideo seed及DEBUG snapshot seed投影十进制string；DEBUG false/true字段精确；默认不泄露prompt/snapshot/path。不得修改通用409/422语义或吞内部错误。

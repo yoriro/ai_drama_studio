@@ -16,6 +16,13 @@ class GenerateAssetImageRequest(BaseModel):
             raise ValueError("request_id and user_note must not contain U+0000")
         return value
 
+    @field_validator("request_id")
+    @classmethod
+    def validate_request_id(cls, value: str | None) -> str | None:
+        if value is not None and not 1 <= len(value.strip()) <= 128:
+            raise ValueError("request_id must contain 1..128 characters")
+        return value
+
 
 class GenerateAssetImageResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -34,6 +41,13 @@ class GenerateClipVideoRequest(BaseModel):
     def reject_postgres_nul(cls, value: str | None) -> str | None:
         if value is not None and "\x00" in value:
             raise ValueError("request_id and user_note must not contain U+0000")
+        return value
+
+    @field_validator("request_id")
+    @classmethod
+    def validate_request_id(cls, value: str | None) -> str | None:
+        if value is not None and not 1 <= len(value.strip()) <= 128:
+            raise ValueError("request_id must contain 1..128 characters")
         return value
 
 

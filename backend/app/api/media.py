@@ -102,7 +102,7 @@ async def read_slot_override_media(
 
 @router.get("/media/clip-videos/{video_id}", response_class=FileResponse)
 async def read_clip_video_media(
-    video_id: int,
+    video_id: Annotated[int, ApiPath(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     session: AsyncSession = Depends(get_session),
 ) -> FileResponse:
     path = await get_clip_video_media(session, video_id)

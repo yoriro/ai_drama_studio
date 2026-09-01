@@ -121,7 +121,7 @@ async def generate_clip_video_route(
 
 @router.get("/clips/{clip_id}/videos", response_model=list[ClipVideoResponse])
 async def list_clip_videos_route(
-    clip_id: int,
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, object]]:
@@ -137,7 +137,7 @@ async def list_clip_videos_route(
     response_model=ClipVideoResponse,
 )
 async def set_current_clip_video_route(
-    clip_id: int,
+    clip_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     payload: CurrentClipVideoRequest,
     request: Request,
     session: AsyncSession = Depends(get_session),
@@ -152,7 +152,7 @@ async def set_current_clip_video_route(
 
 @router.delete("/clip-videos/{video_id}", status_code=204)
 async def delete_clip_video_route(
-    video_id: int,
+    video_id: Annotated[int, Path(ge=-2_147_483_648, le=POSTGRES_INTEGER_MAX)],
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await delete_clip_video(session, video_id)
