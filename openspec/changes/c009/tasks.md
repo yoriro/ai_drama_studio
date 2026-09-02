@@ -554,7 +554,7 @@
 
     期望：定向与完整 pytest 均 exit 0；wake/sleep/WS 三阶段均有可控触发、完整事件序列和精确一次 `/free`，所有取消安全点同样精确一次；不以普通 mock 的最终状态或固定 sleep 代替跨进程证据。既有测试 diff 精确只有获授权的三个断言，新增 T25 测试无多 loop async engine 错误、JSON string 误用或恒真断言；暂存集合只含 `backend/app/tasks/gen_clip_video.py`、新增 T25 测试、获授权既有测试、`openspec/TRACEABILITY.md` 与本 checkbox，`.work/` 不提交。任一失败立即停止，不得追加重跑取绿。
 
-- [ ] **T26 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
+- [x] **T26 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
 
   - **依赖：** T20、T20A、T21-T22、T22A、T23-T25；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
   - **交付：** 不修改仓库代码/测试，不新增脚本、proxy、demo或长期 driver。使用隔离数据库、生产 Uvicorn/worker、真实 vLLM/Comfy、正式 generate-video API 创建一条不会命中 cache 的任务；待 Comfy `/queue` 证明该任务唯一 prompt 已 running 后，由验收 PowerShell 直接调用真实 Comfy `POST /interrupt`，不调用应用 cancel。原始 API/WS、应用日志、Comfy queue/history、SQL、文件与最终资源证据写入 `.work/c009/T26-*.log`。
@@ -563,7 +563,7 @@
   - **追溯行：** `C009 复审真实 Comfy workflow interrupt 失败闭环`；`C009 真实 MiniMax workflow/template 视频闭环`。
   - **验收方式与命令/人工检查：** 使用直接 PowerShell/`Invoke-RestMethod` 和数据库只读查询，不创建 repo 脚本。先保存 `/queue` 初始 JSON与唯一性判断，再 POST generate-video、轮询正式 Task API与 `/queue`；记录 Task `started_at`、唯一 Comfy prompt_id 和 `/interrupt` 响应，轮询至 terminal，最后记录 `/queue`、`/history/{prompt_id}`、vLLM sleeping、应用 `/free` 日志、Task/ClipVideo/cache SQL及 temp/formal 文件清单。期望：任务确有 started_at 且真实 submit 后才被中断；最终精确 failed并保留中断原因，无 retry、take、cache 更新、formal/temp 文件，Comfy `/free` 已调用，vLLM sleeping且 queue 空。R10 立即 failed、应用 cancel、mock/stub或仅看最终 DOM 均不能替代本证据。
 
-- [ ] **T27 — 回填复审追溯并执行最终隔离库与提交一致性审计**
+- [x] **T27 — 回填复审追溯并执行最终隔离库与提交一致性审计**
 
   - **依赖：** T20、T20A、T21-T22、T22A、T23-T26 全部通过；任一未通过不得执行或勾选。
   - **交付：** 把本轮八条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据、T22A 固定多进程导入证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行，且 repair baseline 之后既有测试 diff 精确只有 T20A 获窄授权的 `backend/tests/task_system/test_c009_resource_lifecycle.py` helper及三处调用、T22A 获窄授权的 `backend/tests/task_system/test_c009_video_files.py` monkeypatch 目标替换，以及 T25 获窄授权的 `backend/tests/task_system/test_c009_gen_clip_video.py` 三个 `free_calls` 断言演进，其他既有测试零修改。审计 `backend/app/services/video_files.py` diff 只把 PyAV import 从模块顶层移入 `probe_clip_video_duration()`。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、T22A 20 进程加载边界、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
@@ -591,21 +591,21 @@
 
     期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件、T20A 获窄授权的既有生命周期测试、T22A 获窄授权的既有视频文件测试及 T25 获窄授权的既有视频 handler 测试，三者分别只含 helper 跨组件筛选/准确重命名及三处调用、`video_files.av` → `av`、三个 `free_calls` 断言演进，其他既有测试零修改；`video_files.py` 只含 PyAV import 移位；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`。
   - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18/T20/T26/T27 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
   - **R：** 无；PRD §0、§3.2、§6.1 与需求方 2026-09-01/2026-09-02 C009 裁决。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 多任务 generation_state 聚合与重启恢复`；`C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等`。
   - **验收方式与人工检查：** 完成报告逐项列“立即failed任务、多任务聚合、user_note三态、public seed、全局request-id事务锁、零 enabled 409、保留 generation_mode 409”是否应进入 DECISIONS及理由；本 task 不自行修改 DECISIONS。无候选时精确写“DECISIONS.md 候选项：无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4，AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
