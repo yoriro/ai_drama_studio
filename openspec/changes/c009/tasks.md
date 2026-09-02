@@ -372,9 +372,30 @@
 
     使用现有 Vite 前端打开 `http://127.0.0.1:5173/settings` 并刷新一次。期望：build exit 0；health 的 hashes key 集合精确 `zimage,minimaxh3` 且均为 64hex；页面不出现 `Health response did not match its schema`/非 JSON 错误，显示整体 valid 和两个标签，DOM hash 与同次网络响应逐字相等，console 无该请求协议错误；前端 tracked diff 精确只有上述两文件。后端进程停止造成的 Vite 非 JSON transport 错误不在本 task 修复范围。
 
+- [ ] **T20A — 窄修正生命周期测试的跨组件互斥断言**
+
+  - **依赖：** T20；只使用需求方于 2026-09-02 明确授权并已写入根目录 `AGENTS.md` 的 C009 一次性窄例外。当前 T21 未提交生产改动可保留在工作区，但本 task 提交必须只暂存本 task 授权的测试文件、`tasks.md` checkbox；不得夹带生产改动、`.work/` 或其他文件。
+  - **交付：** 只修改 `backend/tests/task_system/test_c009_resource_lifecycle.py` 的 `_assert_no_overlapping_intervals` helper及其三处调用：准确重命名后，只比较 `component=vllm` 与 `component=comfy` 的跨组件区间是否重叠，不再禁止同属 Comfy 的 submit/WS 合法并行；每个记录仍逐项断言 `end_ns >= start_ns`。逐字保留三个测试的精确操作顺序、cache miss/hit、cache hit 无 chat、transport failure、finally free 及其他全部断言。不得使用时间容差、sleep、重跑掩盖偶发失败、测试特判；不得修改任何生产代码、其他测试或 spec。
+  - **R：** 无；PRD §6.4、§8；C009 spec §6.3、AC-12。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C009 GPU/Comfy 资源生命周期、取消与失败`。
+  - **验收方式与命令：** 保存原始输出与退出码到 `.work/c009/T20A-test.log`；先运行整个既有跨进程文件，再把曾出现调度波动的 cache-hit 用例连续运行 5 次，并审计提交 diff：
+
+    ```powershell
+    Set-Location backend
+    python -m pytest -q tests/task_system/test_c009_resource_lifecycle.py
+    1..5 | ForEach-Object { python -m pytest -q 'tests/task_system/test_c009_resource_lifecycle.py::test_c009_resource_lifecycle_cross_process_cache_hit_skips_chat_and_frees'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+    python -m pytest -q
+    Set-Location ..
+    git diff --check
+    git diff --name-status --cached
+    ```
+
+    期望：七次 pytest 均 exit 0；source diff 仅为 helper 的跨组件筛选/准确重命名及三处调用，且无时间容差；暂存集合精确为该测试文件与 `openspec/changes/c009/tasks.md`。任一失败立即停止，不得靠追加重跑取得一次绿色结果。
+
 - [ ] **T21 — 收紧 MiniMax binding 启动闭合并补回归证据**
 
-  - **依赖：** T20；确认 repair baseline 文件仍是 Sol handoff SHA，T20 已勾选并提交且除 `.work/` 外无未提交改动。
+  - **依赖：** T20、T20A；确认 repair baseline 文件仍是 Sol handoff SHA，T20/T20A 已勾选并提交；允许且只允许保留本 task 此前未提交的两个生产文件与新增 T21 测试，除此及 `.work/` 外无未提交改动。
   - **交付：** 只修正生产 MiniMax binding loader/启动校验及必要的 workflow 注入校验：路径必须精确为 `node_id.inputs.input_key`；prompt/seed/duration 的物理叶子两两不同且不与 reference 叶子重叠；LoadImage 节点集合精确等于九个已绑定 sentinel 节点；拒绝 preset/额外 LoadImage、参考视频输入与绑定 VHS output 的 `audio` input。正确 workflow 注入后 prompt、seed、duration 必须各留在自己的叶子且精确等于调用值。不得修改给定 workflow bytes/hash、zimage 合同、既有测试或用测试路径/环境做特判。
   - **R：** 无；PRD §0、§8、§12.1，C009 spec §6.2-§6.3。
   - **计划测试层级：** 任务系统 mock。
@@ -454,7 +475,7 @@
 
 - [ ] **T26 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
 
-  - **依赖：** T20-T25；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
+  - **依赖：** T20、T20A、T21-T25；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
   - **交付：** 不修改仓库代码/测试，不新增脚本、proxy、demo或长期 driver。使用隔离数据库、生产 Uvicorn/worker、真实 vLLM/Comfy、正式 generate-video API 创建一条不会命中 cache 的任务；待 Comfy `/queue` 证明该任务唯一 prompt 已 running 后，由验收 PowerShell 直接调用真实 Comfy `POST /interrupt`，不调用应用 cancel。原始 API/WS、应用日志、Comfy queue/history、SQL、文件与最终资源证据写入 `.work/c009/T26-*.log`。
   - **R：** 无；PRD §6.2-§6.4、§8、§11 M4、§12，C009 spec §11、AC-21。
   - **计划测试层级：** 跨进程/资源生命周期。
@@ -463,8 +484,8 @@
 
 - [ ] **T27 — 回填复审追溯并执行最终隔离库与提交一致性审计**
 
-  - **依赖：** T20-T26 全部通过；任一未通过不得执行或勾选。
-  - **交付：** 把本轮七条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行且 repair baseline 之后既有测试零修改。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
+  - **依赖：** T20、T20A、T21-T26 全部通过；任一未通过不得执行或勾选。
+  - **交付：** 把本轮七条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行，且 repair baseline 之后既有测试 diff 精确只有 T20A 获窄授权的 `backend/tests/task_system/test_c009_resource_lifecycle.py` helper及三处调用，其他既有测试零修改。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
   - **R：** 无；PRD §0、§3、§6-§8、§11 M4、§12。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 设置页消费双 workflow hash 健康合同：前端严格接受 zimage/minimaxh3 两个 64hex 并在既有诊断区逐字展示，不放宽 schema、不新增 C010 UI`；本轮六条 `C009 复审...` 准确行名。
@@ -487,7 +508,7 @@
     Get-Content -Raw .work/c009/completion-report.md
     ```
 
-    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件且既有测试零修改，migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
+    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件及 T20A 获窄授权的一个既有生命周期测试文件，后者 diff 只含 helper 跨组件筛选/准确重命名及三处调用，其他既有测试零修改；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
