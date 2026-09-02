@@ -406,7 +406,6 @@ async def _run_comfy(
     del references
     temp_path: Path | None = None
     cleanup_error: BaseException | None = None
-    free_error: BaseException | None = None
     try:
         upload_paths: list[str] = []
         subfolder = f"c009/task-{task_id}"
@@ -493,6 +492,131 @@ async def _run_comfy(
         return temp_path
     finally:
         primary_error = sys.exc_info()[1]
+        if (
+            primary_error is not None
+            and temp_path is not None
+        ):
+            try:
+                cleanup_clip_video_temp(temp_path)
+                temp_path = None
+            except OSError as exc:
+                cleanup_error = exc
+        _raise_comfy_cleanup_errors(primary_error, cleanup_error, None)
+
+
+async def gen_clip_video_handler(
+    task: ClaimedTask, context: WorkerContext
+) -> GeneratedClipVideo | None:
+    snapshot = _snapshot(task)
+    input_hash = _required_text(task.payload.get("input_hash"), "input_hash")
+    _guided_schema(snapshot)
+    cached_prompt = snapshot.get("cached_prompt")
+    if cached_prompt is not None and not isinstance(cached_prompt, str):
+        raise ValueError("gen_clip_video cached_prompt must be text or null")
+
+    comfy = ComfyClient(str(settings.COMFY_BASE_URL))
+    temp_path: Path | None = None
+    cleanup_error: BaseException | None = None
+    free_error: BaseException | None = None
+    vllm: VLLMClient | None = None
+    wake_succeeded = False
+    sleep_attempted = False
+    try:
+        try:
+            if await _cancel_safe_point(context):
+                return None
+
+            vllm = VLLMClient(str(settings.VLLM_BASE_URL))
+            if cached_prompt is None:
+                rendered_prompt = _required_text(
+                    snapshot.get("rendered_prompt"), "rendered_prompt"
+                )
+                model = _required_text(snapshot.get("model"), "model")
+                temperature = _temperature(snapshot.get("temperature"))
+                schema = _guided_schema(snapshot)
+                await vllm.wake()
+                wake_succeeded = True
+                response = await vllm.structured_chat(
+                    messages=[{"role": "user", "content": rendered_prompt}],
+                    model=model,
+                    temperature=temperature,
+                    schema_name="minimaxh3",
+                    schema=schema,
+                )
+                if not isinstance(response, Mapping):
+                    raise ValueError("vLLM response must be an object")
+                built_prompt = _built_prompt(response)
+                cache_state = "miss"
+            else:
+                built_prompt = _required_text(cached_prompt, "cached_prompt")
+                cache_state = "hit"
+
+            logger.info(
+                "gen_clip_video prompt built task_id=%s cache=%s input_hash=%s built_prompt=%s",
+                task.id,
+                cache_state,
+                input_hash,
+                built_prompt,
+                extra={
+                    "task_id": task.id,
+                    "input_hash": input_hash,
+                    "built_prompt": built_prompt,
+                },
+            )
+
+            if await _cancel_safe_point(context):
+                return None
+            sleep_attempted = True
+            await vllm.sleep()
+            wake_succeeded = False
+
+            if await _cancel_safe_point(context):
+                return None
+            (
+                workflow,
+                prompt_path,
+                seed_path,
+                duration_path,
+                ref_image_paths,
+                ref_consumer_paths,
+                output_node,
+            ) = _workflow(snapshot)
+            seed = _seed(snapshot.get("seed"))
+            requested_duration = _duration(snapshot.get("requested_duration"))
+            prompt_id = _required_text(
+                snapshot.get("comfy_prompt_id"), "comfy_prompt_id"
+            )
+            references, uploads = _reference_media(snapshot)
+            temp_path = await _run_comfy(
+                comfy,
+                task_id=task.id,
+                workflow=workflow,
+                prompt_path=prompt_path,
+                seed_path=seed_path,
+                duration_path=duration_path,
+                ref_image_paths=ref_image_paths,
+                ref_consumer_paths=ref_consumer_paths,
+                output_node=output_node,
+                references=references,
+                uploads=uploads,
+                built_prompt=built_prompt,
+                seed=seed,
+                requested_duration=requested_duration,
+                prompt_id=prompt_id,
+                context=context,
+            )
+            if temp_path is None:
+                return None
+            if await _cancel_safe_point(context):
+                cleanup_clip_video_temp(temp_path)
+                temp_path = None
+                return None
+            return GeneratedClipVideo(temp_path=temp_path, built_prompt=built_prompt)
+        finally:
+            if vllm is not None and wake_succeeded and not sleep_attempted:
+                await vllm.sleep()
+    finally:
+        primary_error = sys.exc_info()[1]
         try:
             await comfy.free()
         except (
@@ -513,112 +637,6 @@ async def _run_comfy(
             except OSError as exc:
                 cleanup_error = exc
         _raise_comfy_cleanup_errors(primary_error, cleanup_error, free_error)
-
-
-async def gen_clip_video_handler(
-    task: ClaimedTask, context: WorkerContext
-) -> GeneratedClipVideo | None:
-    snapshot = _snapshot(task)
-    input_hash = _required_text(task.payload.get("input_hash"), "input_hash")
-    _guided_schema(snapshot)
-    cached_prompt = snapshot.get("cached_prompt")
-    if cached_prompt is not None and not isinstance(cached_prompt, str):
-        raise ValueError("gen_clip_video cached_prompt must be text or null")
-
-    if await _cancel_safe_point(context):
-        return None
-
-    vllm = VLLMClient(str(settings.VLLM_BASE_URL))
-    wake_succeeded = False
-    sleep_attempted = False
-    try:
-        if cached_prompt is None:
-            rendered_prompt = _required_text(
-                snapshot.get("rendered_prompt"), "rendered_prompt"
-            )
-            model = _required_text(snapshot.get("model"), "model")
-            temperature = _temperature(snapshot.get("temperature"))
-            schema = _guided_schema(snapshot)
-            await vllm.wake()
-            wake_succeeded = True
-            response = await vllm.structured_chat(
-                messages=[{"role": "user", "content": rendered_prompt}],
-                model=model,
-                temperature=temperature,
-                schema_name="minimaxh3",
-                schema=schema,
-            )
-            if not isinstance(response, Mapping):
-                raise ValueError("vLLM response must be an object")
-            built_prompt = _built_prompt(response)
-            cache_state = "miss"
-        else:
-            built_prompt = _required_text(cached_prompt, "cached_prompt")
-            cache_state = "hit"
-
-        logger.info(
-            "gen_clip_video prompt built task_id=%s cache=%s input_hash=%s built_prompt=%s",
-            task.id,
-            cache_state,
-            input_hash,
-            built_prompt,
-            extra={
-                "task_id": task.id,
-                "input_hash": input_hash,
-                "built_prompt": built_prompt,
-            },
-        )
-
-        if await _cancel_safe_point(context):
-            return None
-        sleep_attempted = True
-        await vllm.sleep()
-        wake_succeeded = False
-
-        if await _cancel_safe_point(context):
-            return None
-        (
-            workflow,
-            prompt_path,
-            seed_path,
-            duration_path,
-            ref_image_paths,
-            ref_consumer_paths,
-            output_node,
-        ) = _workflow(snapshot)
-        seed = _seed(snapshot.get("seed"))
-        requested_duration = _duration(snapshot.get("requested_duration"))
-        prompt_id = _required_text(
-            snapshot.get("comfy_prompt_id"), "comfy_prompt_id"
-        )
-        references, uploads = _reference_media(snapshot)
-        temp_path = await _run_comfy(
-            ComfyClient(str(settings.COMFY_BASE_URL)),
-            task_id=task.id,
-            workflow=workflow,
-            prompt_path=prompt_path,
-            seed_path=seed_path,
-            duration_path=duration_path,
-            ref_image_paths=ref_image_paths,
-            ref_consumer_paths=ref_consumer_paths,
-            output_node=output_node,
-            references=references,
-            uploads=uploads,
-            built_prompt=built_prompt,
-            seed=seed,
-            requested_duration=requested_duration,
-            prompt_id=prompt_id,
-            context=context,
-        )
-        if temp_path is None:
-            return None
-        if await _cancel_safe_point(context):
-            cleanup_clip_video_temp(temp_path)
-            return None
-        return GeneratedClipVideo(temp_path=temp_path, built_prompt=built_prompt)
-    finally:
-        if wake_succeeded and not sleep_attempted:
-            await vllm.sleep()
 
 
 async def gen_clip_video_task_handler(

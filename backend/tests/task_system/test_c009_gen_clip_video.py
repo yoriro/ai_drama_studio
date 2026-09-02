@@ -397,7 +397,7 @@ def test_c009_gen_clip_video_rejects_hostile_vllm_response(
     assert vllm.calls == ["wake", "chat", "sleep"]
     assert comfy.upload_calls == []
     assert comfy.submit_calls == []
-    assert comfy.free_calls == 0
+    assert comfy.free_calls == 1
     assert not (data_dir / "tmp" / "clip-videos" / "42.mp4").exists()
 
 
@@ -419,7 +419,7 @@ def test_c009_gen_clip_video_vllm_transport_error_is_not_retried(
 
     assert vllm.calls == ["wake", "chat", "sleep"]
     assert comfy.submit_calls == []
-    assert comfy.free_calls == 0
+    assert comfy.free_calls == 1
 
 
 @pytest.mark.parametrize("mode", ["upload", "submit", "history", "view"])
@@ -559,7 +559,7 @@ def test_c009_gen_clip_video_cancels_at_every_worker_safe_point(
         assert result is None, cancel_at
         assert context.safe_calls == cancel_at
         assert not (data_dir / "tmp" / "clip-videos" / "42.mp4").exists()
-        assert comfy.free_calls == (1 if cancel_at >= 4 else 0)
+        assert comfy.free_calls == 1
 
 
 class _FakeCancelSession:

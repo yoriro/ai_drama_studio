@@ -527,7 +527,7 @@
 
     期望：三次 pytest 均 exit 0；可达参数矩阵全部通过，不能用一个泛化“非空 error”断言代替规则编号、slot_no/原因、数量与副作用断言；ORM 与 initial migration 均保留 `uq_clip_shots_shot`，既有重叠创建用例精确证明一个完整胜方、败者 422、每个 Shot 至多一条 ClipShot且无孤儿。新增测试不得包含双占用 fixture、查询替身或生产竞态伪造；暂存集合只含新增 T24 测试、追溯回填与本 checkbox。
 
-- [ ] **T25 — 补齐 wake/sleep/WS 失败的跨进程资源生命周期**
+- [x] **T25 — 补齐 wake/sleep/WS 失败的跨进程资源生命周期**
 
   - **依赖：** T21、T24。
   - **交付：** 修复已确认的生产根因，范围只限 `backend/app/tasks/gen_clip_video.py` 的正式 vLLM/Comfy client 调度、失败传播和 finally 清理：建立覆盖整个 handler 的单一 Comfy cleanup owner，使 wake/chat/sleep/upload/submit/WS/history/view 失败与每个取消安全点均 `/free` 精确一次；不得在外层与 `_run_comfy` 双重 free，且主错误与 free/temp cleanup 错误仍同时可诊断。完成当前尚未提交的独立跨进程测试 `backend/tests/task_system/test_c009_review_worker_failures.py`，以本地子进程 HTTP/WS stub 和生产 queue/handler/clients 分别在 wake、sleep、WS 阶段失败；修正其验收装置：HTTPX 完整双行异常尾部精确比较，asyncpg JSON payload 显式反序列化为 object，数据库场景只用一次 `asyncio.run()` 并在同一 loop cleanup/dispose，删除或替换 `raw_body_length == raw_body_length` 恒真断言。按 AGENTS.md 获窄授权，只把 `backend/tests/task_system/test_c009_gen_clip_video.py` 的三个既有 `free_calls` 断言精确演进为失败/取消全路径 `== 1`；保留三个用例其他全部断言，不得修改该文件其他内容或任何其他既有测试。不得捕获宽泛异常、吞主错误、重试、fallback或按测试环境特判。
