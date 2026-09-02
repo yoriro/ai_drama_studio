@@ -62,6 +62,7 @@ C009 在 C008 已落库的 Clip、ClipShot、ClipRefSlot 与 ClipVideo 模型之
 7. 延续 D-012 的 public seed 安全合同：ClipVideo API 与 DEBUG input_snapshot 的 seed 为十进制字符串；任务 payload、工作流注入与 BIGINT 列为 `0 <= seed < 2^63` 的整数。
 8. 需求方 2026-09-01 已裁决：R5/R5a/R10 复检失败走“202 + 立即 failed Task”；多任务 generation_state 按 §8 聚合；generate-video 的 user_note 按 §4.2；公开 seed 按上一条。PRD 同步不得改出其他语义。
 9. 需求方 2026-09-01 对既有 health 测试给出窄授权：仅可在 `backend/tests/api/test_system.py`、`backend/tests/api/test_c007_health.py`、`backend/tests/api/test_c007_health_transport.py` 中，把原先精确 zimage-only workflow hashes 的 fixture/断言改为精确 `zimage + minimaxh3`；必须保留每个文件的其他状态、message、探测次数、无 GPU mutation、错误体与网络隔离断言，禁止改名、skip、删用例或改弱。除此之外既有测试仍不得修改。
+10. 需求方 2026-09-02 已裁决两个生成前置条件：新请求面对“零个 enabled 槽位”或持久化 `generation_mode` 为 `fl2v/context_loop` 时均返回 409/`conflict`，不创建 Task；前者 message 精确为 `At least one reference slot must be enabled`，后者精确为 `Clip generation mode is not supported in v1`。零 enabled 不扩写为 R10，保留模式也不得进入 ref2v 快照或 worker。
 
 ## 4. Generate API 与入队事务
 
@@ -100,12 +101,15 @@ C009 在 C008 已落库的 Clip、ClipShot、ClipRefSlot 与 ClipVideo 模型之
 
 在一个显式入队事务中先用只读 identity discovery 得到 enabled 槽位仍存活的 asset ids，按 id 锁这些 Asset 行，再锁目标 Clip `FOR UPDATE`，随后重读 ClipShot/Shot/ShotAsset、ClipRefSlot、current AssetImage 与 Episode 事实。Asset 锁覆盖“槽位仍引用但 Shot 已解绑”的活值变化；Clip row 则是 C006/C008 正式 Clip/Slot/Shot/Asset 级联提交屏障：mutation 先提交则入队读新值，入队先持锁则读旧已提交值且相关 mutation 随后把 Clip 标 stale。Style/Template/Project style 不按 PRD 追溯标 stale，须在 Clip 后分别锁其当前行再快照。不得 `FOR UPDATE` Shot/AssetImage/全部 Task，也不得先持 Clip 再等待 Asset，避免与既有 Asset→Clip mutation 形成反向锁序；锁前 discovery 不参与业务裁决，所有关系与存活性都必须在 Asset→Clip 屏障后重读并复检，不能读取一半旧一半新事实。
 
-1. 先按 §4.2 裁决 effective user_note。
-2. 复用 C008 的 closed rules 重新验证 R5 连续/独占与 R5a 至多一场景；创建后被编辑成双场景或跨场景时失败。
-3. 只对 enabled 槽位执行 R9/R10。任一槽位不能解析到一份路径在 DATA_DIR 内、扩展受支持、文件可读且 bytes sha256 与数据库相符的图片，即 R10 失败；disabled 槽位不阻断。
-4. R5/R5a/R10 失败时不渲染 template、不计算生成 input_hash、不生成 seed/prompt_id、不入 queued、不由 worker claim、不调用 vLLM/Comfy。queue 在当前事务记录 terminal Task：status=failed、progress=0、started_at=null、finished_at 非 null、input_hash=null、error_msg 为完整可展示原因；R10 原因至少包含 `R10`、slot_no 和“资产已删无 override / 活资产无 current / 路径、文件或 hash 不可用”之一。route 仍返回 202/task_id，提交后广播一次 failed 事件。
-5. failed Task 的最小 input_snapshot 只含请求身份、Clip id/revision/effective user_note/requested_duration 与精确 precheck rule/reason；source_revisions 保存已观察到的 Clip/Shot/Asset revision。不得伪造 workflow、references 或成功 hash。
-6. 其他前置条件：缺 Clip 为 404；request identity 冲突为 409；缺/非法 Style 或 minimaxh3 Template 为 409；persisted cache/path/关系不一致且不属于 R10 为 500。以上同步错误不创建 Task。
+1. 非 null request_id 仍按 §4.3 先锁定并查找；合法重放直接返回原 Task，不按当前 generation_mode、enabled 数或其他当前事实重新裁决。
+2. 对新请求，在锁定 Clip 并重读当前事实后、任何 user_note/Clip mutation 之前，要求 `clip.generation_mode == "ref2v"`。持久化值为 `fl2v` 或 `context_loop` 时返回 409/`conflict`，message 精确为 `Clip generation mode is not supported in v1`；不创建 Task、不写 user_note/revision/freshness、不渲染或外调。
+3. 对新请求，在重读全部 ClipRefSlot 后、任何 user_note/Clip mutation 之前，要求 enabled 槽位数在 1..9。零 enabled 时返回 409/`conflict`，message 精确为 `At least one reference slot must be enabled`；不创建 Task、不写 user_note/revision/freshness、不渲染或外调。该状态不是 R10，不得伪造立即 failed Task。
+4. 通过上述两个前置条件后，按 §4.2 裁决 effective user_note。
+5. 复用 C008 的 closed rules 重新验证 R5 连续/独占与 R5a 至多一场景；创建后被编辑成双场景或跨场景时失败。
+6. 只对 enabled 槽位执行 R9/R10。任一槽位不能解析到一份路径在 DATA_DIR 内、扩展受支持、文件可读且 bytes sha256 与数据库相符的图片，即 R10 失败；disabled 槽位不阻断。
+7. R5/R5a/R10 失败时不渲染 template、不计算生成 input_hash、不生成 seed/prompt_id、不入 queued、不由 worker claim、不调用 vLLM/Comfy。queue 在当前事务记录 terminal Task：status=failed、progress=0、started_at=null、finished_at 非 null、input_hash=null、error_msg 为完整可展示原因；R10 原因至少包含 `R10`、slot_no 和“资产已删无 override / 活资产无 current / 路径、文件或 hash 不可用”之一。route 仍返回 202/task_id，提交后广播一次 failed 事件。
+8. failed Task 的最小 input_snapshot 只含请求身份、Clip id/revision/effective user_note/requested_duration 与精确 precheck rule/reason；source_revisions 保存已观察到的 Clip/Shot/Asset revision。不得伪造 workflow、references 或成功 hash。
+9. 其他前置条件：缺 Clip 为 404；request identity 冲突为 409；缺/非法 Style 或 minimaxh3 Template 为 409；persisted cache/path/关系不一致且不属于 R10 为 500。以上同步错误不创建 Task。
 
 ## 5. 成功入队 payload、references 与 R4
 
@@ -132,6 +136,7 @@ C009 在 C008 已落库的 Clip、ClipShot、ClipRefSlot 与 ClipVideo 模型之
 
 规则如下：
 
+0. 成功序列化只允许 1..9 项；零 enabled 已在 §4.4 以同步 409 截止，serializer/worker 不得接收或排队零项 references。
 1. reference_name 只由启用序列位次 k 得到，与 slot_no 解耦；slot 1、3 启用时第二项是 subject2。启停会让后续项重新编号，这是期望行为。
 2. asset_id 非 null：在入队同一事务读取 Asset 当前 type/name/description；即使 image_source=override 也使用活值，不消费快照 name/type。
 3. asset_id null 且有 override：type/name 取 C008 快照，asset_description=null，image_id=null。
@@ -182,9 +187,10 @@ payload 顶层精确三键；成功入队的 `source_revisions` 精确为 `{"cli
 loader 在启动时同时验证：
 
 1. zimage 与 minimaxh3 各自文件/section 字段闭合，路径相对 backend 且不逃逸，workflow 为非空 API object；
-2. prompt leaf string、seed leaf integer、duration leaf finite number、9 对 ref paths 唯一且逐项存在，consumer leaf 确实引用对应 LoadImage node，output node 存在；
-3. MiniMax 未使用 UI graph、预设图片 UUID、参考视频、音频输出或 sentinel 之外的固定业务输入；给定 H3 节点为满足模型签名保留的内部 `audio_vae` 连接只可作为工作流模型 plumbing，VHS output 无 audio 输入，应用不得读取、生成、落库或返回音频；
-4. 原始 bytes hash，不做重新序列化 hash。
+2. prompt/seed/duration/ref image/ref consumer 的每个路径都必须是至少三段的精确 `node_id.inputs.input_key`：node_id 为十进制节点 ID，第二段逐字等于 `inputs`，后续非空段按 Comfy dotted input key 合并；不得接受 `node_id.<其他段>.input_key`、空段、数组语法或路径逃逸。prompt/seed/duration 解析后的 `(node_id, input_key)` 必须两两不同，且不得与 ref image/ref consumer 叶子重叠；
+3. prompt leaf 为 string、seed leaf 为非 bool integer、duration leaf 为 finite number；9 对 ref paths 唯一且逐项存在，consumer leaf 确实引用对应 LoadImage node，output node 存在；
+4. workflow 中 `LoadImage` 节点集合必须精确等于配置的 9 个 sentinel 节点，不允许未绑定或预设图片节点；不得存在参考视频加载节点或业务视频文件输入；绑定 output 必须为 `VHS_VideoCombine` 且 inputs 不含 `audio`。给定 H3 节点为满足模型签名保留的内部 `audio_vae` 连接只可作为工作流模型 plumbing，应用不得读取、生成、落库或返回音频；
+5. 原始 bytes hash，不做重新序列化 hash。
 
 任一绑定错误在 worker 启动/claim 之前拒绝应用启动。health 成功结构保持既有 schema，`workflow_bindings={status:"valid",message:null,hashes:{zimage:<64hex>,minimaxh3:<64hex>}}`，hash key 集合精确为两项；vLLM/Comfy health 语义与探测次数不变。
 
@@ -194,7 +200,7 @@ loader 在启动时同时验证：
 2. 按 references 顺序逐张把 snapshot 文件以 multipart `image` 上传至 `/upload/image`；filename/subfolder 由系统用 task_id 与 reference_name 生成，不使用数据库或用户 basename。每项精确上传一次。
 3. upload response 必须是 object，`name` 为 1..255 字符的单一 basename且扩展与本次上传的 png/jpg/webp snapshot 扩展相同，`subfolder` 为不含空/`.`/`..`/绝对根的安全相对 segments 且总长不超过 1024、`type="input"`；拒绝 null、错误类型、U+0000、`/`/`\` filename、扩展漂移、路径穿越与超长值。允许忽略不参与决策的额外键，但不得读取服务端 `fullpath`。
 4. 深拷贝冻结 workflow，分别注入 built_prompt、整数 seed、requested_duration 秒和上传返回的 `subfolder/name`。N 张 reference 时只保留前 N 个 LoadImage 节点与 H3 consumer inputs；删除 k>N 的对应节点/consumer key。不能留空、留 sentinel、复制图片、保留 preset 或改变前 N 顺序。
-5. submit 前验证 workflow 不再含 `__C009_REFERENCE_` sentinel，引用节点均存在，prompt/seed/duration 值精确；requested_duration 不在后端换算帧数。给定 workflow 内部公式负责 24fps 合法长度，后端只传秒。
+5. submit 前重新按启动时同一精确路径规则解析 workflow，验证 prompt/seed/duration 三个物理叶子仍两两不同且值分别精确等于 built_prompt、seed、requested_duration；LoadImage 节点集合精确等于前 N 项，引用节点均存在且不再含 `__C009_REFERENCE_` sentinel，output inputs 仍无 audio。requested_duration 不在后端换算帧数；给定 workflow 内部公式负责 24fps 合法长度，后端只传秒。
 6. 沿用生产 WS progress/executing 与 prompt_id 过滤，安全点检查 cancel。history 必须在绑定 output node `168` 的 `gifs` 中恰有一项，且 filename 是满足同上 1..255 限制的 `.mp4` basename、subfolder 满足同上安全/1024 限制、type=`output`、format=`video/h264-mp4`；0/多项、错 node、错类型、超长/穿越或缺字段均 failed。只用 filename/subfolder/type 调 `/view`，绝不使用 history `fullpath`。
 7. 任一步失败记录完整 error_msg，不重试、不改 prompt、不中途降级参考图；`finally` 清理本地 temp 并调用 Comfy `/free`。若主错误与 free/cleanup 同时失败，error_msg/log 同时保留两者且 Task 仍 failed。
 
@@ -285,7 +291,7 @@ canceled 不作为终态结果，也不抹掉更早 done/failed。freshness 与�
 |---|---|---|
 | 202 | 新建 queued Task、R5/R5a/R10 立即 failed Task、合法 request_id 重放 | 对这三类复检失败同步 409/422；伪造 queued |
 | 404 / `not_found` | 范围内 clip/video/task 不存在；media row 不存在 | 409/422 |
-| 409 / `conflict` | request_id 已绑定不同请求；缺/非法 Style/Template 等生成前置条件；删除 current take；对已 done/failed Task cancel | R5/R5a/R10；body 输入校验；跨 Clip video_id |
+| 409 / `conflict` | request_id 已绑定不同请求；新请求的 Clip 为 `fl2v/context_loop`（精确 message `Clip generation mode is not supported in v1`）；新请求零 enabled 槽位（精确 message `At least one reference slot must be enabled`）；缺/非法 Style/Template 等生成前置条件；删除 current take；对已 done/failed Task cancel | R5/R5a/R10；body 输入校验；跨 Clip video_id；为 mode/零 enabled 两类创建 Task或写 Clip |
 | 422 / `validation_error` | JSON/path/body 类型或未知字段、超 PostgreSQL INTEGER、U+0000、request_id 长度/空白、PUT current body、video 属于其他 Clip | 409；创建 failed Task；500 |
 | 500 / `internal_error` | persisted 关系/cache/path/file 不一致（R10 明确覆盖者除外）、数据库/文件 mutation 或同步补偿失败 | fallback、部分 2xx、409/422 |
 
@@ -300,6 +306,7 @@ C009 不交付生产 demo、额外验收 endpoint、长期 driver 或第二套�
 - **任务系统 mock**走生产 enqueue、queue、handler、final commit，mock vLLM/Comfy transport，并以竞态屏障验证快照、cancel、重复提交、聚合态与完成判定；它证明调用顺序和副作用边界，不证明工作流节点真实安装。
 - **跨进程/资源生命周期测试**使用至少两个独立 PostgreSQL 连接/应用进程、生产 advisory/claim/文件/补偿通路与本地真实 HTTP stub，证明 request-id lock、Task/Clip 同事务、restart、DB/file 生命周期及外部字段敌意输入；stub 不能证明真实模型质量。
 - **真实外部验收**不新增自建 driver；使用生产 Uvicorn、隔离 PostgreSQL、现有 REST/WS、真实 vLLM、真实 Comfy、仓库工作流与设置 API 模板。该通路与生产事件、存储、进程、上传、history、view、媒体读取完全相同。它能证明一条真实 1-reference 和一条多-reference MP4 闭环、duration/seed/hash/状态/资源次序；不能客观证明画面审美或长期角色一致性。
+- **真实工作流异常探针**不新增仓库脚本或代理：在隔离库、Comfy queue 初始为空且只运行本次 prompt 的前提下，用正式 generate-video API 让生产 worker 完成真实 vLLM、上传和 Comfy submit；确认该 prompt 已 running 后，从验收端直接调用真实 Comfy `/interrupt`，但不调用应用 cancel API。其余 Task/WS/history/free/temp/DB/file 均走生产通路。差异仅是异常由验收端主动中断真实 Comfy execution；它能证明“已 claim 且已外调的真实工作流异常”进入 failed、无 retry/take/cache/formal、finally free并恢复 queue/sleeping，不能证明所有模型内部错误或自然故障。若 queue 中出现其他任务，必须停止，不得中断未知任务。
 
 真实模型输出与视觉内容不适合稳定自动测试：模型/显卡/权重具有非确定性，固定像素断言会把外部模型特征误当产品合同。替代验收必须在 `.work/c009/` 保存原始 HTTP/WS/task/DB/log/hash/duration/媒体元数据，并人工逐项确认 prompt 使用实际 Subject/Picture 编号、无 preset/音频、视频可播放；这不是“追溯表无行”跳过，见 AC-21 与对应追溯行。
 
@@ -312,7 +319,7 @@ C009 不交付生产 demo、额外验收 endpoint、长期 driver 或第二套�
 | ID | 风险 | 触发条件 | 观测点 | 期望值 |
 |---|---|---|---|---|
 | AC-01 | [常规] | 检查 C009 diff、Alembic current/check、前端与围栏关键字 | git diff、migration head、OpenAPI、handler map、前端 diff | 零 migration/schema；只新增 C009 backend/workflow/dependency/docs；无 C010 UI、generation_runs、版本化、continuity、音频、fl2v/context_loop 执行、retry/fallback；gen_clip_video 正式注册 |
-| AC-02 | [外部输入] | 分别加载正确 MiniMax binding，以及缺字段、UI graph、路径逃逸、错 leaf、重复/少于 9 ref、错 consumer/output 的 binding | 应用 startup、worker claim 数、health JSON | 正确 binding 启动，hashes key 精确 zimage/minimaxh3 且值为原始 bytes hash；任一错误在 claim 前拒绝启动；health 的 vLLM/Comfy status/message/探测次数不漂移 |
+| AC-02 | [外部输入] | 分别加载正确 MiniMax binding，以及缺字段、UI graph、路径逃逸、第二段不是 inputs、错 leaf、prompt/seed/duration 物理叶子别名、重复/少于 9 ref、错 consumer/output、额外 preset LoadImage、参考视频节点、VHS audio 输入的 binding | 应用 startup、worker claim 数、health JSON、submit workflow | 正确 binding 启动，hashes key 精确 zimage/minimaxh3 且值为原始 bytes hash；任一错误在 claim 前拒绝启动；注入后 prompt/seed/duration 三叶子和值精确且互不覆盖；health 的 vLLM/Comfy status/message/探测次数不漂移 |
 | AC-03 | [外部输入] | 用给定模板及缺/未知/未闭合 placeholder，向 vLLM 返回正常、额外键、null、空白、错误类型、非法 JSON | 单条 messages、guided schema、Comfy 调用、Task/error | shots/references 为紧凑有序 JSON，五变量来自快照，无隐藏 system 业务 prompt；只有精确非空 prompt 继续；其他均 failed、Comfy submit=0、无 retry/副作用 |
 | AC-04 | [事务一致性] | 槽位 1/3 enabled，分别覆盖活资产+current、活资产+override、删资产+override、删资产无 override、disabled 无图，并在活资产 name/description/current image 改后入队 | payload references/media/hash、Task、SQL snapshot | 成功列表按 slot_no 且命名 subject1/subject2；活资产取当前 name/type/description，override 仍带活 description；删资产 override 用快照 name/type+null description；disabled 排除；删资产无 override 产生 202 failed R10 且不序列化/外调 |
 | AC-05 | [并发] | 显式 user_note 分别省略/null/空串/空白/相同值，并让两连接并发 PATCH/slot/asset mutation 与 enqueue | Clip revision/note/freshness、payload/source revisions、worker 使用值 | 省略不写且取锁内当前值；显式值精确持久化，实际变化只 revision+1/stale、no-op 不变；快照是一个可串行化胜方而非混合事实；worker 不回读新值 |
@@ -331,8 +338,9 @@ C009 不交付生产 demo、额外验收 endpoint、长期 driver 或第二套�
 | AC-18 | [事务一致性] | 列出多个 take，切换 current/no-op/跨 clip，删除 non-current/current，并注入文件缺失、坏路径、DB失败/恢复失败 | API JSON/order、唯一 current、Clip/Shot/state、formal/trash | list id ASC且字段精确、seed string；切换同事务唯一 current且不改 Clip/Shot；跨 clip 422；current delete 409；noncurrent 204+canonical trash；失败无部分 DB/文件真相，双错误可诊断 |
 | AC-19 | [外部输入] | DEBUG false/true 读取 videos，读取正常/未知/坏 path/缺文件媒体，并构造 2^63-1 seed | JSON keys/types、DB JSON、HTTP/MIME | false 无 prompt/snapshot/path；true 只多 built_prompt/input_snapshot且两个公开 seed 都是精确十进制字符串，DB仍int；media正常video/mp4，未知404，坏存储500，错误体精确且不泄露绝对路径 |
 | AC-20 | [常规] | 打开并运行三个获窄授权 health 测试、分阶段演进的 C008 contract 测试、T13 演进的 C007 handler 注册测试及所有新增测试，检查 git diff 与 TRACEABILITY | 测试断言、用例名、diff、追溯行 | health 三文件只把 hashes 精确集合演进为 zimage+minimaxh3；C008 contract 用例只按 T9/T13/T15 实际阶段向精确集合加入获授权 path/handler，既有 C008 行为/错误断言逐字保留且不改为子集/存在性；C007 注册用例只把视频 handler 不存在替换为生产 handler identity且保留资产 handler identity；除这五个获授权文件外既有测试零修改；每个新增用例归属追溯行且无恒真/只非空弱断言 |
-| AC-21 | [跨进程] | 在全新库与真实生产 vLLM/Comfy 中安装给定模板，分别生成 1-reference 与至少 2-reference 视频，其中一条 duration=5，观察主路径及一次模型/工作流异常 | PromptTemplate GET、health、HTTP/WS/task、logs、Comfy queue/history、MP4/hash/duration/media、最终 GPU/queue | 模板逐字与 hash 来源一致；health 双 hash；真实 prompt 的 Picture/Subject 与上传顺序一致、无 preset/音频；两条 MP4 可播放且 requested秒注入、actual>0、take/media/state正确；异常 failed完整无retry/副作用；结束 vLLM sleeping、Comfy free且queue空。视觉审美只人工记录，不宣称自动证明 |
-| AC-22 | [常规] | 运行隔离库完整 pytest、Alembic、前端 build、范围/文档/commit 审计并读取完成报告第5节 | 原始命令日志、git diff、TRACEABILITY、NOTES/DECISIONS、completion report | 全部计划测试与完整套件通过；Alembic零漂移；前端 build通过且无C009 UI diff；c009目录只含spec/tasks；完成报告五节，第5节以“操作 → 观测值”覆盖真实主路径和至少一条异常；未验证项不宣称完成，收尾三项可核对 |
+| AC-21 | [跨进程] | 在全新库与真实生产 vLLM/Comfy 中安装给定模板，分别生成 1-reference 与至少 2-reference 视频，其中一条 duration=5；另建一条唯一在跑的真实任务，待 Comfy prompt running 后由验收端直接 `/interrupt`，不调用应用 cancel | PromptTemplate GET、health、HTTP/WS/task、started_at、外部调用日志、Comfy queue/history、MP4/hash/duration/media、temp/formal/cache、最终 GPU/queue | 模板逐字与 hash 来源一致；health 双 hash；真实 prompt 的 Picture/Subject 与上传顺序一致、无 preset/音频；两条 MP4 可播放且 requested秒注入、actual>0、take/media/state正确；中断任务已 claim且实际 submit，随后精确 failed、完整原因、无 retry/take/cache/formal/temp，finally free；结束 vLLM sleeping、Comfy free且queue空。R5/R5a/R10 立即 failed 或 mock/stub 不得替代该异常证据；视觉审美只人工记录，不宣称自动证明 |
+| AC-22 | [常规] | 运行隔离库完整 pytest、Alembic、前端 build、范围/文档/commit 审计并读取完成报告第5节 | 原始命令日志、git diff、TRACEABILITY、NOTES/DECISIONS、completion report | 全部计划测试与完整套件通过；Alembic零漂移；前端 build通过且无C009 UI diff；c009目录只含spec/tasks；完成报告五节，第5节以“操作 → 观测值”覆盖真实主路径、R10 与 AC-21 真实工作流中断异常；TRACEABILITY 无待填；未验证项不宣称完成，收尾三项可核对 |
+| AC-23 | [事务一致性] | 对新请求分别把全部槽位停用、把 Clip generation_mode 置为 fl2v/context_loop，并各自携带会实际改变的 user_note；另先创建带 request_id 的合法 Task，再改变当前槽位/mode 后重放同 id | HTTP/error body、Task 行数、Clip user_note/revision/freshness、payload、worker/vLLM/Comfy | 两个新请求均精确 409/conflict与裁决 message，Task 行数不变、Clip 不变且无 worker/外调；零 enabled 不标 R10；fl2v/context_loop 不进入 ref2v snapshot。合法重放仍 202 同 task_id，返回原冻结 payload且不按当前前置条件重算或 mutation |
 
 ## 13. 追溯覆盖
 
@@ -341,16 +349,17 @@ spec 定稿后、tasks 编写前的逐条覆盖结果如下；TRACEABILITY 中�
 | AC | TRACEABILITY 准确行名 |
 |---|---|
 | AC-01、AC-22 | C009 范围、零 migration 与完整回归/完成证据 |
-| AC-02、AC-20 | C009 MiniMax H3 工作流绑定、双 hash health 与既有测试窄演进 |
+| AC-02、AC-20 | C009 MiniMax H3 工作流绑定、双 hash health 与既有测试窄演进；C009 复审 MiniMax binding 路径别名、preset 与 audio 启动闭合 |
 | AC-03、AC-09 | C009 MiniMax prompt、完整 input_hash 与 cache |
 | AC-04 | C009 references 活值/删除快照/压实编号与 R9；R10 缺图即失败；R12 删除资产后的槽位 |
-| AC-05、AC-06 | C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等；§6.1 去重与幂等 |
-| AC-07 | R5 连续与独占；R5a 同场景；R10 缺图即失败；C009 立即 failed Task 与结构化错误 |
+| AC-05、AC-06 | C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等；§6.1 去重与幂等；C009 复审跨进程真实生成入口 request_id 竞争 |
+| AC-07 | R5 连续与独占；R5a 同场景；R10 缺图即失败；C009 立即 failed Task 与结构化错误；C009 复审 R5/R5a/R10 立即失败完整矩阵 |
 | AC-08、AC-19 | C009 API 敌意输入、公开 seed、DEBUG 与媒体错误体；R11 提示词可见性 |
 | AC-10、AC-11 | C009 Comfy references 上传、动态工作流与敌意返回值 |
-| AC-12、AC-16 | C009 GPU/Comfy 资源生命周期、取消与失败；§6.1 取消 |
+| AC-12、AC-16 | C009 GPU/Comfy 资源生命周期、取消与失败；§6.1 取消；C009 复审 wake/sleep/WS 失败资源生命周期 |
 | AC-13、AC-17 | C009 MP4 探测、文件/数据库事务与同步补偿 |
 | AC-14 | §3.3 片段生成成功且修订未变：相关分镜 normal、片段 fresh、新 take 落盘；无其他 active 视频任务时 ready，有 active 时按 C009 聚合；§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合 |
 | AC-15 | C009 多任务 generation_state 聚合与重启恢复；§6.1 重启恢复 |
 | AC-18 | C009 take 列表、current、删除与媒体生命周期 |
-| AC-21 | C009 真实 MiniMax workflow/template 视频闭环 |
+| AC-21 | C009 真实 MiniMax workflow/template 视频闭环；C009 复审真实 Comfy workflow interrupt 失败闭环 |
+| AC-23 | C009 复审 generate-video 零 enabled 与保留 mode 的 409 原子前置条件 |

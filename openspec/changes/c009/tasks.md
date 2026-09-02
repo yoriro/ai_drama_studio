@@ -352,21 +352,137 @@
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 真实 MiniMax workflow/template 视频闭环`。
   - **验收方式与人工检查：** 执行 `Get-Content -Raw .work/c009/completion-report.md`，逐条反查 T00-T18 log、git commits、TRACE IDs、DB/task/media记录；期望五节齐全，第5节每条同时有操作、原始观测值、期望真假结论，不能只有“页面/任务正常”“测试全绿”。
 
-- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [ ] **T20 — 收紧 MiniMax binding 启动闭合并补回归证据**
+
+  - **依赖：** T19；以 Sol 本轮修复计划 commit 为 repair baseline，开工前将其纯 SHA 写入 `.work/c009/review-repair-baseline-sha.txt`，并确认 tracked worktree 无执行者遗留改动。
+  - **交付：** 只修正生产 MiniMax binding loader/启动校验及必要的 workflow 注入校验：路径必须精确为 `node_id.inputs.input_key`；prompt/seed/duration 的物理叶子两两不同且不与 reference 叶子重叠；LoadImage 节点集合精确等于九个已绑定 sentinel 节点；拒绝 preset/额外 LoadImage、参考视频输入与绑定 VHS output 的 `audio` input。正确 workflow 注入后 prompt、seed、duration 必须各留在自己的叶子且精确等于调用值。不得修改给定 workflow bytes/hash、zimage 合同、既有测试或用测试路径/环境做特判。
+  - **R：** 无；PRD §0、§8、§12.1，C009 spec §6.2-§6.3。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C009 复审 MiniMax binding 路径别名、preset 与 audio 启动闭合`；`C009 MiniMax H3 工作流绑定、双 hash health 与既有测试窄演进`。
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_binding.py`，至少逐项构造第二段非 `inputs`、prompt/seed/duration 任意物理别名、额外 preset LoadImage、参考视频输入、output audio 六类坏 binding，精确断言应用在 worker start/claim 前失败；对正确 binding 深拷贝注入三个互不相同哨兵值及 1/9 references，精确断言叶子、LoadImage/consumer 数量和内容。运行：
+
+    ```powershell
+    Set-Location backend
+    python -m pytest -q tests/task_system/test_c009_review_binding.py tests/unit/test_c009_workflow_binding.py tests/unit/test_c009_workflow_inputs.py tests/api/test_c009_health.py
+    ```
+
+    期望：全部通过；坏 binding 的 worker start/claim 计数均为 0，正确 workflow 无 preset、参考视频业务输入与 output audio，三个注入值互不覆盖。
+
+- [ ] **T21 — 实现零 enabled 与保留 generation_mode 的原子 409 前置条件**
+
+  - **依赖：** T20。
+  - **交付：** 只修改 generate-video 入队服务/API 必要代码：非 null request_id 仍先按既有全局幂等临界区查找并重放；仅对新请求，在任何 user_note/revision/freshness mutation、Task insert、序列化或外调前锁内重读 mode 与槽位。零 enabled 精确返回 409/`conflict`/`At least one reference slot must be enabled`；`fl2v` 或 `context_loop` 精确返回 409/`conflict`/`Clip generation mode is not supported in v1`。两类都不创建 Task、不修改 Clip、不进入 ref2v worker；零 enabled 不标成 R10。不得新增 migration/schema、兼容分支或重试。
+  - **R：** 无；PRD §0 范围围栏、§6.1-§6.2、§7，C009 spec §4.3-§4.4、§10。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C009 复审 generate-video 零 enabled 与保留 mode 的 409 原子前置条件`。
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_generate_prerequisites.py`。分别对零 enabled、`fl2v`、`context_loop` 携带会实际改变的 user_note，精确断言闭合错误体、message、Task/Clip/claim/vLLM/Comfy 均无副作用；再先用 request_id 建立合法 Task，改变当前 mode/槽位后重放，精确断言 202、同 task_id、原冻结 payload、无二次 mutation。运行：
+
+    ```powershell
+    Set-Location backend
+    python -m pytest -q tests/task_system/test_c009_review_generate_prerequisites.py tests/api/test_c009_generate_video.py tests/task_system/test_c009_enqueue_video.py tests/task_system/test_c009_request_id_lock.py
+    ```
+
+    期望：全部通过；两类新请求的 SQL 最终事实分别为 Task 增量 0、Clip user_note/revision/freshness 不变，合法历史重放不重算当前前置条件。
+
+- [ ] **T22 — 证明真实生产生成入口的跨进程 request_id 竞争**
+
+  - **依赖：** T21。
+  - **交付：** 不修改生产实现；新增独立跨进程回归测试，使用两个以上独立进程/应用实例与 PostgreSQL 连接实际调用生产 gen_clip_video/gen_asset_image 入队入口，覆盖同 id 同身份、视频不同 clip、user_note 省略/显式 null/空串/空白/不同值、视频与资产图片跨类型竞争及终态重放。使用可控 barrier/锁等待证明重叠，不用 sleep 猜竞态。若该测试暴露生产缺陷，本 task 立即停止并报告，不自行扩展修复范围。
+  - **R：** 无；PRD §6.1 去重与幂等、§6.2 payload 快照，C009 spec §4.2-§4.3。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C009 复审跨进程真实生成入口 request_id 竞争`；`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务，并按冻结的 UUIDv5 映射复用 seed/prompt id`。
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_request_id_process_race.py`，精确断言同身份全为 202 同 task_id且仅一行；不同身份/跨类型精确一个胜方、其余闭合 409且无额外 Clip mutation；终态重放仍返回原行/seed/payload。每个子进程须有就绪/释放/完成事件并断言 exit code。运行：
+
+    ```powershell
+    Set-Location backend
+    python -m pytest -q tests/task_system/test_c009_review_request_id_process_race.py tests/task_system/test_c009_request_id_lock.py
+    ```
+
+    期望：全部通过，且测试日志能显示至少两个独立 PID 在同一 release 前均已就绪；仅复跑进程内既有用例不算本 task 完成。
+
+- [ ] **T23 — 补齐 R5/R5a/R10 立即 failed 的完整规则矩阵**
+
+  - **依赖：** T21。
+  - **交付：** 不修改生产实现；新增独立任务系统回归测试，逐项覆盖 R5 的 order 不连续与分镜已被另一 Clip 占用，R5a 的片段跨两个场景与单分镜绑定两个场景，以及 R10 的“删资产无 override”“活资产无 current”和 asset_current/override 各自的越界或非 canonical path、缺失/不可读文件、扩展不支持、bytes hash 不符。每个原因均覆盖 user_note 不变与实际 mutation 两种请求。若现状不满足 spec，立即停止并报告对应生产分支，不弱化矩阵。
+  - **R：** R5、R5a、R10；PRD §3、§6.2、§7，C009 spec §4.2、§4.4、§8。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C009 复审 R5/R5a/R10 立即失败完整矩阵`；`R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`；`R10 缺图即失败：任一启用槽位既无资产当前图又无 override 时，生成片段必须失败并返回明确原因`。
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_precheck_matrix.py`。每格精确断言 HTTP 202、Task=`failed`/progress=0/started_at=null/finished_at与完整规则原因、input_hash=null、从未 queued/claim/渲染/外调；user_note 实际变化时与 failed Task 同一事务提交且 revision 只加 1，不变时 Clip 不写；generation_state 按 §8 聚合。运行：
+
+    ```powershell
+    Set-Location backend
+    python -m pytest -q tests/task_system/test_c009_review_precheck_matrix.py tests/task_system/test_c009_enqueue_video.py tests/task_system/test_c009_generation_state.py
+    ```
+
+    期望：参数矩阵全部通过；不能用一个泛化“非空 error”断言代替规则编号、slot_no/原因、数量与副作用断言。
+
+- [ ] **T24 — 补齐 wake/sleep/WS 失败的跨进程资源生命周期**
+
+  - **依赖：** T20、T23。
+  - **交付：** 修复定向测试暴露的生产根因（如有），范围只限 gen_clip_video 的正式 vLLM/Comfy client 调度、失败传播和 finally 清理；新增独立跨进程回归测试，以本地子进程 HTTP/WS stub 和生产 queue/handler/clients 分别在 wake、sleep、WS 阶段失败。不得捕获宽泛异常、吞主错误、重试、fallback或按测试环境特判；不得修改既有测试。
+  - **R：** 无；PRD §6.2-§6.4、§8，C009 spec §6.3、§10。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C009 复审 wake/sleep/WS 失败资源生命周期`；`C009 GPU/Comfy 资源生命周期、取消与失败`。
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_worker_failures.py`。每个 stub 进程通过事件报告启动、收到的精确 method/path/body 和退出；测试走生产 claim/handler，精确断言每阶段只调用一次、Task 一次 failed且 error_msg 保留原阶段原因、无 retry/take/cache/formal/temp，并按 PRD §6.4 在 finally 调用 Comfy `/free`；WS 失败还须证明已 submit 的 prompt_id 与监听过滤一致。运行：
+
+    ```powershell
+    Set-Location backend
+    python -m pytest -q tests/task_system/test_c009_review_worker_failures.py tests/task_system/test_c009_resource_lifecycle.py tests/task_system/test_c009_gen_clip_video.py
+    ```
+
+    期望：全部通过；三个阶段均有可控触发和完整事件序列，不以普通 mock 的最终状态或固定 sleep 代替跨进程证据。
+
+- [ ] **T25 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
+
+  - **依赖：** T20-T24；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
+  - **交付：** 不修改仓库代码/测试，不新增脚本、proxy、demo或长期 driver。使用隔离数据库、生产 Uvicorn/worker、真实 vLLM/Comfy、正式 generate-video API 创建一条不会命中 cache 的任务；待 Comfy `/queue` 证明该任务唯一 prompt 已 running 后，由验收 PowerShell 直接调用真实 Comfy `POST /interrupt`，不调用应用 cancel。原始 API/WS、应用日志、Comfy queue/history、SQL、文件与最终资源证据写入 `.work/c009/T25-*.log`。
+  - **R：** 无；PRD §6.2-§6.4、§8、§11 M4、§12，C009 spec §11、AC-21。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C009 复审真实 Comfy workflow interrupt 失败闭环`；`C009 真实 MiniMax workflow/template 视频闭环`。
+  - **验收方式与命令/人工检查：** 使用直接 PowerShell/`Invoke-RestMethod` 和数据库只读查询，不创建 repo 脚本。先保存 `/queue` 初始 JSON与唯一性判断，再 POST generate-video、轮询正式 Task API与 `/queue`；记录 Task `started_at`、唯一 Comfy prompt_id 和 `/interrupt` 响应，轮询至 terminal，最后记录 `/queue`、`/history/{prompt_id}`、vLLM sleeping、应用 `/free` 日志、Task/ClipVideo/cache SQL及 temp/formal 文件清单。期望：任务确有 started_at 且真实 submit 后才被中断；最终精确 failed并保留中断原因，无 retry、take、cache 更新、formal/temp 文件，Comfy `/free` 已调用，vLLM sleeping且 queue 空。R10 立即 failed、应用 cancel、mock/stub或仅看最终 DOM 均不能替代本证据。
+
+- [ ] **T26 — 回填复审追溯并执行最终隔离库与提交一致性审计**
+
+  - **依赖：** T20-T25 全部通过；任一未通过不得执行或勾选。
+  - **交付：** 把六条 `C009 复审...` 追溯行回填为真实新 pytest node ID或 T25 原始证据路径；确认五个新增测试文件各自至少归属一行且 repair baseline 之后既有测试零修改。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖两个新 409、R10 与 T25 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
+  - **R：** 无；PRD §0、§3、§6-§8、§11 M4、§12。
+  - **计划测试层级：** 不新增自动测试。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；本轮六条 `C009 复审...` 准确行名。
+  - **验收方式与命令：** 按 NOTES 创建全新数据库并显式设置 `DATABASE_URL`，保存全部 stdout/stderr 与 exit code；运行：
+
+    ```powershell
+    Set-Location backend
+    python -m alembic upgrade head
+    python -m alembic current
+    python -m alembic check
+    python -m pytest -q
+    Set-Location ..
+    npm --prefix frontend run build
+    git diff --check
+    git diff --name-status (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD
+    git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- backend/tests
+    git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- backend/alembic frontend
+    rg -n "C009 复审.*\|.*待填|待填（T2[0-5]" openspec/TRACEABILITY.md
+    Get-Content -Raw .work/c009/completion-report.md
+    ```
+
+    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T20-T24 五个新文件，既有测试、migration、frontend 无 diff；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T25。
+
+- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`。
-  - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
+  - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18/T25/T26 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
 
-- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
-  - **R：** 无；PRD §3.2、§6.1 与需求方 2026-09-01 C009 裁决。
+  - **R：** 无；PRD §0、§3.2、§6.1 与需求方 2026-09-01/2026-09-02 C009 裁决。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 多任务 generation_state 聚合与重启恢复`；`C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等`。
-  - **验收方式与人工检查：** 完成报告逐项列“立即failed任务、多任务聚合、user_note三态、public seed、全局request-id事务锁”是否应进入 DECISIONS及理由；本 task 不自行修改 DECISIONS。无候选时精确写“DECISIONS.md 候选项：无”。
+  - **验收方式与人工检查：** 完成报告逐项列“立即failed任务、多任务聚合、user_note三态、public seed、全局request-id事务锁、零 enabled 409、保留 generation_mode 409”是否应进入 DECISIONS及理由；本 task 不自行修改 DECISIONS。无候选时精确写“DECISIONS.md 候选项：无”。
 
-- [x] change 文档与 commit 状态一致
+- [ ] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4，AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
