@@ -425,21 +425,75 @@
 
     期望：全部通过；两类新请求的 SQL 最终事实分别为 Task 增量 0、Clip user_note/revision/freshness 不变，合法历史重放不重算当前前置条件。
 
+- [ ] **T22A — 隔离 PyAV 媒体探测依赖的进程加载边界**
+
+  - **依赖：** T22；执行前确认当前未提交的 T23 新测试与 `.work/` 可保留但不纳入本 task，除此之外无未提交改动。
+  - **交付：** 只把 `backend/app/services/video_files.py` 的 PyAV import 从模块顶层移动到 `probe_clip_video_duration()` 内部、紧邻实际使用处；不得改变函数签名、媒体解析、捕获的异常类型、错误消息、duration 换算、调用方、依赖版本或文件/数据库语义，不得增加 lazy proxy、兼容属性、fallback、registry 或测试环境特判。按 AGENTS.md 获窄授权，只在 `backend/tests/task_system/test_c009_video_files.py::test_probe_rejects_missing_or_invalid_container_duration` 把 monkeypatch 目标从 `video_files.av` 精确改为该文件已直接导入的 `av`，保留全部参数、错误消息与断言，不改该用例其他内容、该文件其他测试或任何其他既有测试。将追溯行回填为本项真实日志/用例 ID，并在同一 T22A commit 内只提交上述生产文件、获授权测试文件、追溯回填与本 checkbox；不得提交当前 T23 文件或 `.work/`。
+  - **R：** R6；PRD §6.2、§6.4，C009 spec §7、§11、AC-13。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C009 PyAV 按需加载与 Windows 子进程导入边界：固定 20 个生产应用/API/入队 import-only 子进程均不加载 av 且 exit 0，实际媒体探测仍使用 PyAV`；`C009 MP4 探测、文件/数据库事务与同步补偿`。
+  - **验收方式与命令：** 不新增仓库脚本；在 PowerShell 中固定启动 20 个全新 Python 进程，每个只导入生产应用、clip API 与图像/视频入队模块，由子进程自行以 exit code 拒绝已加载 `av`，逐个记录 PID、真实 exit code 与结果到 `.work/c009/T22A-import-boundary.log`。随后运行整个既有视频文件测试与完整 pytest，分别保存 `.work/c009/T22A-video-files.log`、`.work/c009/T22A-full-pytest.log`；运行：
+
+    ```powershell
+    New-Item -ItemType Directory -Force .work/c009 | Out-Null
+    Set-Location backend
+    $probeLog = (Resolve-Path '../.work/c009').Path + '\T22A-import-boundary.log'
+    Remove-Item -LiteralPath $probeLog -ErrorAction SilentlyContinue
+    $probeFailed = $false
+    1..20 | ForEach-Object {
+      $runNo = $_
+      $probeOutput = (& python -c "import os,sys; import app.main; import app.api.clips; import app.services.generate_clip_video; import app.services.generate_asset_image; loaded='av' in sys.modules; print(f'PID={os.getpid()} AV_LOADED={loaded}'); raise SystemExit(1 if loaded else 0)") -join "`n"
+      $probeExit = $LASTEXITCODE
+      "RUN=$runNo EXIT_CODE=$probeExit $probeOutput" | Tee-Object -FilePath $probeLog -Append
+      if ($probeExit -ne 0 -or $probeOutput -notmatch '^PID=\d+ AV_LOADED=False$') { $probeFailed = $true }
+    }
+    if ($probeFailed) { exit 1 }
+    python -m pytest -q tests/task_system/test_c009_video_files.py 2>&1 | Tee-Object -FilePath '../.work/c009/T22A-video-files.log'
+    $videoFilesExit = $LASTEXITCODE
+    "EXIT_CODE=$videoFilesExit" | Tee-Object -FilePath '../.work/c009/T22A-video-files.log' -Append
+    if ($videoFilesExit -ne 0) { exit $videoFilesExit }
+    python -m pytest -q 2>&1 | Tee-Object -FilePath '../.work/c009/T22A-full-pytest.log'
+    $fullExit = $LASTEXITCODE
+    "EXIT_CODE=$fullExit" | Tee-Object -FilePath '../.work/c009/T22A-full-pytest.log' -Append
+    if ($fullExit -ne 0) { exit $fullExit }
+    Set-Location ..
+    git diff --check
+    git diff -- backend/app/services/video_files.py backend/tests/task_system/test_c009_video_files.py
+    git diff --name-status --cached
+    ```
+
+    期望：20 次全新进程记录均精确 `EXIT_CODE=0 AV_LOADED=False`；整个既有视频文件测试与完整 pytest 均 exit 0，合法真实 MP4 仍取得原探测 duration，全部非法容器参数及原错误消息仍通过；生产 diff 只有 import 移位，获授权测试 diff 只有 `video_files.av` → `av`，暂存集合精确为本项列出的两个代码/测试文件及 `openspec/TRACEABILITY.md`、`openspec/changes/c009/tasks.md`。任一进程或测试失败立即停止，不得追加重跑取绿。
+
 - [ ] **T23 — 证明真实生产生成入口的跨进程 request_id 竞争**
 
-  - **依赖：** T22。
-  - **交付：** 不修改生产实现；新增独立跨进程回归测试，使用两个以上独立进程/应用实例与 PostgreSQL 连接实际调用生产 gen_clip_video/gen_asset_image 入队入口，覆盖同 id 同身份、视频不同 clip、user_note 省略/显式 null/空串/空白/不同值、视频与资产图片跨类型竞争及终态重放。使用可控 barrier/锁等待证明重叠，不用 sleep 猜竞态。若该测试暴露生产缺陷，本 task 立即停止并报告，不自行扩展修复范围。
+  - **依赖：** T22、T22A；T22A 的 20 进程导入探针、既有视频文件测试与完整 pytest 均通过并已提交后才可继续。
+  - **交付：** 不修改生产实现；新增独立跨进程回归测试，使用两个以上独立进程/应用实例与 PostgreSQL 连接实际调用生产 gen_clip_video/gen_asset_image 入队入口，覆盖同 id 同身份、视频不同 clip、user_note 省略/显式 null/空串/空白/不同值、视频与资产图片跨类型竞争及终态重放。使用可控 barrier/锁等待证明重叠，不用 sleep 猜竞态。每个 caller 的失败信息必须逐项包含 PID 与真实 exitcode，且通过条件仍是所有子进程 exitcode 精确为 0，不得把非零退出改成可接受结果。若该测试暴露生产缺陷，本 task 立即停止并报告，不自行扩展修复范围。
   - **R：** 无；PRD §6.1 去重与幂等、§6.2 payload 快照，C009 spec §4.2-§4.3。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C009 复审跨进程真实生成入口 request_id 竞争`；`§6.1 去重与幂等：gen_assets/gen_shots 同目标 active 冲突 409；图像/视频允许多任务；重复 request_id 返回既有任务，并按冻结的 UUIDv5 映射复用 seed/prompt id`。
-  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_request_id_process_race.py`，精确断言同身份全为 202 同 task_id且仅一行；不同身份/跨类型精确一个胜方、其余闭合 409且无额外 Clip mutation；终态重放仍返回原行/seed/payload。每个子进程须有就绪/释放/完成事件并断言 exit code。运行：
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_request_id_process_race.py`，精确断言同身份全为 202 同 task_id且仅一行；不同身份/跨类型精确一个胜方、其余闭合 409且无额外 Clip mutation；终态重放仍返回原行/seed/payload。每个子进程须有就绪/释放/完成事件并断言 exit code；断言失败必须显示 caller PID→真实 exitcode。先运行目标文件与既有 lock 用例，再把新增跨进程文件固定连续运行 5 次，最后运行完整 pytest；每次原始输出分别保存到 `.work/c009/T23-test.log`、`.work/c009/T23-repeat-{1..5}.log` 与 `.work/c009/T23-full-pytest.log`。运行：
 
     ```powershell
     Set-Location backend
-    python -m pytest -q tests/task_system/test_c009_review_request_id_process_race.py tests/task_system/test_c009_request_id_lock.py
+    python -m pytest -q tests/task_system/test_c009_review_request_id_process_race.py tests/task_system/test_c009_request_id_lock.py 2>&1 | Tee-Object -FilePath '../.work/c009/T23-test.log'
+    $targetExit = $LASTEXITCODE
+    "EXIT_CODE=$targetExit" | Tee-Object -FilePath '../.work/c009/T23-test.log' -Append
+    if ($targetExit -ne 0) { exit $targetExit }
+    1..5 | ForEach-Object {
+      $runNo = $_
+      $repeatLog = "../.work/c009/T23-repeat-$runNo.log"
+      python -m pytest -q tests/task_system/test_c009_review_request_id_process_race.py 2>&1 | Tee-Object -FilePath $repeatLog
+      $repeatExit = $LASTEXITCODE
+      "EXIT_CODE=$repeatExit" | Tee-Object -FilePath $repeatLog -Append
+      if ($repeatExit -ne 0) { exit $repeatExit }
+    }
+    python -m pytest -q 2>&1 | Tee-Object -FilePath '../.work/c009/T23-full-pytest.log'
+    $fullExit = $LASTEXITCODE
+    "EXIT_CODE=$fullExit" | Tee-Object -FilePath '../.work/c009/T23-full-pytest.log' -Append
+    if ($fullExit -ne 0) { exit $fullExit }
     ```
 
-    期望：全部通过，且测试日志能显示至少两个独立 PID 在同一 release 前均已就绪；仅复跑进程内既有用例不算本 task 完成。
+    期望：七次 pytest 均 exit 0，且测试日志能显示至少两个独立 PID 在同一 release 前均已就绪；每个 caller exitcode 都精确为 0，失败信息可定位 PID 与真实非零值但不得接纳它；仅复跑进程内既有用例或在失败后追加重跑取得一次绿色不算本 task 完成。
 
 - [ ] **T24 — 补齐 R5/R5a/R10 立即 failed 的完整规则矩阵**
 
@@ -475,7 +529,7 @@
 
 - [ ] **T26 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
 
-  - **依赖：** T20、T20A、T21-T25；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
+  - **依赖：** T20、T20A、T21-T22、T22A、T23-T25；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
   - **交付：** 不修改仓库代码/测试，不新增脚本、proxy、demo或长期 driver。使用隔离数据库、生产 Uvicorn/worker、真实 vLLM/Comfy、正式 generate-video API 创建一条不会命中 cache 的任务；待 Comfy `/queue` 证明该任务唯一 prompt 已 running 后，由验收 PowerShell 直接调用真实 Comfy `POST /interrupt`，不调用应用 cancel。原始 API/WS、应用日志、Comfy queue/history、SQL、文件与最终资源证据写入 `.work/c009/T26-*.log`。
   - **R：** 无；PRD §6.2-§6.4、§8、§11 M4、§12，C009 spec §11、AC-21。
   - **计划测试层级：** 跨进程/资源生命周期。
@@ -484,11 +538,11 @@
 
 - [ ] **T27 — 回填复审追溯并执行最终隔离库与提交一致性审计**
 
-  - **依赖：** T20、T20A、T21-T26 全部通过；任一未通过不得执行或勾选。
-  - **交付：** 把本轮七条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行，且 repair baseline 之后既有测试 diff 精确只有 T20A 获窄授权的 `backend/tests/task_system/test_c009_resource_lifecycle.py` helper及三处调用，其他既有测试零修改。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
+  - **依赖：** T20、T20A、T21-T22、T22A、T23-T26 全部通过；任一未通过不得执行或勾选。
+  - **交付：** 把本轮八条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据、T22A 固定多进程导入证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行，且 repair baseline 之后既有测试 diff 精确只有 T20A 获窄授权的 `backend/tests/task_system/test_c009_resource_lifecycle.py` helper及三处调用，以及 T22A 获窄授权的 `backend/tests/task_system/test_c009_video_files.py` monkeypatch 目标替换，其他既有测试零修改。审计 `backend/app/services/video_files.py` diff 只把 PyAV import 从模块顶层移入 `probe_clip_video_duration()`。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、T22A 20 进程加载边界、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
   - **R：** 无；PRD §0、§3、§6-§8、§11 M4、§12。
   - **计划测试层级：** 不新增自动测试。
-  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 设置页消费双 workflow hash 健康合同：前端严格接受 zimage/minimaxh3 两个 64hex 并在既有诊断区逐字展示，不放宽 schema、不新增 C010 UI`；本轮六条 `C009 复审...` 准确行名。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 设置页消费双 workflow hash 健康合同：前端严格接受 zimage/minimaxh3 两个 64hex 并在既有诊断区逐字展示，不放宽 schema、不新增 C010 UI`；`C009 PyAV 按需加载与 Windows 子进程导入边界：固定 20 个生产应用/API/入队 import-only 子进程均不加载 av 且 exit 0，实际媒体探测仍使用 PyAV`；本轮六条 `C009 复审...` 准确行名。
   - **验收方式与命令：** 按 NOTES 创建全新数据库并显式设置 `DATABASE_URL`，保存全部 stdout/stderr 与 exit code；运行：
 
     ```powershell
@@ -504,11 +558,11 @@
     git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- backend/tests
     git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- backend/alembic
     git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- frontend
-    rg -n "C009 (复审|设置页).*(\|.*待填)|待填（T2[0-6]" openspec/TRACEABILITY.md
+    rg -n "C009 (复审|设置页|PyAV).*(\|.*待填)|待填（T2[0-6]" openspec/TRACEABILITY.md
     Get-Content -Raw .work/c009/completion-report.md
     ```
 
-    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件及 T20A 获窄授权的一个既有生命周期测试文件，后者 diff 只含 helper 跨组件筛选/准确重命名及三处调用，其他既有测试零修改；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
+    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件、T20A 获窄授权的既有生命周期测试文件及 T22A 获窄授权的既有视频文件测试，前者 diff 只含 helper 跨组件筛选/准确重命名及三处调用，后者只含 `video_files.av` → `av`，其他既有测试零修改；`video_files.py` 只含 PyAV import 移位；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
