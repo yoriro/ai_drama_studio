@@ -495,7 +495,7 @@
 
     期望：七次 pytest 均 exit 0，且测试日志能显示至少两个独立 PID 在同一 release 前均已就绪；每个 caller exitcode 都精确为 0，失败信息可定位 PID 与真实非零值但不得接纳它；仅复跑进程内既有用例或在失败后追加重跑取得一次绿色不算本 task 完成。
 
-- [ ] **T24 — 补齐可达 R5/R5a/R10 立即 failed 矩阵并复核 R5 独占证据**
+- [x] **T24 — 补齐可达 R5/R5a/R10 立即 failed 矩阵并复核 R5 独占证据**
 
   - **依赖：** T22。
   - **交付：** 不修改生产实现；新增独立任务系统回归测试，逐项覆盖生成入口可达的 R5 order 不连续、R5a 片段跨两个场景与单分镜绑定两个场景，以及 R10 的“删资产无 override”“活资产无 current”和 asset_current/override 各自的越界或非 canonical path、缺失/不可读文件、扩展不支持、bytes hash 不符。每个原因均覆盖 user_note 不变与实际 mutation 两种请求。不得为生成入口构造“目标 Clip 与另一 Clip 同时持有同一 Shot”：该稳定状态被 `clip_shots.shot_id UNIQUE` 阻止，生产 `_other_clip_shot_ids` 防御查询保持不变；不得删除/绕过约束、直接写非法数据、替换查询结果或修改既有测试。R5 独占改由 ORM/migration 约束审计和既有 C008 closed-rule、preview/create、真实 PostgreSQL 并发创建用例作替代证据。若现状不满足其余可达矩阵，立即停止并报告对应生产分支，不弱化断言。
