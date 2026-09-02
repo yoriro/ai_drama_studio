@@ -464,7 +464,7 @@
 
     期望：20 次全新进程记录均精确 `EXIT_CODE=0 AV_LOADED=False`；整个既有视频文件测试与完整 pytest 均 exit 0，合法真实 MP4 仍取得原探测 duration，全部非法容器参数及原错误消息仍通过；生产 diff 只有 import 移位，获授权测试 diff 只有 `video_files.av` → `av`，暂存集合精确为本项列出的两个代码/测试文件及 `openspec/TRACEABILITY.md`、`openspec/changes/c009/tasks.md`。任一进程或测试失败立即停止，不得追加重跑取绿。
 
-- [ ] **T23 — 证明真实生产生成入口的跨进程 request_id 竞争**
+- [x] **T23 — 证明真实生产生成入口的跨进程 request_id 竞争**
 
   - **依赖：** T22、T22A；T22A 的 20 进程导入探针、既有视频文件测试与完整 pytest 均通过并已提交后才可继续。
   - **交付：** 不修改生产实现；新增独立跨进程回归测试，使用两个以上独立进程/应用实例与 PostgreSQL 连接实际调用生产 gen_clip_video/gen_asset_image 入队入口，覆盖同 id 同身份、视频不同 clip、user_note 省略/显式 null/空串/空白/不同值、视频与资产图片跨类型竞争及终态重放。使用可控 barrier/锁等待证明重叠，不用 sleep 猜竞态。每个 caller 的失败信息必须逐项包含 PID 与真实 exitcode，且通过条件仍是所有子进程 exitcode 精确为 0，不得把非零退出改成可接受结果。若该测试暴露生产缺陷，本 task 立即停止并报告，不自行扩展修复范围。
