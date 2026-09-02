@@ -530,18 +530,29 @@
 - [ ] **T25 — 补齐 wake/sleep/WS 失败的跨进程资源生命周期**
 
   - **依赖：** T21、T24。
-  - **交付：** 修复定向测试暴露的生产根因（如有），范围只限 gen_clip_video 的正式 vLLM/Comfy client 调度、失败传播和 finally 清理；新增独立跨进程回归测试，以本地子进程 HTTP/WS stub 和生产 queue/handler/clients 分别在 wake、sleep、WS 阶段失败。不得捕获宽泛异常、吞主错误、重试、fallback或按测试环境特判；不得修改既有测试。
+  - **交付：** 修复已确认的生产根因，范围只限 `backend/app/tasks/gen_clip_video.py` 的正式 vLLM/Comfy client 调度、失败传播和 finally 清理：建立覆盖整个 handler 的单一 Comfy cleanup owner，使 wake/chat/sleep/upload/submit/WS/history/view 失败与每个取消安全点均 `/free` 精确一次；不得在外层与 `_run_comfy` 双重 free，且主错误与 free/temp cleanup 错误仍同时可诊断。完成当前尚未提交的独立跨进程测试 `backend/tests/task_system/test_c009_review_worker_failures.py`，以本地子进程 HTTP/WS stub 和生产 queue/handler/clients 分别在 wake、sleep、WS 阶段失败；修正其验收装置：HTTPX 完整双行异常尾部精确比较，asyncpg JSON payload 显式反序列化为 object，数据库场景只用一次 `asyncio.run()` 并在同一 loop cleanup/dispose，删除或替换 `raw_body_length == raw_body_length` 恒真断言。按 AGENTS.md 获窄授权，只把 `backend/tests/task_system/test_c009_gen_clip_video.py` 的三个既有 `free_calls` 断言精确演进为失败/取消全路径 `== 1`；保留三个用例其他全部断言，不得修改该文件其他内容或任何其他既有测试。不得捕获宽泛异常、吞主错误、重试、fallback或按测试环境特判。
   - **R：** 无；PRD §6.2-§6.4、§8，C009 spec §6.3、§10。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C009 复审 wake/sleep/WS 失败资源生命周期`；`C009 GPU/Comfy 资源生命周期、取消与失败`。
-  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_worker_failures.py`。每个 stub 进程通过事件报告启动、收到的精确 method/path/body 和退出；测试走生产 claim/handler，精确断言每阶段只调用一次、Task 一次 failed且 error_msg 保留原阶段原因、无 retry/take/cache/formal/temp，并按 PRD §6.4 在 finally 调用 Comfy `/free`；WS 失败还须证明已 submit 的 prompt_id 与监听过滤一致。运行：
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_worker_failures.py`，并只按上述窄授权演进一个既有测试文件的三个断言。每个 stub 进程通过事件报告启动、收到的精确 method/path/body 和退出；测试走生产 claim/handler，精确断言每阶段只调用一次、Task 一次 failed且 error_msg 保留原阶段原因、无 retry/take/cache/formal/temp，并按 PRD §6.4 在 finally 调用 Comfy `/free`。请求序列精确为 wake：`/wake_up 503 → /free 200`；sleep：`/wake_up 200 → chat 200 → /sleep 503 → /free 200`；WS 保留 upload/submit/WS error 后 `/free 200`，并证明已 submit 的 prompt_id 与监听过滤一致。使用全新隔离 PostgreSQL 并显式设置 `DATABASE_URL`，保存原始输出与退出码到 `.work/c009/T25-test.log` 与 `.work/c009/T25-full-pytest.log`；运行：
 
     ```powershell
     Set-Location backend
-    python -m pytest -q tests/task_system/test_c009_review_worker_failures.py tests/task_system/test_c009_resource_lifecycle.py tests/task_system/test_c009_gen_clip_video.py
+    python -m pytest -q tests/task_system/test_c009_review_worker_failures.py tests/task_system/test_c009_resource_lifecycle.py tests/task_system/test_c009_gen_clip_video.py 2>&1 | Tee-Object -FilePath '../.work/c009/T25-test.log'
+    $targetExit = $LASTEXITCODE
+    "EXIT_CODE=$targetExit" | Tee-Object -FilePath '../.work/c009/T25-test.log' -Append
+    if ($targetExit -ne 0) { exit $targetExit }
+    python -m pytest -q 2>&1 | Tee-Object -FilePath '../.work/c009/T25-full-pytest.log'
+    $fullExit = $LASTEXITCODE
+    "EXIT_CODE=$fullExit" | Tee-Object -FilePath '../.work/c009/T25-full-pytest.log' -Append
+    if ($fullExit -ne 0) { exit $fullExit }
+    Set-Location ..
+    git diff --check
+    git diff -- backend/tests/task_system/test_c009_gen_clip_video.py
+    git diff --name-status --cached
     ```
 
-    期望：全部通过；三个阶段均有可控触发和完整事件序列，不以普通 mock 的最终状态或固定 sleep 代替跨进程证据。
+    期望：定向与完整 pytest 均 exit 0；wake/sleep/WS 三阶段均有可控触发、完整事件序列和精确一次 `/free`，所有取消安全点同样精确一次；不以普通 mock 的最终状态或固定 sleep 代替跨进程证据。既有测试 diff 精确只有获授权的三个断言，新增 T25 测试无多 loop async engine 错误、JSON string 误用或恒真断言；暂存集合只含 `backend/app/tasks/gen_clip_video.py`、新增 T25 测试、获授权既有测试、`openspec/TRACEABILITY.md` 与本 checkbox，`.work/` 不提交。任一失败立即停止，不得追加重跑取绿。
 
 - [ ] **T26 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
 
@@ -555,7 +566,7 @@
 - [ ] **T27 — 回填复审追溯并执行最终隔离库与提交一致性审计**
 
   - **依赖：** T20、T20A、T21-T22、T22A、T23-T26 全部通过；任一未通过不得执行或勾选。
-  - **交付：** 把本轮八条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据、T22A 固定多进程导入证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行，且 repair baseline 之后既有测试 diff 精确只有 T20A 获窄授权的 `backend/tests/task_system/test_c009_resource_lifecycle.py` helper及三处调用，以及 T22A 获窄授权的 `backend/tests/task_system/test_c009_video_files.py` monkeypatch 目标替换，其他既有测试零修改。审计 `backend/app/services/video_files.py` diff 只把 PyAV import 从模块顶层移入 `probe_clip_video_duration()`。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、T22A 20 进程加载边界、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
+  - **交付：** 把本轮八条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据、T22A 固定多进程导入证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行，且 repair baseline 之后既有测试 diff 精确只有 T20A 获窄授权的 `backend/tests/task_system/test_c009_resource_lifecycle.py` helper及三处调用、T22A 获窄授权的 `backend/tests/task_system/test_c009_video_files.py` monkeypatch 目标替换，以及 T25 获窄授权的 `backend/tests/task_system/test_c009_gen_clip_video.py` 三个 `free_calls` 断言演进，其他既有测试零修改。审计 `backend/app/services/video_files.py` diff 只把 PyAV import 从模块顶层移入 `probe_clip_video_duration()`。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、T22A 20 进程加载边界、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
   - **R：** 无；PRD §0、§3、§6-§8、§11 M4、§12。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 设置页消费双 workflow hash 健康合同：前端严格接受 zimage/minimaxh3 两个 64hex 并在既有诊断区逐字展示，不放宽 schema、不新增 C010 UI`；`C009 PyAV 按需加载与 Windows 子进程导入边界：固定 20 个生产应用/API/入队 import-only 子进程均不加载 av 且 exit 0，实际媒体探测仍使用 PyAV`；本轮六条 `C009 复审...` 准确行名。
@@ -578,7 +589,7 @@
     Get-Content -Raw .work/c009/completion-report.md
     ```
 
-    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件、T20A 获窄授权的既有生命周期测试文件及 T22A 获窄授权的既有视频文件测试，前者 diff 只含 helper 跨组件筛选/准确重命名及三处调用，后者只含 `video_files.av` → `av`，其他既有测试零修改；`video_files.py` 只含 PyAV import 移位；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
+    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件、T20A 获窄授权的既有生命周期测试、T22A 获窄授权的既有视频文件测试及 T25 获窄授权的既有视频 handler 测试，三者分别只含 helper 跨组件筛选/准确重命名及三处调用、`video_files.av` → `av`、三个 `free_calls` 断言演进，其他既有测试零修改；`video_files.py` 只含 PyAV import 移位；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
