@@ -6,7 +6,7 @@
 - 开始实现前以 T0 记录的 commit 为 C009 baseline。不得把 Sol 已有文档 diff、`.work/`、下载目录文件或无关工作区改动夹入实现 commit。
 - 除 T2 的三文件窄授权外，不得修改、删除、skip、改名或改弱既有测试；新增测试前先确认归属本文件标注的 TRACEABILITY 准确行名，实现后回填真实 pytest node ID。
 - 所有 PostgreSQL 集成/任务测试使用按 NOTES.md 创建的全新隔离数据库并显式导出 `DATABASE_URL`；原始命令与退出码保存到 `.work/c009/Txx-*.log`。测试 mock 不得连接真实 8001/8188。
-- C009 不新增 migration、前端实现、demo/验收 endpoint、长期 driver 或兼容层。临时 Sol/Luna 诊断脚本只能放 `.work/c009/probe-*.py`，不提交、不得替代计划测试。
+- C009 不新增 migration、C010 前端能力、demo/验收 endpoint、长期 driver 或兼容层。前端实现唯一窄例外是 T20 精确修改既有 `frontend/src/api/health.ts` 与 `frontend/src/pages/SettingsPage.tsx`，同步设置页双 workflow hash；不得修改其他前端文件、依赖或测试框架。临时 Sol/Luna 诊断脚本只能放 `.work/c009/probe-*.py`，不提交、不得替代计划测试。
 - 实现失败直接 failed 并保留完整 error_msg；不得增加重试、静默 fallback、preset 填图、默认 prompt、requested_duration 伪造 actual_duration 或吞异常。
 
 ## 任务
@@ -322,7 +322,7 @@
 - [x] **T18 — 回填 TRACEABILITY 并执行隔离库全量验证与范围审计**
 
   - **依赖：** T1-T17 全部计划验收通过。
-  - **交付：** 把所有 C009 `待填` 回填为真实 pytest node ID或T17原始证据路径；每个新增测试至少归属一行，删除阶段性重复/无归属新测试（不得删改既有测试）；在全新库跑 migration/完整pytest/前端build；审计 baseline..HEAD 每个文件对应task、零migration/UI/围栏/重试/versioning；不在失败时勾选。
+  - **交付：** 把当时所有 C009 `待填` 回填为真实 pytest node ID或T17原始证据路径；每个新增测试至少归属一行，删除阶段性重复/无归属新测试（不得删改既有测试）；在全新库跑 migration/完整pytest/前端build；审计当时 baseline..HEAD 每个文件对应task、零migration/UI/围栏/重试/versioning；不在失败时勾选。本项是 2026-09-02 复审修复计划之前已完成的历史门槛，其证据不覆盖后来新增的 T20-T27，最终范围由 T27 重验。
   - **R：** R4、R5、R5a、R6、R9、R10、R11、R12；PRD §0、§3、§5-§8、§11 M4。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；本 change 所有 C009 专用追溯行。
@@ -341,7 +341,7 @@
     rg -n "\| 待填 \||C009 专用新增用例待填" openspec/TRACEABILITY.md
     ```
 
-    T0 必须把纯SHA另存 `.work/c009/baseline-sha.txt` 供命令读取。期望：upgrade/current/check唯一既有head且check无操作；完整pytest/build均exit0；migration/frontend无C009 diff；最后一条 rg 无输出（exit 1，表示没有未回填数据行）；范围外关键字只能出现在既有围栏/枚举预留或spec/tasks否定说明，不得出现在新增实现。
+    T0 必须把纯SHA另存 `.work/c009/baseline-sha.txt` 供命令读取。该次历史验收期望：upgrade/current/check唯一既有head且check无操作；完整pytest/build均exit0；当时 migration/frontend 无C009 diff；最后一条 rg 无输出（exit 1，表示当时没有未回填数据行）；范围外关键字只能出现在既有围栏/枚举预留或spec/tasks否定说明，不得出现在新增实现。T20 后允许的两个前端文件及新增待填行不反向宣称由 T18 证明，必须由 T20/T27 新证据覆盖。
 
 - [x] **T19 — 形成可审查的 C009 完成报告与走查证据索引**
 
@@ -352,9 +352,29 @@
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 真实 MiniMax workflow/template 视频闭环`。
   - **验收方式与人工检查：** 执行 `Get-Content -Raw .work/c009/completion-report.md`，逐条反查 T00-T18 log、git commits、TRACE IDs、DB/task/media记录；期望五节齐全，第5节每条同时有操作、原始观测值、期望真假结论，不能只有“页面/任务正常”“测试全绿”。
 
-- [ ] **T20 — 收紧 MiniMax binding 启动闭合并补回归证据**
+- [ ] **T20 — 同步既有设置页的双 workflow hash 健康合同**
 
-  - **依赖：** T19；以 Sol 本轮修复计划 commit 为 repair baseline，开工前将其纯 SHA 写入 `.work/c009/review-repair-baseline-sha.txt`，并确认 tracked worktree 无执行者遗留改动。
+  - **依赖：** T19；以 Sol 本轮新修复计划 commit 为 repair baseline，开工前确认 `git rev-parse HEAD` 与 handoff SHA 精确一致，将该纯 SHA 写入 `.work/c009/review-repair-baseline-sha.txt`，并确认 tracked worktree 无执行者遗留改动。
+  - **交付：** 只修改 `frontend/src/api/health.ts` 与 `frontend/src/pages/SettingsPage.tsx`：`WorkflowBindings.hashes` 的 TypeScript 类型和运行时 `hasExactKeys` 精确改为 `zimage,minimaxh3`，两值分别校验 64 位小写十六进制；设置页现有诊断区显示整体 `Workflow bindings` valid，以及 `Z-Image workflow hash`、`MiniMax H3 workflow hash` 两项逐字值。缺键、额外键、错误类型/格式仍走现有 `ApiProtocolError`，不得把 minimaxh3 设为 optional、放宽未知键、吞错或 fallback。不得修改 client transport、CSS、package/依赖、其他前端文件，不得新增 C010 路由、生成按钮、take/槽位 UI或测试框架。
+  - **R：** 无；PRD §2.1(2)、§8、§9、§11 M3/M4，C009 spec §6.2.1。
+  - **计划测试层级：** 不新增自动测试。
+  - **不新增自动测试理由与替代验收：** 当前 frontend 无测试命令/runner；替代验收为 production build + 真实后端 health + 真实浏览器 DOM/console，并在 spec §11 写明同路与差异。
+  - **追溯行：** `C009 设置页消费双 workflow hash 健康合同：前端严格接受 zimage/minimaxh3 两个 64hex 并在既有诊断区逐字展示，不放宽 schema、不新增 C010 UI`；`C009 范围、零 migration 与完整回归/完成证据`。
+  - **验收方式与命令/人工检查：** 保存命令原始输出和退出码到 `.work/c009/T20-frontend-build.log`、`.work/c009/T20-health-response.log`，并保存 `/settings` 网络响应、DOM、console 的“操作 → 观测值”记录与截图索引：
+
+    ```powershell
+    npm --prefix frontend run build
+    $health = Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:8000/api/system/health'
+    $health | ConvertTo-Json -Depth 8
+    git diff --name-status (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- frontend
+    git diff --name-status -- frontend
+    ```
+
+    使用现有 Vite 前端打开 `http://127.0.0.1:5173/settings` 并刷新一次。期望：build exit 0；health 的 hashes key 集合精确 `zimage,minimaxh3` 且均为 64hex；页面不出现 `Health response did not match its schema`/非 JSON 错误，显示整体 valid 和两个标签，DOM hash 与同次网络响应逐字相等，console 无该请求协议错误；前端 tracked diff 精确只有上述两文件。后端进程停止造成的 Vite 非 JSON transport 错误不在本 task 修复范围。
+
+- [ ] **T21 — 收紧 MiniMax binding 启动闭合并补回归证据**
+
+  - **依赖：** T20；确认 repair baseline 文件仍是 Sol handoff SHA，T20 已勾选并提交且除 `.work/` 外无未提交改动。
   - **交付：** 只修正生产 MiniMax binding loader/启动校验及必要的 workflow 注入校验：路径必须精确为 `node_id.inputs.input_key`；prompt/seed/duration 的物理叶子两两不同且不与 reference 叶子重叠；LoadImage 节点集合精确等于九个已绑定 sentinel 节点；拒绝 preset/额外 LoadImage、参考视频输入与绑定 VHS output 的 `audio` input。正确 workflow 注入后 prompt、seed、duration 必须各留在自己的叶子且精确等于调用值。不得修改给定 workflow bytes/hash、zimage 合同、既有测试或用测试路径/环境做特判。
   - **R：** 无；PRD §0、§8、§12.1，C009 spec §6.2-§6.3。
   - **计划测试层级：** 任务系统 mock。
@@ -368,9 +388,9 @@
 
     期望：全部通过；坏 binding 的 worker start/claim 计数均为 0，正确 workflow 无 preset、参考视频业务输入与 output audio，三个注入值互不覆盖。
 
-- [ ] **T21 — 实现零 enabled 与保留 generation_mode 的原子 409 前置条件**
+- [ ] **T22 — 实现零 enabled 与保留 generation_mode 的原子 409 前置条件**
 
-  - **依赖：** T20。
+  - **依赖：** T21。
   - **交付：** 只修改 generate-video 入队服务/API 必要代码：非 null request_id 仍先按既有全局幂等临界区查找并重放；仅对新请求，在任何 user_note/revision/freshness mutation、Task insert、序列化或外调前锁内重读 mode 与槽位。零 enabled 精确返回 409/`conflict`/`At least one reference slot must be enabled`；`fl2v` 或 `context_loop` 精确返回 409/`conflict`/`Clip generation mode is not supported in v1`。两类都不创建 Task、不修改 Clip、不进入 ref2v worker；零 enabled 不标成 R10。不得新增 migration/schema、兼容分支或重试。
   - **R：** 无；PRD §0 范围围栏、§6.1-§6.2、§7，C009 spec §4.3-§4.4、§10。
   - **计划测试层级：** 任务系统 mock。
@@ -384,9 +404,9 @@
 
     期望：全部通过；两类新请求的 SQL 最终事实分别为 Task 增量 0、Clip user_note/revision/freshness 不变，合法历史重放不重算当前前置条件。
 
-- [ ] **T22 — 证明真实生产生成入口的跨进程 request_id 竞争**
+- [ ] **T23 — 证明真实生产生成入口的跨进程 request_id 竞争**
 
-  - **依赖：** T21。
+  - **依赖：** T22。
   - **交付：** 不修改生产实现；新增独立跨进程回归测试，使用两个以上独立进程/应用实例与 PostgreSQL 连接实际调用生产 gen_clip_video/gen_asset_image 入队入口，覆盖同 id 同身份、视频不同 clip、user_note 省略/显式 null/空串/空白/不同值、视频与资产图片跨类型竞争及终态重放。使用可控 barrier/锁等待证明重叠，不用 sleep 猜竞态。若该测试暴露生产缺陷，本 task 立即停止并报告，不自行扩展修复范围。
   - **R：** 无；PRD §6.1 去重与幂等、§6.2 payload 快照，C009 spec §4.2-§4.3。
   - **计划测试层级：** 跨进程/资源生命周期。
@@ -400,9 +420,9 @@
 
     期望：全部通过，且测试日志能显示至少两个独立 PID 在同一 release 前均已就绪；仅复跑进程内既有用例不算本 task 完成。
 
-- [ ] **T23 — 补齐 R5/R5a/R10 立即 failed 的完整规则矩阵**
+- [ ] **T24 — 补齐 R5/R5a/R10 立即 failed 的完整规则矩阵**
 
-  - **依赖：** T21。
+  - **依赖：** T22。
   - **交付：** 不修改生产实现；新增独立任务系统回归测试，逐项覆盖 R5 的 order 不连续与分镜已被另一 Clip 占用，R5a 的片段跨两个场景与单分镜绑定两个场景，以及 R10 的“删资产无 override”“活资产无 current”和 asset_current/override 各自的越界或非 canonical path、缺失/不可读文件、扩展不支持、bytes hash 不符。每个原因均覆盖 user_note 不变与实际 mutation 两种请求。若现状不满足 spec，立即停止并报告对应生产分支，不弱化矩阵。
   - **R：** R5、R5a、R10；PRD §3、§6.2、§7，C009 spec §4.2、§4.4、§8。
   - **计划测试层级：** 任务系统 mock。
@@ -416,9 +436,9 @@
 
     期望：参数矩阵全部通过；不能用一个泛化“非空 error”断言代替规则编号、slot_no/原因、数量与副作用断言。
 
-- [ ] **T24 — 补齐 wake/sleep/WS 失败的跨进程资源生命周期**
+- [ ] **T25 — 补齐 wake/sleep/WS 失败的跨进程资源生命周期**
 
-  - **依赖：** T20、T23。
+  - **依赖：** T21、T24。
   - **交付：** 修复定向测试暴露的生产根因（如有），范围只限 gen_clip_video 的正式 vLLM/Comfy client 调度、失败传播和 finally 清理；新增独立跨进程回归测试，以本地子进程 HTTP/WS stub 和生产 queue/handler/clients 分别在 wake、sleep、WS 阶段失败。不得捕获宽泛异常、吞主错误、重试、fallback或按测试环境特判；不得修改既有测试。
   - **R：** 无；PRD §6.2-§6.4、§8，C009 spec §6.3、§10。
   - **计划测试层级：** 跨进程/资源生命周期。
@@ -432,22 +452,22 @@
 
     期望：全部通过；三个阶段均有可控触发和完整事件序列，不以普通 mock 的最终状态或固定 sleep 代替跨进程证据。
 
-- [ ] **T25 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
+- [ ] **T26 — 用真实 Comfy interrupt 验收已 claim 工作流失败闭环**
 
-  - **依赖：** T20-T24；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
-  - **交付：** 不修改仓库代码/测试，不新增脚本、proxy、demo或长期 driver。使用隔离数据库、生产 Uvicorn/worker、真实 vLLM/Comfy、正式 generate-video API 创建一条不会命中 cache 的任务；待 Comfy `/queue` 证明该任务唯一 prompt 已 running 后，由验收 PowerShell 直接调用真实 Comfy `POST /interrupt`，不调用应用 cancel。原始 API/WS、应用日志、Comfy queue/history、SQL、文件与最终资源证据写入 `.work/c009/T25-*.log`。
+  - **依赖：** T20-T25；PRD §12 的 PostgreSQL、vLLM、Comfy、给定 workflow/template 现场门槛全部满足。Comfy `/queue` 开始时必须无 running/pending，且验收期间只允许本 task 的 prompt；出现其他任务立即停止，绝不中断未知任务。
+  - **交付：** 不修改仓库代码/测试，不新增脚本、proxy、demo或长期 driver。使用隔离数据库、生产 Uvicorn/worker、真实 vLLM/Comfy、正式 generate-video API 创建一条不会命中 cache 的任务；待 Comfy `/queue` 证明该任务唯一 prompt 已 running 后，由验收 PowerShell 直接调用真实 Comfy `POST /interrupt`，不调用应用 cancel。原始 API/WS、应用日志、Comfy queue/history、SQL、文件与最终资源证据写入 `.work/c009/T26-*.log`。
   - **R：** 无；PRD §6.2-§6.4、§8、§11 M4、§12，C009 spec §11、AC-21。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C009 复审真实 Comfy workflow interrupt 失败闭环`；`C009 真实 MiniMax workflow/template 视频闭环`。
   - **验收方式与命令/人工检查：** 使用直接 PowerShell/`Invoke-RestMethod` 和数据库只读查询，不创建 repo 脚本。先保存 `/queue` 初始 JSON与唯一性判断，再 POST generate-video、轮询正式 Task API与 `/queue`；记录 Task `started_at`、唯一 Comfy prompt_id 和 `/interrupt` 响应，轮询至 terminal，最后记录 `/queue`、`/history/{prompt_id}`、vLLM sleeping、应用 `/free` 日志、Task/ClipVideo/cache SQL及 temp/formal 文件清单。期望：任务确有 started_at 且真实 submit 后才被中断；最终精确 failed并保留中断原因，无 retry、take、cache 更新、formal/temp 文件，Comfy `/free` 已调用，vLLM sleeping且 queue 空。R10 立即 failed、应用 cancel、mock/stub或仅看最终 DOM 均不能替代本证据。
 
-- [ ] **T26 — 回填复审追溯并执行最终隔离库与提交一致性审计**
+- [ ] **T27 — 回填复审追溯并执行最终隔离库与提交一致性审计**
 
-  - **依赖：** T20-T25 全部通过；任一未通过不得执行或勾选。
-  - **交付：** 把六条 `C009 复审...` 追溯行回填为真实新 pytest node ID或 T25 原始证据路径；确认五个新增测试文件各自至少归属一行且 repair baseline 之后既有测试零修改。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖两个新 409、R10 与 T25 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
+  - **依赖：** T20-T26 全部通过；任一未通过不得执行或勾选。
+  - **交付：** 把本轮七条新增追溯行及既有范围行新增的 T20 待填项，回填为真实新 pytest node ID、T20 浏览器证据或 T26 真实外部证据路径；确认 T21-T25 五个新增测试文件各自至少归属一行且 repair baseline 之后既有测试零修改。用全新隔离 PostgreSQL 跑 Alembic、完整 pytest、前端 build与范围审计；更新 `.work/c009/completion-report.md`，第5节以“操作 → 观测值”覆盖设置页双 hash、两个新 409、R10 与 T26 真实中断。不得把 `.work/` 入 commit或把未验证项写成完成。
   - **R：** 无；PRD §0、§3、§6-§8、§11 M4、§12。
   - **计划测试层级：** 不新增自动测试。
-  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；本轮六条 `C009 复审...` 准确行名。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 设置页消费双 workflow hash 健康合同：前端严格接受 zimage/minimaxh3 两个 64hex 并在既有诊断区逐字展示，不放宽 schema、不新增 C010 UI`；本轮六条 `C009 复审...` 准确行名。
   - **验收方式与命令：** 按 NOTES 创建全新数据库并显式设置 `DATABASE_URL`，保存全部 stdout/stderr 与 exit code；运行：
 
     ```powershell
@@ -461,19 +481,20 @@
     git diff --check
     git diff --name-status (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD
     git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- backend/tests
-    git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- backend/alembic frontend
-    rg -n "C009 复审.*\|.*待填|待填（T2[0-5]" openspec/TRACEABILITY.md
+    git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- backend/alembic
+    git diff --name-only (Get-Content .work/c009/review-repair-baseline-sha.txt)..HEAD -- frontend
+    rg -n "C009 (复审|设置页).*(\|.*待填)|待填（T2[0-6]" openspec/TRACEABILITY.md
     Get-Content -Raw .work/c009/completion-report.md
     ```
 
-    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T20-T24 五个新文件，既有测试、migration、frontend 无 diff；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T25。
+    期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件且既有测试零修改，migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`。
-  - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18/T25/T26 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
+  - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18/T20/T26/T27 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
 
 - [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 

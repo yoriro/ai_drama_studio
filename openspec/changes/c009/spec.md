@@ -14,12 +14,12 @@ C009 在 C008 已落库的 Clip、ClipShot、ClipRefSlot 与 ClipVideo 模型之
 4. 生成结果的 MP4 临时写入、可探测性与 actual_duration、sha256、原子改名、ClipVideo 落库、首个 take 自动 current、完成反竞态和文件/数据库同步补偿。
 5. `GET /api/clips/{clip_id}/videos`、`PUT /api/clips/{clip_id}/current-video`、`DELETE /api/clip-videos/{video_id}` 与 `GET /media/clip-videos/{video_id}`。
 6. 多个 gen_clip_video 任务同时存在时，Clip.generation_state 的聚合规则；enqueue/claim/done/failed/canceled/restart 每次转换与聚合状态同事务提交。
-7. MiniMax H3 API 工作流绑定、启动校验及 `/api/system/health` 同时暴露 zimage/minimaxh3 两个真实 workflow hash。
+7. MiniMax H3 API 工作流绑定、启动校验及 `/api/system/health` 同时暴露 zimage/minimaxh3 两个真实 workflow hash；窄同步既有设置页的 health 响应解析与诊断展示，使其消费并显示这两个 hash。
 8. 既有表、索引与列足够，本 change 为零 migration；允许增加成熟 Python 视频容器解析依赖，不允许手写 MP4/ffprobe 解析器。
 
 ### 范围外
 
-1. C010 的 `/director` 一带两轨一板、take 画廊 UI、槽位面板、按钮与浏览器交互；C009 完成后浏览器不会出现新的导演台能力。
+1. C010 的 `/director` 一带两轨一板、take 画廊 UI、槽位面板、按钮与浏览器交互；除 §6.2.1 的既有设置页双 hash 诊断同步外，C009 不交付其他前端能力，完成后浏览器不会出现新的导演台能力。
 2. 候选分镜版本、分镜增删/拆分/合并/排序、资产别名/合并、风格或模板版本化、独立 generation_runs、continuity 字段或逻辑、音频、fl2v/context_loop 执行路径；`clips.generation_mode` 仍只读写 `ref2v`。
 3. 自动重试、静默 fallback、兼容旧工作流/旧模板、工作流注册表、提示词版本表、媒体历史文件后缀、Comfy 参考图清理服务或新后台进程。
 4. 视频审美质量、角色跨 take 一致性优化、duration_est 与 actual_duration 偏差校准；PRD §13 将偏差校准留给后续观察，本 change 只记录真实值。
@@ -29,6 +29,7 @@ C009 在 C008 已落库的 Clip、ClipShot、ClipRefSlot 与 ClipVideo 模型之
 
 - 当前模型与初始迁移已经包含 Clip prompt cache/hash、五态 generation_state、freshness/revision、ClipVideo 全部字段、`gen_clip_video` Task 枚举及 current 部分唯一索引，因此不得新增或修改 migration/schema。
 - 当前代码没有 generate-video API、handler、视频 take CRUD/media、Comfy image upload 或视频解析；`bindings.toml`、binding loader、startup health 与 handler map 目前都只有 zimage。
+- 当前后端 health 已返回精确 `zimage + minimaxh3`，但 `frontend/src/api/health.ts` 的闭合 parser/interface 仍只接受 `zimage`，`frontend/src/pages/SettingsPage.tsx` 也只显示 Z-Image；因此真实双 hash 响应会被误报为 `Health response did not match its schema`。这是 C009 health 合同的前端消费缺口，不是 C010 导演台功能。
 - 当前队列允许 image/video 同目标多任务，但 task 终态直接写单一结果不足以表达多个视频任务；本 change 必须按 §8 的聚合规则更新 Clip，不能用“最后一行代码写 wins”。
 - C008 已固定槽位顺序、R9 解析与 R12 快照。C009 不反向改变它们，只在同一入队事务中锁定并读取生成所需当前事实。
 - 提示词模板是设置数据，不做 migration seed/version。真实验收环境须通过现有 PromptTemplate API 把需求方给定内容写入 `minimaxh3` 并逐字读回。
@@ -41,6 +42,7 @@ C009 在 C008 已落库的 Clip、ClipShot、ClipRefSlot 与 ClipVideo 模型之
 4. **敌意外部输入**：vLLM JSON、Comfy upload/history 字段、文件名/子目录、WS 事件与视频 bytes 均不可直接信任；范围、类型、路径与数量验证失败即 failed，不重试、不使用 `fullpath`。
 5. **工作流可变参考数**：给定工作流不能把未用 LoadImage 留空；1..9 张输入必须删掉未使用的 LoadImage 节点和对应 H3 动态输入，不能保留 sentinel、预设图或复制第一张图填空。
 6. **外部环境**：结构校验不能证明模型节点、权重、显存调度或真实 MP4 成功；真实 vLLM/Comfy/MiniMax 验收仍是完成门槛。
+7. **前后端闭合 schema 漂移**：后端增加第二个 workflow hash 后，前端的精确 key 校验会主动拒绝响应；只能把既有 parser 与设置页展示同步到同一精确双 key 合同，不能通过放宽未知字段、可选 minimaxh3、吞协议错误或 fallback 规避。
 
 ## 外部依赖
 
@@ -194,6 +196,12 @@ loader 在启动时同时验证：
 
 任一绑定错误在 worker 启动/claim 之前拒绝应用启动。health 成功结构保持既有 schema，`workflow_bindings={status:"valid",message:null,hashes:{zimage:<64hex>,minimaxh3:<64hex>}}`，hash key 集合精确为两项；vLLM/Comfy health 语义与探测次数不变。
 
+### 6.2.1 设置页双 workflow hash 消费
+
+1. `frontend/src/api/health.ts` 的 `WorkflowBindings.hashes` 类型与运行时闭合校验必须精确包含 `zimage`、`minimaxh3` 两键；两值都必须是 64 位小写十六进制 string。缺任一键、出现额外键或任一值类型/格式错误，仍抛出 `ApiProtocolError(200, "Health response did not match its schema")`，不得把 minimaxh3 做成 optional、忽略未知键或 fallback 到 zimage-only。
+2. `frontend/src/pages/SettingsPage.tsx` 的诊断区必须显示一个整体 `Workflow bindings` 状态，以及标签精确可区分的 `Z-Image workflow hash`、`MiniMax H3 workflow hash`；显示值逐字等于同一次 health 响应。不得新增生成视频按钮、导演台路由、take/槽位 UI 或前端业务裁决。
+3. 本项实现 diff 只允许上述两个既有前端文件；不修改 API client 的非 JSON/HTTP 错误语义、不增加兼容解析层、依赖、测试框架或 CSS 文件。后端短暂停止时 Vite proxy 返回非 JSON 错误是独立的 transport 失败，不属于本项，不得以静默 fallback 掩盖。
+
 ### 6.3 工作流注入与可变 references
 
 1. 在 Comfy submit 前调用 vLLM level-1 sleep；cache hit 也必须 sleep。
@@ -303,6 +311,7 @@ C009 不交付生产 demo、额外验收 endpoint、长期 driver 或第二套�
 
 - **纯函数测试**直接调用生产 serializer/template/binding/workflow injection，只证明确定性结构、hash 成员、严格输出和 dynamic pruning，不证明数据库锁、真实上传或模型可运行。
 - **API 集成测试**走生产 FastAPI router/service、真实 PostgreSQL 与隔离 DATA_DIR；外部 HTTP 用正式 client seam 的 mock，证明 HTTP、公开字段、DEBUG、错误体与 take CRUD，不证明 GPU/Comfy 模型。
+- **设置页双 hash 走查**不新增项目脚本、proxy 或测试框架：先运行 TypeScript/Vite production build，再使用现有 Vite 前端、生产 FastAPI 和真实 `/api/system/health`，从浏览器打开 `/settings`，核对同一次网络响应与 DOM。React 页面、`getHealth()`、Vite proxy 与后端 health 均是实际运行通路；与最终部署的差异仅为前端由 Vite dev server 提供，build 单独证明可发布产物能够编译。该装置能证明真实双 hash 被严格 parser 接受并逐字展示，不能证明被人为篡改的全部非法 health 变体。当前 frontend `package.json` 没有自动测试命令/runner；为两字段同步引入新测试基础设施会扩大 C009 范围，因此 AC-24 计划为“不新增自动测试”，以 build、生产响应、浏览器 DOM/console 原始证据和源码闭合 key 审查替代。
 - **任务系统 mock**走生产 enqueue、queue、handler、final commit，mock vLLM/Comfy transport，并以竞态屏障验证快照、cancel、重复提交、聚合态与完成判定；它证明调用顺序和副作用边界，不证明工作流节点真实安装。
 - **跨进程/资源生命周期测试**使用至少两个独立 PostgreSQL 连接/应用进程、生产 advisory/claim/文件/补偿通路与本地真实 HTTP stub，证明 request-id lock、Task/Clip 同事务、restart、DB/file 生命周期及外部字段敌意输入；stub 不能证明真实模型质量。
 - **真实外部验收**不新增自建 driver；使用生产 Uvicorn、隔离 PostgreSQL、现有 REST/WS、真实 vLLM、真实 Comfy、仓库工作流与设置 API 模板。该通路与生产事件、存储、进程、上传、history、view、媒体读取完全相同。它能证明一条真实 1-reference 和一条多-reference MP4 闭环、duration/seed/hash/状态/资源次序；不能客观证明画面审美或长期角色一致性。
@@ -318,7 +327,7 @@ C009 不交付生产 demo、额外验收 endpoint、长期 driver 或第二套�
 
 | ID | 风险 | 触发条件 | 观测点 | 期望值 |
 |---|---|---|---|---|
-| AC-01 | [常规] | 检查 C009 diff、Alembic current/check、前端与围栏关键字 | git diff、migration head、OpenAPI、handler map、前端 diff | 零 migration/schema；只新增 C009 backend/workflow/dependency/docs；无 C010 UI、generation_runs、版本化、continuity、音频、fl2v/context_loop 执行、retry/fallback；gen_clip_video 正式注册 |
+| AC-01 | [常规] | 检查 C009 diff、Alembic current/check、前端与围栏关键字 | git diff、migration head、OpenAPI、handler map、前端 diff | 零 migration/schema；除 `frontend/src/api/health.ts` 与 `frontend/src/pages/SettingsPage.tsx` 的双 hash 同步外，只新增 C009 backend/workflow/dependency/docs；无 C010 UI、generation_runs、版本化、continuity、音频、fl2v/context_loop 执行、retry/fallback；gen_clip_video 正式注册 |
 | AC-02 | [外部输入] | 分别加载正确 MiniMax binding，以及缺字段、UI graph、路径逃逸、第二段不是 inputs、错 leaf、prompt/seed/duration 物理叶子别名、重复/少于 9 ref、错 consumer/output、额外 preset LoadImage、参考视频节点、VHS audio 输入的 binding | 应用 startup、worker claim 数、health JSON、submit workflow | 正确 binding 启动，hashes key 精确 zimage/minimaxh3 且值为原始 bytes hash；任一错误在 claim 前拒绝启动；注入后 prompt/seed/duration 三叶子和值精确且互不覆盖；health 的 vLLM/Comfy status/message/探测次数不漂移 |
 | AC-03 | [外部输入] | 用给定模板及缺/未知/未闭合 placeholder，向 vLLM 返回正常、额外键、null、空白、错误类型、非法 JSON | 单条 messages、guided schema、Comfy 调用、Task/error | shots/references 为紧凑有序 JSON，五变量来自快照，无隐藏 system 业务 prompt；只有精确非空 prompt 继续；其他均 failed、Comfy submit=0、无 retry/副作用 |
 | AC-04 | [事务一致性] | 槽位 1/3 enabled，分别覆盖活资产+current、活资产+override、删资产+override、删资产无 override、disabled 无图，并在活资产 name/description/current image 改后入队 | payload references/media/hash、Task、SQL snapshot | 成功列表按 slot_no 且命名 subject1/subject2；活资产取当前 name/type/description，override 仍带活 description；删资产 override 用快照 name/type+null description；disabled 排除；删资产无 override 产生 202 failed R10 且不序列化/外调 |
@@ -339,8 +348,9 @@ C009 不交付生产 demo、额外验收 endpoint、长期 driver 或第二套�
 | AC-19 | [外部输入] | DEBUG false/true 读取 videos，读取正常/未知/坏 path/缺文件媒体，并构造 2^63-1 seed | JSON keys/types、DB JSON、HTTP/MIME | false 无 prompt/snapshot/path；true 只多 built_prompt/input_snapshot且两个公开 seed 都是精确十进制字符串，DB仍int；media正常video/mp4，未知404，坏存储500，错误体精确且不泄露绝对路径 |
 | AC-20 | [常规] | 打开并运行三个获窄授权 health 测试、分阶段演进的 C008 contract 测试、T13 演进的 C007 handler 注册测试及所有新增测试，检查 git diff 与 TRACEABILITY | 测试断言、用例名、diff、追溯行 | health 三文件只把 hashes 精确集合演进为 zimage+minimaxh3；C008 contract 用例只按 T9/T13/T15 实际阶段向精确集合加入获授权 path/handler，既有 C008 行为/错误断言逐字保留且不改为子集/存在性；C007 注册用例只把视频 handler 不存在替换为生产 handler identity且保留资产 handler identity；除这五个获授权文件外既有测试零修改；每个新增用例归属追溯行且无恒真/只非空弱断言 |
 | AC-21 | [跨进程] | 在全新库与真实生产 vLLM/Comfy 中安装给定模板，分别生成 1-reference 与至少 2-reference 视频，其中一条 duration=5；另建一条唯一在跑的真实任务，待 Comfy prompt running 后由验收端直接 `/interrupt`，不调用应用 cancel | PromptTemplate GET、health、HTTP/WS/task、started_at、外部调用日志、Comfy queue/history、MP4/hash/duration/media、temp/formal/cache、最终 GPU/queue | 模板逐字与 hash 来源一致；health 双 hash；真实 prompt 的 Picture/Subject 与上传顺序一致、无 preset/音频；两条 MP4 可播放且 requested秒注入、actual>0、take/media/state正确；中断任务已 claim且实际 submit，随后精确 failed、完整原因、无 retry/take/cache/formal/temp，finally free；结束 vLLM sleeping、Comfy free且queue空。R5/R5a/R10 立即 failed 或 mock/stub 不得替代该异常证据；视觉审美只人工记录，不宣称自动证明 |
-| AC-22 | [常规] | 运行隔离库完整 pytest、Alembic、前端 build、范围/文档/commit 审计并读取完成报告第5节 | 原始命令日志、git diff、TRACEABILITY、NOTES/DECISIONS、completion report | 全部计划测试与完整套件通过；Alembic零漂移；前端 build通过且无C009 UI diff；c009目录只含spec/tasks；完成报告五节，第5节以“操作 → 观测值”覆盖真实主路径、R10 与 AC-21 真实工作流中断异常；TRACEABILITY 无待填；未验证项不宣称完成，收尾三项可核对 |
+| AC-22 | [常规] | 运行隔离库完整 pytest、Alembic、前端 build、范围/文档/commit 审计并读取完成报告第5节 | 原始命令日志、git diff、TRACEABILITY、NOTES/DECISIONS、completion report | 全部计划测试与完整套件通过；Alembic零漂移；前端 build通过，前端 diff 精确只有 AC-24 两文件且无 C010 UI；c009目录只含spec/tasks；完成报告五节，第5节以“操作 → 观测值”覆盖设置页双 hash、真实主路径、R10 与 AC-21 真实工作流中断异常；TRACEABILITY 无待填；未验证项不宣称完成，收尾三项可核对 |
 | AC-23 | [事务一致性] | 对新请求分别把全部槽位停用、把 Clip generation_mode 置为 fl2v/context_loop，并各自携带会实际改变的 user_note；另先创建带 request_id 的合法 Task，再改变当前槽位/mode 后重放同 id | HTTP/error body、Task 行数、Clip user_note/revision/freshness、payload、worker/vLLM/Comfy | 两个新请求均精确 409/conflict与裁决 message，Task 行数不变、Clip 不变且无 worker/外调；零 enabled 不标 R10；fl2v/context_loop 不进入 ref2v snapshot。合法重放仍 202 同 task_id，返回原冻结 payload且不按当前前置条件重算或 mutation |
+| AC-24 | [外部输入] | 后端返回 status valid 且 hashes 精确为 zimage/minimaxh3 两个 64hex，前端 build 后从真实浏览器打开 `/settings` 并刷新一次 | `/api/system/health` 网络响应、页面诊断 DOM、浏览器 console、frontend diff | 页面不出现 `Health response did not match its schema` 或非 JSON 错误；显示整体 Workflow bindings valid、Z-Image 与 MiniMax H3 两个标签及逐字匹配响应的 hash；console 无该请求协议错误；前端 diff 精确两文件，parser 仍精确拒绝缺键/额外键/非 64hex，未新增 C010 控件、fallback、依赖或测试框架 |
 
 ## 13. 追溯覆盖
 
@@ -363,3 +373,4 @@ spec 定稿后、tasks 编写前的逐条覆盖结果如下；TRACEABILITY 中�
 | AC-18 | C009 take 列表、current、删除与媒体生命周期 |
 | AC-21 | C009 真实 MiniMax workflow/template 视频闭环；C009 复审真实 Comfy workflow interrupt 失败闭环 |
 | AC-23 | C009 复审 generate-video 零 enabled 与保留 mode 的 409 原子前置条件 |
+| AC-24 | C009 设置页消费双 workflow hash 健康合同 |
