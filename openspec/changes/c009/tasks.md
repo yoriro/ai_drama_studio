@@ -495,21 +495,37 @@
 
     期望：七次 pytest 均 exit 0，且测试日志能显示至少两个独立 PID 在同一 release 前均已就绪；每个 caller exitcode 都精确为 0，失败信息可定位 PID 与真实非零值但不得接纳它；仅复跑进程内既有用例或在失败后追加重跑取得一次绿色不算本 task 完成。
 
-- [ ] **T24 — 补齐 R5/R5a/R10 立即 failed 的完整规则矩阵**
+- [ ] **T24 — 补齐可达 R5/R5a/R10 立即 failed 矩阵并复核 R5 独占证据**
 
   - **依赖：** T22。
-  - **交付：** 不修改生产实现；新增独立任务系统回归测试，逐项覆盖 R5 的 order 不连续与分镜已被另一 Clip 占用，R5a 的片段跨两个场景与单分镜绑定两个场景，以及 R10 的“删资产无 override”“活资产无 current”和 asset_current/override 各自的越界或非 canonical path、缺失/不可读文件、扩展不支持、bytes hash 不符。每个原因均覆盖 user_note 不变与实际 mutation 两种请求。若现状不满足 spec，立即停止并报告对应生产分支，不弱化矩阵。
+  - **交付：** 不修改生产实现；新增独立任务系统回归测试，逐项覆盖生成入口可达的 R5 order 不连续、R5a 片段跨两个场景与单分镜绑定两个场景，以及 R10 的“删资产无 override”“活资产无 current”和 asset_current/override 各自的越界或非 canonical path、缺失/不可读文件、扩展不支持、bytes hash 不符。每个原因均覆盖 user_note 不变与实际 mutation 两种请求。不得为生成入口构造“目标 Clip 与另一 Clip 同时持有同一 Shot”：该稳定状态被 `clip_shots.shot_id UNIQUE` 阻止，生产 `_other_clip_shot_ids` 防御查询保持不变；不得删除/绕过约束、直接写非法数据、替换查询结果或修改既有测试。R5 独占改由 ORM/migration 约束审计和既有 C008 closed-rule、preview/create、真实 PostgreSQL 并发创建用例作替代证据。若现状不满足其余可达矩阵，立即停止并报告对应生产分支，不弱化断言。
   - **R：** R5、R5a、R10；PRD §3、§6.2、§7，C009 spec §4.2、§4.4、§8。
-  - **计划测试层级：** 任务系统 mock。
-  - **追溯行：** `C009 复审 R5/R5a/R10 立即失败完整矩阵`；`R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`；`R10 缺图即失败：任一启用槽位既无资产当前图又无 override 时，生成片段必须失败并返回明确原因`。
-  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_precheck_matrix.py`。每格精确断言 HTTP 202、Task=`failed`/progress=0/started_at=null/finished_at与完整规则原因、input_hash=null、从未 queued/claim/渲染/外调；user_note 实际变化时与 failed Task 同一事务提交且 revision 只加 1，不变时 Clip 不写；generation_state 按 §8 聚合。运行：
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C009 复审可达 R5/R5a/R10 立即失败矩阵与 R5 独占替代证据`；`R5 连续与独占：分镜 order_index 严格连续且单分镜至多属于一个片段，违规 422`；`R5a 同场景：去重后至多一个场景，零场景合法，双场景分镜不可组入，生成前必须复检`；`R10 缺图即失败：任一启用槽位既无资产当前图又无 override 时，生成片段必须失败并返回明确原因`。
+  - **验收方式与命令：** 新增且只新增 `backend/tests/task_system/test_c009_review_precheck_matrix.py`。可达矩阵每格精确断言 HTTP 202、Task=`failed`/progress=0/started_at=null/finished_at与完整规则原因、input_hash=null、从未 queued/claim/渲染/外调；user_note 实际变化时与 failed Task 同一事务提交且 revision 只加 1，不变时 Clip 不写；generation_state 按 §8 聚合。另检查 ORM 与 initial migration 中 `shot_id` 唯一约束仍存在，并运行既有 C008 规则、preview/create 与并发创建文件；保存定向、R5 替代证据及完整套件原始输出到 `.work/c009/T24-test.log`、`.work/c009/T24-r5-exclusive.log`、`.work/c009/T24-full-pytest.log`。运行：
 
     ```powershell
     Set-Location backend
-    python -m pytest -q tests/task_system/test_c009_review_precheck_matrix.py tests/task_system/test_c009_enqueue_video.py tests/task_system/test_c009_generation_state.py
+    python -m pytest -q tests/task_system/test_c009_review_precheck_matrix.py tests/task_system/test_c009_enqueue_video.py tests/task_system/test_c009_generation_state.py 2>&1 | Tee-Object -FilePath '../.work/c009/T24-test.log'
+    $matrixExit = $LASTEXITCODE
+    "EXIT_CODE=$matrixExit" | Tee-Object -FilePath '../.work/c009/T24-test.log' -Append
+    if ($matrixExit -ne 0) { exit $matrixExit }
+    python -m pytest -q tests/unit/test_c008_clip_rules.py tests/api/test_c008_clip_preview.py tests/api/test_c008_clip_create.py tests/api/test_c008_clip_concurrency.py 2>&1 | Tee-Object -FilePath '../.work/c009/T24-r5-exclusive.log'
+    $r5Exit = $LASTEXITCODE
+    "EXIT_CODE=$r5Exit" | Tee-Object -FilePath '../.work/c009/T24-r5-exclusive.log' -Append
+    if ($r5Exit -ne 0) { exit $r5Exit }
+    python -m pytest -q 2>&1 | Tee-Object -FilePath '../.work/c009/T24-full-pytest.log'
+    $fullExit = $LASTEXITCODE
+    "EXIT_CODE=$fullExit" | Tee-Object -FilePath '../.work/c009/T24-full-pytest.log' -Append
+    if ($fullExit -ne 0) { exit $fullExit }
+    Set-Location ..
+    rg -n 'UniqueConstraint\("shot_id", name="uq_clip_shots_shot"\)' backend/app/models/__init__.py
+    rg -n 'uq_clip_shots_shot|UniqueConstraint\("shot_id"' backend/alembic/versions/3ad09fb566ed_initial_schema.py
+    git diff --check
+    git diff --name-status --cached
     ```
 
-    期望：参数矩阵全部通过；不能用一个泛化“非空 error”断言代替规则编号、slot_no/原因、数量与副作用断言。
+    期望：三次 pytest 均 exit 0；可达参数矩阵全部通过，不能用一个泛化“非空 error”断言代替规则编号、slot_no/原因、数量与副作用断言；ORM 与 initial migration 均保留 `uq_clip_shots_shot`，既有重叠创建用例精确证明一个完整胜方、败者 422、每个 Shot 至多一条 ClipShot且无孤儿。新增测试不得包含双占用 fixture、查询替身或生产竞态伪造；暂存集合只含新增 T24 测试、追溯回填与本 checkbox。
 
 - [ ] **T25 — 补齐 wake/sleep/WS 失败的跨进程资源生命周期**
 
