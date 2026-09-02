@@ -10,6 +10,7 @@ export interface WorkflowBindings {
   message: null;
   hashes: {
     zimage: string;
+    minimaxh3: string;
   };
 }
 
@@ -57,14 +58,16 @@ function isWorkflowBindings(value: unknown): value is WorkflowBindings {
     value.status !== "valid" ||
     value.message !== null ||
     !isRecord(value.hashes) ||
-    !hasExactKeys(value.hashes, ["zimage"])
+    !hasExactKeys(value.hashes, ["zimage", "minimaxh3"])
   ) {
     return false;
   }
 
   return (
     typeof value.hashes.zimage === "string" &&
-    /^[0-9a-f]{64}$/.test(value.hashes.zimage)
+    /^[0-9a-f]{64}$/.test(value.hashes.zimage) &&
+    typeof value.hashes.minimaxh3 === "string" &&
+    /^[0-9a-f]{64}$/.test(value.hashes.minimaxh3)
   );
 }
 

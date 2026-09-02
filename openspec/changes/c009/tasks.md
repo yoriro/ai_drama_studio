@@ -352,7 +352,7 @@
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 真实 MiniMax workflow/template 视频闭环`。
   - **验收方式与人工检查：** 执行 `Get-Content -Raw .work/c009/completion-report.md`，逐条反查 T00-T18 log、git commits、TRACE IDs、DB/task/media记录；期望五节齐全，第5节每条同时有操作、原始观测值、期望真假结论，不能只有“页面/任务正常”“测试全绿”。
 
-- [ ] **T20 — 同步既有设置页的双 workflow hash 健康合同**
+- [x] **T20 — 同步既有设置页的双 workflow hash 健康合同**
 
   - **依赖：** T19；以 Sol 本轮新修复计划 commit 为 repair baseline，开工前确认 `git rev-parse HEAD` 与 handoff SHA 精确一致，将该纯 SHA 写入 `.work/c009/review-repair-baseline-sha.txt`，并确认 tracked worktree 无执行者遗留改动。
   - **交付：** 只修改 `frontend/src/api/health.ts` 与 `frontend/src/pages/SettingsPage.tsx`：`WorkflowBindings.hashes` 的 TypeScript 类型和运行时 `hasExactKeys` 精确改为 `zimage,minimaxh3`，两值分别校验 64 位小写十六进制；设置页现有诊断区显示整体 `Workflow bindings` valid，以及 `Z-Image workflow hash`、`MiniMax H3 workflow hash` 两项逐字值。缺键、额外键、错误类型/格式仍走现有 `ApiProtocolError`，不得把 minimaxh3 设为 optional、放宽未知键、吞错或 fallback。不得修改 client transport、CSS、package/依赖、其他前端文件，不得新增 C010 路由、生成按钮、take/槽位 UI或测试框架。

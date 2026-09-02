@@ -255,7 +255,7 @@ export function SettingsPage() {
               </dd>
             </div>
             <div>
-              <dt>Z-Image binding</dt>
+              <dt>Workflow bindings</dt>
               <dd>
                 <span className="diagnostic-status diagnostic-status-valid">
                   {health.workflow_bindings.status}
@@ -266,6 +266,12 @@ export function SettingsPage() {
               <dt>Z-Image workflow hash</dt>
               <dd className="diagnostic-hash">
                 {health.workflow_bindings.hashes.zimage}
+              </dd>
+            </div>
+            <div>
+              <dt>MiniMax H3 workflow hash</dt>
+              <dd className="diagnostic-hash">
+                {health.workflow_bindings.hashes.minimaxh3}
               </dd>
             </div>
           </dl>
