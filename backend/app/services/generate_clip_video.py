@@ -561,6 +561,17 @@ async def enqueue_generate_clip_video(
         if clip.id <= 0:
             raise _not_found("Clip not found")
 
+        if clip.generation_mode != "ref2v":
+            raise _conflict("Clip generation mode is not supported in v1")
+
+        enabled_slot_result = await session.execute(
+            select(ClipRefSlot.enabled)
+            .where(ClipRefSlot.clip_id == clip.id)
+            .order_by(ClipRefSlot.slot_no, ClipRefSlot.id)
+        )
+        if not any(bool(enabled) for enabled in enabled_slot_result.scalars()):
+            raise _conflict("At least one reference slot must be enabled")
+
         if user_note_provided and user_note != clip.user_note:
             clip.user_note = user_note
             clip.revision += 1

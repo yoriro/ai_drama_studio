@@ -409,7 +409,7 @@
 
     期望：全部通过；坏 binding 的 worker start/claim 计数均为 0，正确 workflow 无 preset、参考视频业务输入与 output audio，三个注入值互不覆盖。
 
-- [ ] **T22 — 实现零 enabled 与保留 generation_mode 的原子 409 前置条件**
+- [x] **T22 — 实现零 enabled 与保留 generation_mode 的原子 409 前置条件**
 
   - **依赖：** T21。
   - **交付：** 只修改 generate-video 入队服务/API 必要代码：非 null request_id 仍先按既有全局幂等临界区查找并重放；仅对新请求，在任何 user_note/revision/freshness mutation、Task insert、序列化或外调前锁内重读 mode 与槽位。零 enabled 精确返回 409/`conflict`/`At least one reference slot must be enabled`；`fl2v` 或 `context_loop` 精确返回 409/`conflict`/`Clip generation mode is not supported in v1`。两类都不创建 Task、不修改 Clip、不进入 ref2v worker；零 enabled 不标成 R10。不得新增 migration/schema、兼容分支或重试。
