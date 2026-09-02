@@ -4,8 +4,6 @@ import math
 from collections.abc import AsyncIterable
 from pathlib import Path
 
-import av
-
 from app.services.asset_files import resolve_data_path, sha256_file
 
 
@@ -86,6 +84,8 @@ def cleanup_clip_video_temp(temp_path: Path) -> None:
 
 
 def probe_clip_video_duration(video_path: Path) -> float:
+    import av
+
     try:
         with av.open(str(video_path), mode="r") as container:
             has_video_stream = any(

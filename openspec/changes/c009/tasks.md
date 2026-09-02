@@ -425,7 +425,7 @@
 
     期望：全部通过；两类新请求的 SQL 最终事实分别为 Task 增量 0、Clip user_note/revision/freshness 不变，合法历史重放不重算当前前置条件。
 
-- [ ] **T22A — 隔离 PyAV 媒体探测依赖的进程加载边界**
+- [x] **T22A — 隔离 PyAV 媒体探测依赖的进程加载边界**
 
   - **依赖：** T22；执行前确认当前未提交的 T23 新测试与 `.work/` 可保留但不纳入本 task，除此之外无未提交改动。
   - **交付：** 只把 `backend/app/services/video_files.py` 的 PyAV import 从模块顶层移动到 `probe_clip_video_duration()` 内部、紧邻实际使用处；不得改变函数签名、媒体解析、捕获的异常类型、错误消息、duration 换算、调用方、依赖版本或文件/数据库语义，不得增加 lazy proxy、兼容属性、fallback、registry 或测试环境特判。按 AGENTS.md 获窄授权，只在 `backend/tests/task_system/test_c009_video_files.py::test_probe_rejects_missing_or_invalid_container_duration` 把 monkeypatch 目标从 `video_files.av` 精确改为该文件已直接导入的 `av`，保留全部参数、错误消息与断言，不改该用例其他内容、该文件其他测试或任何其他既有测试。将追溯行回填为本项真实日志/用例 ID，并在同一 T22A commit 内只提交上述生产文件、获授权测试文件、追溯回填与本 checkbox；不得提交当前 T23 文件或 `.work/`。

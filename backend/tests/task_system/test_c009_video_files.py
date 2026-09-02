@@ -162,7 +162,7 @@ def test_probe_rejects_missing_or_invalid_container_duration(
             del args
 
     monkeypatch.setattr(
-        video_files.av,
+        av,
         "open",
         lambda *args, **kwargs: _FakeContainer(duration),
     )
