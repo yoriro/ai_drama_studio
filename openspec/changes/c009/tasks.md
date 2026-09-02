@@ -372,7 +372,7 @@
 
     使用现有 Vite 前端打开 `http://127.0.0.1:5173/settings` 并刷新一次。期望：build exit 0；health 的 hashes key 集合精确 `zimage,minimaxh3` 且均为 64hex；页面不出现 `Health response did not match its schema`/非 JSON 错误，显示整体 valid 和两个标签，DOM hash 与同次网络响应逐字相等，console 无该请求协议错误；前端 tracked diff 精确只有上述两文件。后端进程停止造成的 Vite 非 JSON transport 错误不在本 task 修复范围。
 
-- [ ] **T20A — 窄修正生命周期测试的跨组件互斥断言**
+- [x] **T20A — 窄修正生命周期测试的跨组件互斥断言**
 
   - **依赖：** T20；只使用需求方于 2026-09-02 明确授权并已写入根目录 `AGENTS.md` 的 C009 一次性窄例外。当前 T21 未提交生产改动可保留在工作区，但本 task 提交必须只暂存本 task 授权的测试文件、`tasks.md` checkbox；不得夹带生产改动、`.work/` 或其他文件。
   - **交付：** 只修改 `backend/tests/task_system/test_c009_resource_lifecycle.py` 的 `_assert_no_overlapping_intervals` helper及其三处调用：准确重命名后，只比较 `component=vllm` 与 `component=comfy` 的跨组件区间是否重叠，不再禁止同属 Comfy 的 submit/WS 合法并行；每个记录仍逐项断言 `end_ns >= start_ns`。逐字保留三个测试的精确操作顺序、cache miss/hit、cache hit 无 chat、transport failure、finally free 及其他全部断言。不得使用时间容差、sleep、重跑掩盖偶发失败、测试特判；不得修改任何生产代码、其他测试或 spec。

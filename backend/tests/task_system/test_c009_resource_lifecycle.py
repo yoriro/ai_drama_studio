@@ -429,7 +429,9 @@ def _real_comfy_factory(websocket_port: int):
     return factory
 
 
-def _assert_no_overlapping_intervals(records: list[dict[str, object]]) -> None:
+def _assert_vllm_comfy_intervals_do_not_overlap(
+    records: list[dict[str, object]],
+) -> None:
     intervals = sorted(records, key=lambda record: int(record["start_ns"]))
     for index, left in enumerate(intervals):
         left_start = int(left["start_ns"])
@@ -438,6 +440,11 @@ def _assert_no_overlapping_intervals(records: list[dict[str, object]]) -> None:
         for right in intervals[index + 1 :]:
             right_start = int(right["start_ns"])
             right_end = int(right["end_ns"])
+            if not (
+                (left["component"] == "vllm" and right["component"] == "comfy")
+                or (left["component"] == "comfy" and right["component"] == "vllm")
+            ):
+                continue
             assert not (
                 left_start < right_end and right_start < left_end
             ), (left, right)
@@ -501,7 +508,7 @@ def test_c009_resource_lifecycle_cross_process_cache_miss_uses_real_clients(
         "comfy",
         "comfy",
     ]
-    _assert_no_overlapping_intervals(records)
+    _assert_vllm_comfy_intervals_do_not_overlap(records)
     chat_detail = records[1]["detail"]
     assert chat_detail == {
         "messages": [
@@ -568,7 +575,7 @@ def test_c009_resource_lifecycle_cross_process_cache_hit_skips_chat_and_frees(
         "free",
     ]
     assert all(record["operation"] != "chat" for record in records)
-    _assert_no_overlapping_intervals(records)
+    _assert_vllm_comfy_intervals_do_not_overlap(records)
     assert records[-1]["operation"] == "free"
     assert records[-1]["task_id"] == 43
 
@@ -620,4 +627,4 @@ def test_c009_resource_lifecycle_cross_process_transport_failure_still_frees(
     assert records[-1]["operation"] == "free"
     assert records[-1]["task_id"] == 44
     assert not (data_dir / "tmp" / "clip-videos" / "44.mp4").exists()
-    _assert_no_overlapping_intervals(records)
+    _assert_vllm_comfy_intervals_do_not_overlap(records)
