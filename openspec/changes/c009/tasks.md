@@ -393,7 +393,7 @@
 
     期望：七次 pytest 均 exit 0；source diff 仅为 helper 的跨组件筛选/准确重命名及三处调用，且无时间容差；暂存集合精确为该测试文件与 `openspec/changes/c009/tasks.md`。任一失败立即停止，不得靠追加重跑取得一次绿色结果。
 
-- [ ] **T21 — 收紧 MiniMax binding 启动闭合并补回归证据**
+- [x] **T21 — 收紧 MiniMax binding 启动闭合并补回归证据**
 
   - **依赖：** T20、T20A；确认 repair baseline 文件仍是 Sol handoff SHA，T20/T20A 已勾选并提交；允许且只允许保留本 task 此前未提交的两个生产文件与新增 T21 测试，除此及 `.work/` 外无未提交改动。
   - **交付：** 只修正生产 MiniMax binding loader/启动校验及必要的 workflow 注入校验：路径必须精确为 `node_id.inputs.input_key`；prompt/seed/duration 的物理叶子两两不同且不与 reference 叶子重叠；LoadImage 节点集合精确等于九个已绑定 sentinel 节点；拒绝 preset/额外 LoadImage、参考视频输入与绑定 VHS output 的 `audio` input。正确 workflow 注入后 prompt、seed、duration 必须各留在自己的叶子且精确等于调用值。不得修改给定 workflow bytes/hash、zimage 合同、既有测试或用测试路径/环境做特判。

@@ -313,33 +313,49 @@ def load_binding_snapshot(
     )
 
 
-def _resolve_minimax_path(
-    workflow: Mapping[str, Any], path: str, context: str
-) -> object:
-    """Resolve an API workflow input path with Comfy's dotted input keys."""
+def _minimax_path_parts(path: object, context: str) -> tuple[str, str]:
+    """Parse a MiniMax workflow input path into a node and dotted input key."""
 
-    segments = path.split(".")
-    if any(
-        not segment or any(character in segment for character in _PATH_FORBIDDEN)
-        for segment in segments
-    ):
+    if not isinstance(path, str):
         raise WorkflowBindingError(
             f"{context} must use exact dot-separated object keys"
         )
-    if len(segments) < 3:
-        raise WorkflowBindingError(f"{context} must include node.inputs.path")
+    segments = path.split(".")
+    if (
+        len(segments) < 3
+        or _NODE_ID.fullmatch(segments[0]) is None
+        or segments[1] != "inputs"
+        or any(
+            not segment or any(character in segment for character in _PATH_FORBIDDEN)
+            for segment in segments
+        )
+    ):
+        raise WorkflowBindingError(
+            f"{context} must use exact node_id.inputs.input_key path"
+        )
+    return segments[0], ".".join(segments[2:])
 
-    inputs = _resolve_object_path(
-        workflow, f"{segments[0]}.inputs", context
-    )
+
+def _resolve_minimax_input(
+    workflow: Mapping[str, Any], path: object, context: str
+) -> tuple[str, str, object]:
+    node_id, input_key = _minimax_path_parts(path, context)
+    inputs = _resolve_object_path(workflow, f"{node_id}.inputs", context)
     if not isinstance(inputs, Mapping):
         raise WorkflowBindingError(f"{context} inputs must be an object")
-    input_key = ".".join(segments[2:])
     if input_key not in inputs:
         raise WorkflowBindingError(
             f"{context} does not exist at input {input_key}"
         )
-    return inputs[input_key]
+    return node_id, input_key, inputs[input_key]
+
+
+def _resolve_minimax_path(
+    workflow: Mapping[str, Any], path: object, context: str
+) -> object:
+    """Resolve an API workflow input path with Comfy's dotted input keys."""
+
+    return _resolve_minimax_input(workflow, path, context)[2]
 
 
 def _require_minimax_path_list(
@@ -422,23 +438,35 @@ def load_minimax_binding_snapshot(
     )
     workflow, workflow_hash = _read_workflow(workflow_path)
 
-    prompt_value = _resolve_minimax_path(
+    prompt_node_id, prompt_input_key, prompt_value = _resolve_minimax_input(
         workflow, prompt_path, "prompt_path"
     )
-    if not isinstance(prompt_value, str):
-        raise WorkflowBindingError("prompt_path leaf must be a string")
-    seed_value = _resolve_minimax_path(workflow, seed_path, "seed_path")
-    if isinstance(seed_value, bool) or not isinstance(seed_value, int):
-        raise WorkflowBindingError("seed_path leaf must be an integer")
-    duration_value = _resolve_minimax_path(
+    seed_node_id, seed_input_key, seed_value = _resolve_minimax_input(
+        workflow, seed_path, "seed_path"
+    )
+    duration_node_id, duration_input_key, duration_value = _resolve_minimax_input(
         workflow, duration_path, "duration_path"
     )
+    control_locations = {
+        (prompt_node_id, prompt_input_key),
+        (seed_node_id, seed_input_key),
+        (duration_node_id, duration_input_key),
+    }
+    violations: list[str] = []
+    if len(control_locations) != 3:
+        violations.append(
+            "prompt_path, seed_path, and duration_path must use distinct input leaves"
+        )
+    if not isinstance(prompt_value, str):
+        violations.append("prompt_path leaf must be a string")
+    if isinstance(seed_value, bool) or not isinstance(seed_value, int):
+        violations.append("seed_path leaf must be an integer")
     if isinstance(duration_value, bool) or not isinstance(
         duration_value, (int, float)
     ) or not math.isfinite(float(duration_value)):
-        raise WorkflowBindingError(
-            "duration_path leaf must be a finite number"
-        )
+        violations.append("duration_path leaf must be a finite number")
+    if violations:
+        raise WorkflowBindingError("; ".join(violations))
     if output_node not in workflow:
         raise WorkflowBindingError(
             f"output_node does not exist in workflow: {output_node}"
@@ -449,19 +477,19 @@ def load_minimax_binding_snapshot(
             "output_node must reference a VHS_VideoCombine node"
         )
 
+    image_node_ids: list[str] = []
+    reference_locations: set[tuple[str, str]] = set()
     for index, (image_path, consumer_path) in enumerate(
         zip(ref_image_paths, ref_consumer_paths, strict=True)
     ):
-        image_value = _resolve_minimax_path(
+        image_node_id, image_input_key, image_value = _resolve_minimax_input(
             workflow, image_path, f"ref_image_paths[{index}]"
         )
-        image_segments = image_path.split(".")
-        image_node_id = image_segments[0]
         image_node = _require_mapping(
             workflow.get(image_node_id),
             f"workflow node {image_node_id}",
         )
-        if image_node.get("class_type") != "LoadImage":
+        if image_input_key != "image" or image_node.get("class_type") != "LoadImage":
             raise WorkflowBindingError(
                 f"ref_image_paths[{index}] must reference a LoadImage node"
             )
@@ -471,20 +499,22 @@ def load_minimax_binding_snapshot(
                 f"ref_image_paths[{index}] must use the C009 reference sentinel"
             )
 
-        consumer_segments = consumer_path.split(".")
-        expected_consumer_key = f"ref_image_{index}"
-        if consumer_segments[1:] != [
-            "inputs",
-            "ref_images",
-            expected_consumer_key,
-        ]:
+        if image_node_id in image_node_ids:
+            raise WorkflowBindingError("ref_image_paths node ids must be unique")
+        image_node_ids.append(image_node_id)
+        reference_locations.add((image_node_id, image_input_key))
+
+        consumer_node_id, consumer_input_key = _minimax_path_parts(
+            consumer_path, f"ref_consumer_paths[{index}]"
+        )
+        expected_consumer_key = f"ref_images.ref_image_{index}"
+        if consumer_input_key != expected_consumer_key:
             raise WorkflowBindingError(
                 f"ref_consumer_paths[{index}] has an invalid H3 input path"
             )
-        consumer_value = _resolve_minimax_path(
+        consumer_value = _resolve_minimax_input(
             workflow, consumer_path, f"ref_consumer_paths[{index}]"
-        )
-        consumer_node_id = consumer_segments[0]
+        )[2]
         consumer_node = _require_mapping(
             workflow.get(consumer_node_id),
             f"workflow node {consumer_node_id}",
@@ -503,6 +533,49 @@ def load_minimax_binding_snapshot(
             raise WorkflowBindingError(
                 f"ref_consumer_paths[{index}] is not linked to its image node"
             )
+        reference_locations.add((consumer_node_id, consumer_input_key))
+
+    if control_locations & reference_locations:
+        raise WorkflowBindingError(
+            "prompt, seed, and duration input leaves must not overlap references"
+        )
+
+    load_image_node_ids = {
+        node_id
+        for node_id, node in workflow.items()
+        if isinstance(node, Mapping) and node.get("class_type") == "LoadImage"
+    }
+    if load_image_node_ids != set(image_node_ids):
+        raise WorkflowBindingError(
+            "workflow LoadImage nodes must match the nine configured references"
+        )
+
+    for node_id, node in workflow.items():
+        node_object = _require_mapping(node, f"workflow node {node_id}")
+        class_type = node_object["class_type"]
+        normalized_class_type = class_type.casefold().replace("_", "").replace("-", "")
+        if any(
+            marker in normalized_class_type
+            for marker in ("loadvideo", "videoinput", "inputvideo", "referencevideo")
+        ):
+            raise WorkflowBindingError(
+                f"workflow node {node_id} must not load a reference video"
+            )
+        inputs = _require_mapping(
+            node_object["inputs"], f"workflow node {node_id} inputs"
+        )
+        if any("video" in str(key).casefold() for key in inputs):
+            raise WorkflowBindingError(
+                f"workflow node {node_id} must not accept a video input"
+            )
+
+    output_inputs = _require_mapping(
+        output["inputs"], f"workflow node {output_node} inputs"
+    )
+    if "audio" in output_inputs:
+        raise WorkflowBindingError(
+            "workflow output node must not bind an audio input"
+        )
 
     return MiniMaxWorkflowBindingSnapshot(
         name="minimaxh3",

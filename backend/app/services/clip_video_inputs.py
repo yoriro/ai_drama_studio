@@ -62,6 +62,7 @@ _REFERENCE_PROMPT_FIELDS = (
 )
 _C009_REFERENCE_COUNT = 9
 _C009_PATH_FORBIDDEN = frozenset("*[]|?")
+_WORKFLOW_NODE_ID = re.compile(r"^[0-9]+$")
 
 
 MINIMAXH3_SCHEMA: dict[str, object] = {
@@ -378,15 +379,13 @@ def project_clip_video_references(
     return tuple(projected)
 
 
-def _workflow_input_location(
-    workflow: Mapping[str, object], path: object, field: str
-) -> tuple[dict[str, object], str]:
+def _workflow_input_parts(path: object, field: str) -> tuple[str, str]:
     if not isinstance(path, str):
         raise ValueError(f"{field} must be a text path")
     segments = path.split(".")
     if (
         len(segments) < 3
-        or not segments[0].isdigit()
+        or _WORKFLOW_NODE_ID.fullmatch(segments[0]) is None
         or segments[1] != "inputs"
         or any(
             not segment
@@ -395,13 +394,19 @@ def _workflow_input_location(
         )
     ):
         raise ValueError(f"{field} must use an exact workflow input path")
-    node = workflow.get(segments[0])
+    return segments[0], ".".join(segments[2:])
+
+
+def _workflow_input_location(
+    workflow: Mapping[str, object], path: object, field: str
+) -> tuple[dict[str, object], str]:
+    node_id, input_key = _workflow_input_parts(path, field)
+    node = workflow.get(node_id)
     if not isinstance(node, dict):
         raise ValueError(f"{field} node does not exist")
     inputs = node.get("inputs")
     if not isinstance(inputs, dict):
         raise ValueError(f"{field} node inputs must be an object")
-    input_key = ".".join(segments[2:])
     if input_key not in inputs:
         raise ValueError(f"{field} does not exist")
     return inputs, input_key
@@ -416,6 +421,29 @@ def _workflow_node(
     return node
 
 
+def _validate_no_minimax_video_inputs(workflow: Mapping[str, object]) -> None:
+    for node_id, value in workflow.items():
+        node = _workflow_node(workflow, node_id, f"workflow node {node_id}")
+        class_type = node.get("class_type")
+        if not isinstance(class_type, str):
+            raise ValueError(f"workflow node {node_id} class_type must be text")
+        normalized_class_type = class_type.casefold().replace("_", "").replace("-", "")
+        if any(
+            marker in normalized_class_type
+            for marker in ("loadvideo", "videoinput", "inputvideo", "referencevideo")
+        ):
+            raise ValueError(
+                f"workflow node {node_id} must not load a reference video"
+            )
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict):
+            raise ValueError(f"workflow node {node_id} inputs must be an object")
+        if any("video" in str(key).casefold() for key in inputs):
+            raise ValueError(f"workflow node {node_id} must not accept a video input")
+        if class_type == "VHS_VideoCombine" and "audio" in inputs:
+            raise ValueError("workflow output node must not bind an audio input")
+
+
 def _validate_minimax_binding_for_injection(
     workflow: dict[str, object],
     *,
@@ -425,26 +453,37 @@ def _validate_minimax_binding_for_injection(
     ref_image_paths: object,
     ref_consumer_paths: object,
 ) -> tuple[tuple[str, ...], tuple[tuple[dict[str, object], str], ...]]:
+    prompt_location = _workflow_input_parts(prompt_path, "prompt_path")
+    seed_location = _workflow_input_parts(seed_path, "seed_path")
+    duration_location = _workflow_input_parts(duration_path, "duration_path")
+    control_locations = {prompt_location, seed_location, duration_location}
     prompt_inputs, prompt_key = _workflow_input_location(
         workflow, prompt_path, "prompt_path"
     )
-    if not isinstance(prompt_inputs[prompt_key], str):
-        raise ValueError("prompt_path leaf must be a string")
     seed_inputs, seed_key = _workflow_input_location(
         workflow, seed_path, "seed_path"
     )
-    if isinstance(seed_inputs[seed_key], bool) or not isinstance(
-        seed_inputs[seed_key], int
-    ):
-        raise ValueError("seed_path leaf must be an integer")
     duration_inputs, duration_key = _workflow_input_location(
         workflow, duration_path, "duration_path"
     )
+    violations: list[str] = []
+    if len(control_locations) != 3:
+        violations.append(
+            "prompt_path, seed_path, and duration_path must use distinct input leaves"
+        )
+    if not isinstance(prompt_inputs[prompt_key], str):
+        violations.append("prompt_path leaf must be a string")
+    if isinstance(seed_inputs[seed_key], bool) or not isinstance(
+        seed_inputs[seed_key], int
+    ):
+        violations.append("seed_path leaf must be an integer")
     duration_value = duration_inputs[duration_key]
     if isinstance(duration_value, bool) or not isinstance(
         duration_value, (int, float)
     ) or not math.isfinite(float(duration_value)):
-        raise ValueError("duration_path leaf must be a finite number")
+        violations.append("duration_path leaf must be a finite number")
+    if violations:
+        raise ValueError("; ".join(violations))
 
     image_paths = _require_sequence(ref_image_paths, "ref_image_paths")
     consumer_paths = _require_sequence(
@@ -457,14 +496,18 @@ def _validate_minimax_binding_for_injection(
 
     image_node_ids: list[str] = []
     consumer_locations: list[tuple[dict[str, object], str]] = []
+    reference_locations: set[tuple[str, str]] = set()
     for index, (image_path, consumer_path) in enumerate(
         zip(image_paths, consumer_paths, strict=True)
     ):
-        image_segments = image_path.split(".") if isinstance(image_path, str) else []
+        image_location = _workflow_input_parts(
+            image_path, f"ref_image_paths[{index}]"
+        )
         image_inputs, image_key = _workflow_input_location(
             workflow, image_path, f"ref_image_paths[{index}]"
         )
-        image_node_id = image_segments[0]
+        image_node_id = image_location[0]
+        reference_locations.add(image_location)
         image_node = _workflow_node(
             workflow, image_node_id, f"ref_image_paths[{index}]"
         )
@@ -481,24 +524,25 @@ def _validate_minimax_binding_for_injection(
             raise ValueError("reference image nodes must be unique")
         image_node_ids.append(image_node_id)
 
-        consumer_segments = (
-            consumer_path.split(".")
-            if isinstance(consumer_path, str)
-            else []
+        consumer_location = _workflow_input_parts(
+            consumer_path, f"ref_consumer_paths[{index}]"
         )
+        expected_consumer_key = f"ref_images.ref_image_{index}"
+        if consumer_location[1] != expected_consumer_key:
+            raise ValueError(
+                f"ref_consumer_paths[{index}] has an invalid H3 input path"
+            )
         consumer_inputs, consumer_key = _workflow_input_location(
             workflow, consumer_path, f"ref_consumer_paths[{index}]"
         )
+        consumer_node_id = consumer_location[0]
+        reference_locations.add(consumer_location)
         consumer_node = _workflow_node(
             workflow,
-            consumer_segments[0],
+            consumer_node_id,
             f"ref_consumer_paths[{index}]",
         )
-        expected_consumer_key = f"ref_images.ref_image_{index}"
-        if (
-            consumer_key != expected_consumer_key
-            or consumer_node.get("class_type") != "MiniMaxH3ReferenceToVideo"
-        ):
+        if consumer_node.get("class_type") != "MiniMaxH3ReferenceToVideo":
             raise ValueError(
                 f"ref_consumer_paths[{index}] must reference the H3 consumer input"
             )
@@ -514,6 +558,11 @@ def _validate_minimax_binding_for_injection(
                 f"ref_consumer_paths[{index}] is not linked to its image node"
             )
         consumer_locations.append((consumer_inputs, consumer_key))
+
+    if control_locations & reference_locations:
+        raise ValueError(
+            "prompt, seed, and duration input leaves must not overlap references"
+        )
 
     return tuple(image_node_ids), tuple(consumer_locations)
 
@@ -573,6 +622,7 @@ def inject_minimaxh3_workflow_inputs(
         raise ValueError("requested_duration must be a positive integer")
 
     copied = copy.deepcopy(dict(workflow))
+    _validate_no_minimax_video_inputs(copied)
     image_node_ids, consumer_locations = _validate_minimax_binding_for_injection(
         copied,
         prompt_path=prompt_path,
@@ -626,6 +676,7 @@ def inject_minimaxh3_workflow_inputs(
     }
     if load_image_ids != kept_node_ids:
         raise ValueError("workflow contains a preset or orphaned LoadImage node")
+    _validate_no_minimax_video_inputs(copied)
     for index in range(len(safe_paths)):
         image_inputs, image_key = _workflow_input_location(
             copied, ref_image_paths[index], f"ref_image_paths[{index}]"
@@ -637,6 +688,21 @@ def inject_minimaxh3_workflow_inputs(
         )
         if consumer_inputs[consumer_key] != [image_node_ids[index], 0]:
             raise ValueError("workflow reference consumer is orphaned")
+    final_prompt_inputs, final_prompt_key = _workflow_input_location(
+        copied, prompt_path, "prompt_path"
+    )
+    final_seed_inputs, final_seed_key = _workflow_input_location(
+        copied, seed_path, "seed_path"
+    )
+    final_duration_inputs, final_duration_key = _workflow_input_location(
+        copied, duration_path, "duration_path"
+    )
+    if final_prompt_inputs[final_prompt_key] != built_prompt:
+        raise ValueError("prompt_path was not injected")
+    if final_seed_inputs[final_seed_key] != seed:
+        raise ValueError("seed_path was not injected")
+    if final_duration_inputs[final_duration_key] != requested_duration:
+        raise ValueError("duration_path was not injected")
     _validate_no_removed_workflow_references(copied, frozenset(), "workflow")
     return copied
 
