@@ -457,7 +457,7 @@
 
     首次 `T11A-hash-baseline-targeted.log` 因命令未显式导出 DSN而回退到 `backend/.env` 的非 C010 数据库，并被既有进程的 advisory lock 拒绝；该日志必须保留，不能宣称为代码/测试失败或覆盖。此前同一次 T11A 运行中已经 exit 0 且对应 frontend 文件此后零 diff 的 `T11A-frontend-test.log`、`T11A-frontend-build.log` 可以保留，不要求重复运行。定向通过后，必须在同一 shell 继续使用上面已显式设置的 C010 `DATABASE_URL`/`DATA_DIR`，或在新的 shell 中重新执行同一 DSN 构造与零 lock preflight，再运行完整 `python -m pytest -q` 写入 `T11A-full-pytest-rerun.log`，随后执行 `git diff --check`。全部 exit 0 后才将本追溯行回填为 `/object_info`、workflow/hash/binding、四常量精确 diff、数据库零锁、定向与完整 pytest、frontend test/build 原始证据，勾选 T11A并提交。最终 commit 只允许 workflow、上述四个测试文件、tasks checkbox 与追溯回填；不得为命中 hash 改变 workflow 换行。该 task 不新增测试；`/object_info` 不能代替 T12 的真实 `/prompt`/history/MP4。
 
-- [ ] **T11B — 修复自给自足的 Director 参考图片夹具**
+- [x] **T11B — 修复自给自足的 Director 参考图片夹具**
 
   - **交付：** 保留全部既有 T12 失败数据库、DATA_DIR、Task 与日志不动；只修改未跟踪的 `.work/c010/director-fixture.py`，删除固定 68-byte `1×1` `PNG_BYTES`，使用项目既有 Pillow 在内存中按资产序号生成 13 张互不相同的 `512×512` RGB PNG。每张至少有背景与对比图形两种像素颜色，文件名精确为 `reference-01.png` 至 `reference-13.png`；driver 仍逐张调用正式 `POST /api/assets/{id}/images`。不得读取用户图片、旧数据库、旧 DATA_DIR或其他外部素材文件，不得直接写资产图片正式路径、Task、ClipVideo或视频，不得要求用户手工干预。用一套全新 fixture 验证库/隔离 DATA_DIR 实际运行并回读验证；`.work` 脚本与图片不提交，本 task 提交只含 checkbox 与追溯证据回填。
   - **R：** R7、R9、R10；PRD §3.4、§8、§9、§11 M4、§12.1。R7/R9/R10 的业务实现不变，本 task 只保证验收装置提供可走生产图片通路的前置输入。
