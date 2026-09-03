@@ -2,7 +2,7 @@
 
 ## 执行纪律与固定回归命令
 
-- 严格按 T0→T1→…→T10→T10A→T11→T12→T13→三个收尾 task 执行；任一验收命令或人工门槛失败立即停止，不勾选、不回填“已通过”、不提交该 task，也不先做后续 task。
+- 严格按 T0→T1→…→T10→T10A→T11→T11A→T12→T13→三个收尾 task 执行；任一验收命令或人工门槛失败立即停止，不勾选、不回填“已通过”、不提交该 task，也不先做后续 task。
 - 每个 task 只提交其列出的生产/新测试/文档文件和当次 checkbox/追溯回填；不得提交 `.work/`、下载目录工件或无关用户改动。现有任何测试文件均不得修改、删除、skip、改名或弱化。
 - T0 创建并记录同一个 C010 隔离数据库名。T1 之后每个实现 task 完成前，除本 task 的定向命令外，均执行下面的固定回归命令；`$task` 替换为当前 task 编号：
 
@@ -302,20 +302,95 @@
   - **追溯行：** `C010 导演台轨道投影与选择：场景带、duration 比例分镜轨、片段轨、空洞、changed 与两维状态，零场景可加入任意单场景、双场景不可选`；`C010 预检与创建交互：服务端 violations/warnings、候选原序/default、响应推导硬上限、软提示与创建后权威刷新`；`C010 片段详情输入与删除：note/duration 草稿保存、requested-duration 生成门槛、note 随生成提交、204 后权威刷新与失败保真`；`C010 槽位与 R12 处置：固定 slot、enabled、override、R9 media、soft warning、已删资产快照与用户显式处置`；`C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功`；`C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径`。
   - **验收方式与命令/人工检查：** 先运行固定回归。确认 8000/5173 若由非本 task 进程占用则停止报告，不终止；否则从 `.work/c010/browser-database-name.txt` 重建并显式导出浏览器 DSN，使用 `.work/c010/T10A-data` 启动生产 Uvicorn 和 `npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort`，PID/命令写 `.work/c010/T11-processes.log`。读取并冻结 T10A JSON，不再运行 driver或直写；逐项按 AC-02..12 操作并写成“操作 → 请求/WS → DOM/DB 观测值”到 `.work/c010/T11-browser.log`，截图至少 `T11-tracks.png`、`T11-preview-overflow.png`、`T11-deleted-slot.png`、`T11-task-error.png`。结束只停止本 task 启动的进程，并证明端口释放。若 driver 做了披露范围外 DB 写入、UI 与正式 API 不一致或证据缺项，均不得通过。
 
+- [ ] **T11A — 修正 MiniMax H3 LoRA 外部枚举绑定**
+
+  - **交付：** 保留 T12 已有失败数据库、Task 与 `.work/c010/T12-*` 原始证据不动；从当前运行的正式 Comfy `/object_info` 重新取得 `LoraLoaderModelOnly.lora_name` 允许列表，只把 `backend/workflows/minimax_h3_ref2v.json` 节点 `310.inputs.lora_name` 从裸文件名改为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`。不得修改其他 workflow 叶、Python、binding TOML、migration、任何测试或前端，不增加路径查找、别名、fallback、retry，也不修改 Comfy 错误体处理。回填本 task 真实证据并单独提交。
+  - **R：** 无；PRD §7、§12.1、§12.4；spec §2.3、AC-18。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`。
+  - **验收方式与命令：** 先确认 `127.0.0.1:8188` 是将用于 T12 的正式 Comfy；若不可达立即停止。按下列顺序执行，任一失败即保留证据并停止：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio
+    $work = 'D:\ai_drama_studio\.work\c010'
+    $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8188/object_info'
+    if ($response.StatusCode -ne 200) { throw "Comfy object_info HTTP $($response.StatusCode)" }
+    [System.IO.File]::WriteAllText("$work\T11A-comfy-object-info.json", $response.Content, [System.Text.UTF8Encoding]::new($false))
+    @'
+    import json
+    from pathlib import Path
+
+    expected = "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+    data = json.loads(Path(r"D:\ai_drama_studio\.work\c010\T11A-comfy-object-info.json").read_text(encoding="utf-8"))
+    allowed = data["LoraLoaderModelOnly"]["input"]["required"]["lora_name"][0]
+    assert isinstance(allowed, list), type(allowed)
+    assert expected in allowed, expected
+    print(f"EXPECTED_LORA_REGISTERED={expected}")
+    '@ | python - 2>&1 | Tee-Object -FilePath "$work\T11A-object-info-check.log"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    ```
+
+    完成唯一 JSON 叶修改后执行：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio
+    $work = 'D:\ai_drama_studio\.work\c010'
+    @'
+    import copy
+    import hashlib
+    import json
+    import subprocess
+    from pathlib import Path
+
+    path = Path("backend/workflows/minimax_h3_ref2v.json")
+    before = json.loads(subprocess.check_output(["git", "show", "HEAD:backend/workflows/minimax_h3_ref2v.json"]))
+    after = json.loads(path.read_text(encoding="utf-8"))
+    expected = copy.deepcopy(before)
+    expected["310"]["inputs"]["lora_name"] = "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+    assert after == expected, "workflow has a semantic change outside node 310 lora_name"
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert digest == "61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967", digest
+    print(f"WORKFLOW_SHA256={digest}")
+    '@ | python - 2>&1 | Tee-Object -FilePath "$work\T11A-workflow-diff-check.log"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $numstat = git diff --numstat HEAD -- backend/workflows/minimax_h3_ref2v.json
+    $numstat | Tee-Object -FilePath "$work\T11A-workflow-numstat.log"
+    if ($numstat -ne "1`t1`tbackend/workflows/minimax_h3_ref2v.json") { throw "unexpected workflow line diff: $numstat" }
+    $backendChanges = @(git diff --name-only HEAD -- backend)
+    if ($backendChanges.Count -ne 1 -or $backendChanges[0] -ne 'backend/workflows/minimax_h3_ref2v.json') { throw "unexpected backend diff: $($backendChanges -join ', ')" }
+    if (@(git diff --name-only HEAD -- backend/tests).Count -ne 0) { throw 'test files changed' }
+    Push-Location backend
+    @'
+    from app.integrations.workflow_binding import load_minimax_binding_snapshot
+
+    snapshot = load_minimax_binding_snapshot()
+    expected_name = "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+    expected_hash = "61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967"
+    assert snapshot.definition["310"]["inputs"]["lora_name"] == expected_name
+    assert snapshot.workflow_hash == expected_hash
+    print(f"BINDING_STATUS=valid HASH={snapshot.workflow_hash}")
+    '@ | python - 2>&1 | Tee-Object -FilePath "$work\T11A-binding-loader.log"
+    $bindingExit = $LASTEXITCODE
+    Pop-Location
+    if ($bindingExit -ne 0) { exit $bindingExit }
+    ```
+
+    最后把固定回归中的 `$task` 设为 `T11A`，分开保留 frontend test、build、完整 pytest 与 `git diff --check` 的原始输出，全部 exit 0 后才将本追溯行回填为 `T11A-comfy-object-info.json`、三个检查日志及固定回归日志、勾选 T11A并提交。该 task 不新增自动测试；`/object_info` 只能证明外部枚举匹配，不能代替 T12 的真实 `/prompt`/history/MP4。
+
 - [ ] **T12 — 真实 MiniMax 浏览器生成、take 与 stale 竞态验收**
 
-  - **交付：** 在独立全新 PostgreSQL 与隔离 DATA_DIR 上，以生产浏览器→Vite→FastAPI→Task/WS→vLLM/Comfy→MP4 全通路完成两次视频生成、播放/current 切换，并在另一条实际 running 任务期间通过正式 Shot PATCH 制造 source revision 漂移；记录全部服务、queue/history、Task、DB、媒体与最终资源态。不得 mock、直接写 DB/文件、重试失败任务或沿用 C009 日志冒充。
+  - **交付：** T11A 通过并提交后，保留首次 T12 的失败数据库、failed Task、DATA_DIR 与日志不动，另建全新 PostgreSQL、隔离 DATA_DIR、全新实体与新 Task；以生产浏览器→Vite→FastAPI→Task/WS→vLLM/Comfy→MP4 全通路完成两次视频生成、播放/current 切换，并在另一条实际 running 任务期间通过正式 Shot PATCH 制造 source revision 漂移；记录全部服务、queue/history、Task、DB、媒体与最终资源态。不得 mock、直接写 DB/文件、重试旧 failed Task、复用旧 request_id 或沿用 C009/首次 T12 日志冒充。
   - **R：** R4、R5、R5a、R6、R7、R8、R9、R10；PRD §3.1-§3.3、§6.1-§6.3、§7、§9、§11 M4、§12.1-§12.4。
   - **计划测试层级：** 跨进程/资源生命周期。
-  - **追溯行：** `C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新`；`C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`；`C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
-  - **验收方式与命令/人工检查：** 新库创建前证明名称不存在，执行 `python -m alembic upgrade head/current/check`，再运行 T10A driver 建立已披露的确定性 Shot 前置；用正式设置 API 从 `C:\Users\Administrator\Downloads\minimaxh3-流水线适配版模板.md` 安装模板并 GET 逐字核对，health 必须 vLLM/Comfy healthy、bindings valid且双 hash 非空，Comfy queue 初始为空。浏览器完成 AC-15 主路径：同场景连续三 Shot preview/create，槽位顺序可见，点击生成并记录 queued/generating/ready、WS、task_id、prompt_id、history、take/media/seed/actual；再次点击得到第二 seed/take，切 current。另建/复用合法 Clip，待 Task 与 Comfy prompt 确认 running 后经正式 Shots 页面/API修改所含 Shot，任务 done 后断言 take 保存而 Clip stale/Shot changed。driver 完成后全部被验收操作不得直写 DB/文件。所有原始证据写 `.work/c010/T12-*`；终态要求 temp 空、Comfy queue 空、vLLM sleeping、页面与 REST/DB一致。外部文件缺失、health/queue 前置不满足、无法在 running 窗口完成编辑或任一真实任务失败时立即停止，不以 C009 成功、静态 MP4 或 mock 替代。
+  - **追溯行：** `C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新`；`C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`；`C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
+  - **验收方式与命令/人工检查：** 新库创建前证明名称不存在且不同于所有既有 T12 库，执行 `python -m alembic upgrade head/current/check`，使用新的绝对 DATA_DIR，再运行 T10A driver 建立已披露的确定性 Shot 前置；用正式设置 API从 `C:\Users\Administrator\Downloads\minimaxh3-流水线适配版模板.md` 安装模板并 GET 逐字核对。发起任何生成前重新保存当前 Comfy `/object_info` 并断言节点 310 的精确值仍在允许列表；用重启后的生产后端检查 health 必须 vLLM/Comfy healthy、bindings valid、`hashes.minimaxh3` 精确为 `61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967`，Comfy queue 初始为空。浏览器完成 AC-15 主路径：同场景连续三 Shot preview/create，槽位顺序可见，点击生成并记录 queued/generating/ready、WS、task_id、prompt_id、Comfy `POST /prompt` 200、history、take/media/seed/actual；再次点击得到第二 seed/take，切 current。另建/复用合法 Clip，待新 Task 与 Comfy prompt 确认 running 后经正式 Shots 页面/API修改所含 Shot，任务 done 后断言 take 保存而 Clip stale/Shot changed。首次失败 Task 只读核对仍为 failed，不调用重试或重复提交其 request。driver 完成后全部被验收操作不得直写 DB/文件。新证据使用不覆盖旧文件的 `.work/c010/T12-rerun-*` 名称；终态要求 temp 空、Comfy queue 空、vLLM sleeping、页面与 REST/DB一致。外部文件缺失、`object_info`/health/hash/queue 前置不满足、无法在 running 窗口完成编辑或任一真实任务失败时立即停止，不以 C009 成功、首次 T12 失败资料、静态 MP4 或 mock 替代。
 
 - [ ] **T13 — 最终全量回归、追溯回填、范围审计与完成报告**
 
-  - **交付：** 用全新最终 PostgreSQL 重跑 Alembic、完整 frontend test/build 与完整 pytest；逐条映射 AC-01..17 到代码、新测试、T11/T12 原始证据，回填所有 C010 追溯行真实 node ID/证据路径；创建 `.work/c010/completion-report.md`，不新增实现。
+  - **交付：** 用全新最终 PostgreSQL 重跑 Alembic、完整 frontend test/build 与完整 pytest；逐条映射 AC-01..18 到代码、新测试、T11/T11A/T12 原始证据，回填所有 C010 追溯行真实 node ID/证据路径；创建 `.work/c010/completion-report.md`，不新增实现。
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R12；PRD §0、§3、§9、§11 M4、§12。
   - **计划测试层级：** 跨进程/资源生命周期。
-  - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`，并审计全部 C010 行。
+  - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`，并审计全部 C010 行。
   - **验收方式与命令：** 创建名为 `ai_drama_studio_c010_final_<timestamp>` 且现场证明不存在的数据库，显式导出其 `DATABASE_URL` 和新的 `.work/c010/T13-data`，依次运行并保留原生 stdout/stderr：
 
     ```powershell
@@ -336,14 +411,37 @@
     $baseline = (Get-Content -LiteralPath '.work\c010\baseline-sha.txt' -Raw).Trim()
     git diff --check
     git diff --name-status "$baseline..HEAD" | Tee-Object -FilePath '.work\c010\T13-scope.log'
-    git diff --name-only "$baseline..HEAD" -- backend backend/tests backend/alembic openspec/changes/c009 | Tee-Object -FilePath '.work\c010\T13-forbidden-diff.log'
+    $backendAndOldActive = @(git diff --name-only "$baseline..HEAD" -- backend openspec/changes/c009)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $forbidden = @($backendAndOldActive | Where-Object { $_ -ne 'backend/workflows/minimax_h3_ref2v.json' })
+    $forbidden | Set-Content -LiteralPath '.work\c010\T13-forbidden-diff.log'
+    if ($forbidden.Count -ne 0) { $forbidden; exit 1 }
+    @'
+    import copy
+    import hashlib
+    import json
+    import subprocess
+    from pathlib import Path
+
+    baseline = Path(".work/c010/baseline-sha.txt").read_text(encoding="utf-8").strip()
+    workflow_path = Path("backend/workflows/minimax_h3_ref2v.json")
+    before = json.loads(subprocess.check_output(["git", "show", f"{baseline}:backend/workflows/minimax_h3_ref2v.json"]))
+    after = json.loads(workflow_path.read_text(encoding="utf-8"))
+    expected = copy.deepcopy(before)
+    expected["310"]["inputs"]["lora_name"] = "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+    assert after == expected, "workflow differs outside node 310 lora_name"
+    digest = hashlib.sha256(workflow_path.read_bytes()).hexdigest()
+    assert digest == "61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967", digest
+    print(f"C010_WORKFLOW_EXACT_DIFF=PASS HASH={digest}")
+    '@ | python - 2>&1 | Tee-Object -FilePath '.work\c010\T13-workflow-scope.log'
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $pending = rg -n 'C010 .*\|.*待填' openspec/TRACEABILITY.md
     if ($LASTEXITCODE -eq 0) { $pending; exit 1 }
     if ($LASTEXITCODE -ne 1) { exit $LASTEXITCODE }
     git status --short
     ```
 
-    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；只新增 C010 测试且每个真实 node ID 已回填；没有修改任何既有测试；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
+    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS且 hash 为 AC-18 固定值；只新增 C010 测试且每个真实 node ID/人工证据已回填；没有修改任何既有测试；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
@@ -364,4 +462,4 @@
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在，后端/migration/既有测试零 diff。
+  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；后端 Python、binding TOML、migration 与所有既有测试零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶修正。
