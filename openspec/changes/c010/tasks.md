@@ -286,7 +286,7 @@
   - **追溯行：** `C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新`；`C010 片段详情输入与删除：note/duration 草稿保存、requested-duration 生成门槛、note 随生成提交、204 后权威刷新与失败保真`；`C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`；`C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功`。
   - **验收方式与命令：** 扩充并执行 `npm --prefix frontend run test -- src/features/director/directorSync.test.ts src/api/clips.test.ts`；定向断言 note 未变/普通 string/空串/null 的 presence/value 与 body 精确、两次 sequential 202产生两 POST、同一次 in-flight 只有一 POST、无 request_id、202不触发完成 notice、immediate failed完整原因且 note 取服务端刷新值、409/transport无假 task/take、done notice 后于 replacement REST apply。随后固定回归并回填真实 node 名。
 
-- [ ] **T10A — 交付确定性 Director 浏览器验收夹具装置**
+- [x] **T10A — 交付确定性 Director 浏览器验收夹具装置**
 
   - **交付：** 在 `.work/c010/director-fixture.py` 创建且实际运行一次性 driver，并为它创建独立于 T0 回归库的全新浏览器数据库，数据库名写入 `.work/c010/browser-database-name.txt`。driver 通过正式 API 创建 project/style/episode/assets、上传图片、创建初始 Clip并执行 changed mutation；仅因项目没有 Shot create API，才可用生产 SQLAlchemy model/session 向同一浏览器数据库写入 Shot/ShotAsset。输出所有实体 ID、场景分类、候选顺序与预期场景到 `.work/c010/director-fixture.json`。不得写 Task/ClipVideo、前端状态、媒体正式输出或 production/test 文件，不得提交脚本。
   - **R：** 无；PRD §9、§11 M4 的确定性浏览器前置数据，不替代 R5-R12 正式 API 验收。
