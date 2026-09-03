@@ -625,7 +625,7 @@
 
     每条外部命令后立即保存并检查 `$LASTEXITCODE`，非 0 即停止，不能继续到下一条或勾选。期望：定向测试和完整 pytest 均 exit 0；竞态用例在旧的双读实现上必定失败、在同源实现上稳定通过；新追溯行已回填真实 node ID且无 `待填`；提交只含 `backend/app/tasks/gen_clip_video.py`、新增 T28 测试、`openspec/TRACEABILITY.md` 与本 checkbox，`.work/` 不提交。
 
-- [ ] **T29 — 重做最终隔离验收与可审计原始输出**
+- [x] **T29 — 重做最终隔离验收与可审计原始输出**
 
   - **依赖：** T28 的定向测试、完整 pytest、追溯回填与提交均通过；任何一项未通过不得执行或勾选。
   - **交付：** 不修改生产代码、迁移、前端或测试。保留既有 T27 日志作为历史证据，另建全新隔离 PostgreSQL 数据库并生成 `.work/c009/T29-*` 日志；每份日志必须同时含该原生命令的 stdout/stderr 与真实 exit code，不得仅保存 `Start-Transcript` wrapper。更新 `.work/c009/completion-report.md`，明确 T27 的 Alembic/pytest/build 日志缺少原生输出、已由 T29 重验取代；所有最终通过声明改为引用 T29 日志，不得把 Sol 复跑或旧 T27 wrapper 当成 Luna 原始证据。
@@ -667,21 +667,21 @@
 
     期望：upgrade/current/check、完整 pytest、前端 build均 exit 0；`T29-alembic-current.log` 含当前唯一 `(head)`，`T29-alembic-check.log` 含 `No new upgrade operations detected.`，`T29-full-pytest.log` 含真实 `passed in` 汇总，`T29-frontend-build.log` 含真实 `built in` 汇总；migration diff为空；追溯待填查询无输出（exit 1）；scope 日志中每个 tracked 文件均能指向 C009 task且无范围外围栏能力，`.work/` 不入提交。任一日志缺少上述原生输出、任何命令失败或完成报告仍把 T27 wrapper 写成最终原始证据，均不得勾选或提交。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`。
   - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18/T20/T26/T28/T29 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
   - **R：** 无；PRD §0、§3.2、§6.1 与需求方 2026-09-01/2026-09-02 C009 裁决。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 多任务 generation_state 聚合与重启恢复`；`C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等`。
   - **验收方式与人工检查：** 完成报告逐项列“立即failed任务、多任务聚合、user_note三态、public seed、全局request-id事务锁、零 enabled 409、保留 generation_mode 409、参考媒体上传 bytes 与快照 hash 同源”是否应进入 DECISIONS及理由；本 task 不自行修改 DECISIONS。无候选时精确写“DECISIONS.md 候选项：无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4，AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
