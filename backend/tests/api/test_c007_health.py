@@ -13,7 +13,7 @@ from app.main import create_app
 
 
 WORKFLOW_HASH = "e9790bece3462691ebaf63d849bf1940beec62f9149fb6d475be859c47e41eaa"
-MINIMAX_WORKFLOW_HASH = "bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780"
+MINIMAX_WORKFLOW_HASH = "4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772"
 
 
 class _ProbeClient:

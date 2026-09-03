@@ -13,7 +13,7 @@ from app.integrations.workflow_binding import (
 
 
 EXPECTED_HASH = (
-    "bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780"
+    "4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772"
 )
 EXPECTED_IMAGE_PATHS = (
     "137.inputs.image",
