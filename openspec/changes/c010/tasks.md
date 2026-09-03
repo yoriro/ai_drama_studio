@@ -206,7 +206,7 @@
 
     期望：五段工具调用均在各自时限内 exit 0；当前 HEAD 同时包含 C010 规划提交 `74990fc` 与 C009 归档提交 `af7f6fd`；C009 archive tasks 无未勾选项，活动 spec 不存在且 archive spec 存在；PostgreSQL 端口为 True；新数据库创建成功，upgrade/current/check、完整 pytest 与 frontend build 全部通过。vLLM/Comfy 现场 True/False 只记录，不阻塞 T1；不可达时只把 T12 标记为待现场恢复，不伪造 ready。提交只能包含本文件 T0 checkbox。
 
-- [ ] **T1 — 交付 C010 前端纯逻辑测试 runner**
+- [x] **T1 — 交付 C010 前端纯逻辑测试 runner**
 
   - **交付：** 在 `frontend/package.json` 增加单一 `test` script，加入并锁定 `vitest@3.2.4` dev dependency；只修改 `frontend/package.json`、`frontend/package-lock.json` 与本 task checkbox。不得加 jsdom、Testing Library、Playwright/Cypress、空测试或自建 runner。
   - **R：** 无；PRD §11 M4；`openspec/project.md` 测试追溯纪律。
