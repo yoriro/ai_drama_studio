@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ClipPreviewResponse } from "../../api/clips";
+import type {
+  ClipPreviewResponse,
+  ClipSlot,
+} from "../../api/clips";
 import {
   applyDirectorPreview,
   buildDirectorProjection,
@@ -14,6 +17,7 @@ import {
   projectClipCreateRequest,
   projectDirectorClipSettingsPatch,
   projectDirectorGenerationGate,
+  projectDirectorSlots,
   projectReferenceSelection,
   projectShotSelection,
   parseDirectorRequestedDuration,
@@ -49,6 +53,22 @@ function clip(overrides: Partial<DirectorClip> = {}): DirectorClip {
 
 function sceneAsset(id: number, name: string): DirectorAsset {
   return { id, type: "scene", name };
+}
+
+function slot(overrides: Partial<ClipSlot> = {}): ClipSlot {
+  return {
+    id: 1,
+    clip_id: 33,
+    slot_no: 1,
+    asset_id: 101,
+    asset_name_snapshot: "林夏",
+    asset_type_snapshot: "character",
+    asset_deleted: false,
+    enabled: true,
+    image_source: "asset_current",
+    image_url: "/media/assets/101/current",
+    ...overrides,
+  };
 }
 
 function projection(
@@ -529,6 +549,77 @@ describe("Director projection", () => {
       allowed: false,
       message: "请先保存请求时长",
     });
+  });
+
+  it("projects slots in slot order with public source and R12 actions", () => {
+    const result = projectDirectorSlots({
+      clip_id: 33,
+      items: [
+        slot({
+          id: 3,
+          slot_no: 3,
+          asset_deleted: true,
+          image_source: "override",
+          image_url: "/media/clip-slots/3/override",
+        }),
+        slot({
+          id: 1,
+          slot_no: 1,
+          asset_id: null,
+          asset_name_snapshot: "旧场景",
+          asset_type_snapshot: "scene",
+          asset_deleted: true,
+          image_source: null,
+          image_url: null,
+        }),
+        slot({
+          id: 2,
+          slot_no: 2,
+          enabled: false,
+          image_source: "asset_current",
+          image_url: "/media/assets/101/current",
+        }),
+      ],
+      warnings: [
+        { code: "R8", message: "启用槽位建议不超过 4 个" },
+        { code: "R12", message: "原资产已删除" },
+      ],
+    });
+
+    expect(result.slots.map((item) => item.slotNo)).toEqual([1, 2, 3]);
+    expect(result.slots[0]).toMatchObject({
+      slotNo: 1,
+      assetNameSnapshot: "旧场景",
+      assetTypeSnapshot: "scene",
+      assetDeleted: true,
+      imageSource: null,
+      imageUrl: null,
+      sourceLabel: "无图",
+      assetStatusLabel: "原资产已删除",
+      imageStatusLabel: "缺图",
+      actions: ["disable", "upload_override"],
+    });
+    expect(result.slots[1]).toMatchObject({
+      slotNo: 2,
+      enabled: false,
+      sourceLabel: "当前资产图片",
+      imageUrl: "/media/assets/101/current",
+      imageStatusLabel: "可用图片",
+      actions: ["enable", "upload_override"],
+    });
+    expect(result.slots[2]).toMatchObject({
+      slotNo: 3,
+      assetDeleted: true,
+      imageSource: "override",
+      imageUrl: "/media/clip-slots/3/override",
+      sourceLabel: "override",
+      assetStatusLabel: "原资产已删除",
+      actions: ["disable", "upload_override", "clear_override"],
+    });
+    expect(result.warnings).toEqual([
+      { code: "R8", message: "启用槽位建议不超过 4 个" },
+      { code: "R12", message: "原资产已删除" },
+    ]);
   });
 
   it("throws a clear visible error for every invalid clip or shot projection fact", () => {

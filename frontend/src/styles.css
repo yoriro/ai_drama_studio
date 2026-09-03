@@ -1036,6 +1036,91 @@ button:disabled {
   color: #8a3028;
 }
 
+.director-slots-panel {
+  border-top: 1px solid #ded5c8;
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.director-slots-panel h4 {
+  margin: 0;
+}
+
+.director-slot-warnings {
+  background: #f3ebd7;
+  border-radius: 8px;
+  color: #79581b;
+  padding: 10px 12px;
+}
+
+.director-slot-warnings ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.director-slot-list {
+  display: grid;
+  gap: 12px;
+}
+
+.director-slot-row {
+  background: #fffdf9;
+  border: 1px solid #ded5c8;
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.director-slot-heading {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.director-slot-deleted {
+  color: #8a3028;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.director-slot-state,
+.director-slot-missing {
+  color: #746c61;
+  margin: 0;
+}
+
+.director-slot-image {
+  border: 1px solid #ded5c8;
+  border-radius: 8px;
+  max-height: 180px;
+  max-width: 280px;
+  object-fit: contain;
+}
+
+.director-slot-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.director-slot-upload {
+  align-items: center;
+  border: 1px solid #b8aea0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.director-slot-upload input {
+  max-width: 220px;
+}
+
 @media (max-width: 640px) {
   .app-header {
     align-items: flex-start;

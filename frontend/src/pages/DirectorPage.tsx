@@ -3,13 +3,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { listAssets } from "../api/assets";
 import {
   createClip,
+  clearClipSlotOverride,
   deleteClip,
   getClip,
   listClipSlots,
   listClipVideos,
   listClips,
   previewClips,
+  updateClipSlotEnabled,
   updateClip,
+  uploadClipSlotOverride,
 } from "../api/clips";
 import type { Clip } from "../api/clips";
 import { listShots } from "../api/shots";
@@ -26,6 +29,7 @@ import {
   projectClipCreateRequest,
   projectDirectorClipSettingsPatch,
   projectDirectorGenerationGate,
+  projectDirectorSlots,
   projectReferenceSelection,
   projectShotSelection,
   startDirectorPreview,
@@ -84,6 +88,11 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   const [pendingDeleteClipId, setPendingDeleteClipId] = useState<number | null>(
     null,
   );
+  const [slotMutationKey, setSlotMutationKey] = useState<string | null>(null);
+  const [slotMutationRefreshing, setSlotMutationRefreshing] = useState(false);
+  const [slotMutationError, setSlotMutationError] = useState<unknown | null>(
+    null,
+  );
   const previewGeneration = useRef(0);
   const previousSelectedClipId = useRef<number | null>(null);
 
@@ -137,6 +146,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSettingsActionError(null);
     setSettingsNotice(null);
     setSettingsSavingClipId(null);
+    setSlotMutationError(null);
   }, [syncState.selectedClipId]);
 
   useEffect(() => {
@@ -163,6 +173,33 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   }, [
     settingsSavingClipId,
     syncState.clipDraft,
+    syncState.detailPhase,
+    syncState.pagePhase,
+    syncState.selectedClipId,
+  ]);
+
+  useEffect(() => {
+    if (slotMutationKey === null || !slotMutationRefreshing) {
+      return;
+    }
+    if (
+      syncState.selectedClipId === null ||
+      syncState.detailPhase === "error" ||
+      syncState.pagePhase === "error"
+    ) {
+      setSlotMutationKey(null);
+      setSlotMutationRefreshing(false);
+      return;
+    }
+    if (syncState.detailPhase === "ready" && syncState.clipDetail !== null) {
+      setSlotMutationKey(null);
+      setSlotMutationRefreshing(false);
+      setSettingsNotice("槽位已按最新快照更新");
+    }
+  }, [
+    slotMutationKey,
+    slotMutationRefreshing,
+    syncState.clipDetail,
     syncState.detailPhase,
     syncState.pagePhase,
     syncState.selectedClipId,
@@ -216,8 +253,15 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     syncState.clipDraft === null
       ? null
       : projectDirectorGenerationGate(syncState.clipDraft);
+  const slotsProjection =
+    syncState.clipDetail === null
+      ? null
+      : projectDirectorSlots(syncState.clipDetail.slots);
 
   function toggleShot(shotId: number): void {
+    if (slotMutationKey !== null) {
+      return;
+    }
     const item = selection.eligibility.find((entry) => entry.shotId === shotId);
     if (item === undefined || item.disabled) {
       return;
@@ -241,7 +285,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   }
 
   function selectClip(clipId: number): void {
-    if (pendingDeleteClipId !== null) {
+    if (pendingDeleteClipId !== null || slotMutationKey !== null) {
       return;
     }
     previewGeneration.current += 1;
@@ -318,6 +362,65 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         setPendingDeleteClipId(null);
         setSettingsActionError(error);
       },
+    );
+  }
+
+  function handleSlotMutation(
+    key: string,
+    mutation: () => Promise<unknown>,
+  ): void {
+    const clipId = syncState.selectedClipId;
+    if (
+      clipId === null ||
+      slotMutationKey !== null ||
+      pendingDeleteClipId !== null ||
+      settingsSavingClipId !== null
+    ) {
+      return;
+    }
+    setSlotMutationError(null);
+    setSlotMutationKey(key);
+    setSlotMutationRefreshing(false);
+    void mutation().then(
+      () => {
+        setSlotMutationRefreshing(true);
+        sync.refreshPage({ refreshSelectedClip: true });
+      },
+      (error: unknown) => {
+        setSlotMutationKey(null);
+        setSlotMutationRefreshing(false);
+        setSlotMutationError(error);
+      },
+    );
+  }
+
+  function handleSlotEnabledChange(slotNo: number, enabled: boolean): void {
+    const clipId = syncState.selectedClipId;
+    if (clipId === null) {
+      return;
+    }
+    handleSlotMutation(`enabled:${slotNo}`, () =>
+      updateClipSlotEnabled(clipId, slotNo, enabled),
+    );
+  }
+
+  function handleSlotUpload(slotNo: number, file: File): void {
+    const clipId = syncState.selectedClipId;
+    if (clipId === null) {
+      return;
+    }
+    handleSlotMutation(`upload:${slotNo}`, () =>
+      uploadClipSlotOverride(clipId, slotNo, file),
+    );
+  }
+
+  function handleSlotClear(slotNo: number): void {
+    const clipId = syncState.selectedClipId;
+    if (clipId === null || !window.confirm(`确定清除槽位 ${slotNo} 的 override？`)) {
+      return;
+    }
+    handleSlotMutation(`clear:${slotNo}`, () =>
+      clearClipSlotOverride(clipId, slotNo),
     );
   }
 
@@ -544,10 +647,16 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         onRequestedDurationChange={(requestedDuration) =>
           updateSelectedClipDraft({ requestedDuration })
         }
+        onSlotClear={handleSlotClear}
+        onSlotEnabledChange={handleSlotEnabledChange}
+        onSlotUpload={handleSlotUpload}
         selection={selection}
         settingsActionError={settingsActionError}
         settingsProjection={settingsProjection}
         settingsSaving={settingsSavingClipId !== null}
+        slotMutationError={slotMutationError}
+        slotMutationKey={slotMutationKey}
+        slotsProjection={slotsProjection}
         deleting={pendingDeleteClipId !== null}
         clipDraft={syncState.clipDraft}
         selectedClipId={syncState.selectedClipId}
@@ -697,6 +806,108 @@ function DirectorPreviewPanel({
   );
 }
 
+interface DirectorSlotsPanelProps {
+  mutationError: unknown | null;
+  mutationKey: string | null;
+  onClear: (slotNo: number) => void;
+  onEnabledChange: (slotNo: number, enabled: boolean) => void;
+  onUpload: (slotNo: number, file: File) => void;
+  projection: ReturnType<typeof projectDirectorSlots>;
+}
+
+function DirectorSlotsPanel({
+  mutationError,
+  mutationKey,
+  onClear,
+  onEnabledChange,
+  onUpload,
+  projection,
+}: DirectorSlotsPanelProps) {
+  return (
+    <section aria-label="片段槽位" className="director-slots-panel">
+      <h4>参考槽位</h4>
+      {mutationError !== null && <ApiErrorMessage error={mutationError} />}
+      {projection.warnings.length > 0 && (
+        <div className="director-slot-warnings">
+          <strong>槽位提示</strong>
+          <ul>
+            {projection.warnings.map((warning, index) => (
+              <li key={`${warning.code}-${index}`}>{warning.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="director-slot-list">
+        {projection.slots.map((slot) => {
+          const enabledAction = slot.enabled ? "disable" : "enable";
+          return (
+            <article className="director-slot-row" key={slot.slotId}>
+              <div className="director-slot-heading">
+                <strong>
+                  槽位 {slot.slotNo} · {slot.assetNameSnapshot} · {slot.assetTypeSnapshot}
+                </strong>
+                {slot.assetDeleted && (
+                  <span className="director-slot-deleted">原资产已删除</span>
+                )}
+              </div>
+              <p className="director-slot-state">
+                {slot.enabled ? "启用" : "停用"} · 图片来源：{slot.sourceLabel} · {slot.imageStatusLabel}
+              </p>
+              {slot.imageUrl !== null ? (
+                <img
+                  alt={`槽位 ${slot.slotNo} 参考图`}
+                  className="director-slot-image"
+                  src={slot.imageUrl}
+                />
+              ) : (
+                <p className="director-slot-missing">缺图</p>
+              )}
+              <div className="director-slot-actions">
+                {slot.actions.includes(enabledAction) && (
+                  <button
+                    disabled={mutationKey !== null}
+                    onClick={() =>
+                      onEnabledChange(slot.slotNo, !slot.enabled)
+                    }
+                    type="button"
+                  >
+                    {slot.enabled ? "停用槽位" : "启用槽位"}
+                  </button>
+                )}
+                {slot.actions.includes("upload_override") && (
+                  <label className="director-slot-upload">
+                    上传 override
+                    <input
+                      accept=".png,.jpg,.jpeg,.webp"
+                      disabled={mutationKey !== null}
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        if (file !== undefined) {
+                          onUpload(slot.slotNo, file);
+                        }
+                      }}
+                      type="file"
+                    />
+                  </label>
+                )}
+                {slot.actions.includes("clear_override") && (
+                  <button
+                    disabled={mutationKey !== null}
+                    onClick={() => onClear(slot.slotNo)}
+                    type="button"
+                  >
+                    清除 override
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 interface DirectorSelectionPanelProps {
   clips: Clip[];
   clipDraft: DirectorSyncState["clipDraft"];
@@ -707,6 +918,9 @@ interface DirectorSelectionPanelProps {
   onClearNote: () => void;
   onDelete: () => void;
   onRequestedDurationChange: (requestedDuration: string) => void;
+  onSlotClear: (slotNo: number) => void;
+  onSlotEnabledChange: (slotNo: number, enabled: boolean) => void;
+  onSlotUpload: (slotNo: number, file: File) => void;
   onSave: () => void;
   onUserNoteChange: (userNote: string) => void;
   selection: ShotSelectionProjection;
@@ -715,6 +929,9 @@ interface DirectorSelectionPanelProps {
   settingsActionError: unknown | null;
   settingsProjection: ReturnType<typeof projectDirectorClipSettingsPatch> | null;
   settingsSaving: boolean;
+  slotMutationError: unknown | null;
+  slotMutationKey: string | null;
+  slotsProjection: ReturnType<typeof projectDirectorSlots> | null;
 }
 
 function describeDirectorNote(note: string | null): string {
@@ -737,6 +954,9 @@ function DirectorSelectionPanel({
   onClearNote,
   onDelete,
   onRequestedDurationChange,
+  onSlotClear,
+  onSlotEnabledChange,
+  onSlotUpload,
   onSave,
   onUserNoteChange,
   selection,
@@ -745,6 +965,9 @@ function DirectorSelectionPanel({
   settingsActionError,
   settingsProjection,
   settingsSaving,
+  slotMutationError,
+  slotMutationKey,
+  slotsProjection,
 }: DirectorSelectionPanelProps) {
   if (selectedClipId !== null) {
     const selectedClip = clips.find((clip) => clip.id === selectedClipId);
@@ -831,6 +1054,16 @@ function DirectorSelectionPanel({
               </button>
             </div>
           </div>
+        )}
+        {detailPhase === "ready" && slotsProjection !== null && (
+          <DirectorSlotsPanel
+            mutationError={slotMutationError}
+            mutationKey={slotMutationKey}
+            onClear={onSlotClear}
+            onEnabledChange={onSlotEnabledChange}
+            onUpload={onSlotUpload}
+            projection={slotsProjection}
+          />
         )}
       </section>
     );

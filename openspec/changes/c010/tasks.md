@@ -262,7 +262,7 @@
   - **追溯行：** `C010 片段详情输入与删除：note/duration 草稿保存、requested-duration 生成门槛、note 随生成提交、204 后权威刷新与失败保真`；`§3.3 删除片段：其分镜释放、片段删除、视频移入 trash`。
   - **验收方式与命令：** 执行 `npm --prefix frontend run test -- src/features/director/directorModel.test.ts src/api/clips.test.ts`，精确断言 no-op/单字段/双字段 PATCH body、null/空串、duration 整数解析、duration dirty 与 note dirty 的不同生成门槛、DELETE 204；再运行固定回归。浏览器/refresh/error 的最终证据留到 T11并保持追溯待填，本 task 不以纯逻辑替代 DOM 验收。
 
-- [ ] **T8 — 交付槽位、override 与 R12 处置面板**
+- [x] **T8 — 交付槽位、override 与 R12 处置面板**
 
   - **交付：** 加载/显示 slots 与 warnings；实现并测试 Slot 视图模型的固定顺序、source/deleted/action 映射；实现 enabled JSON PATCH、override 单文件 FormData 上传、清除确认；只用 API `image_source/image_url`。已删资产固定显示快照名+“原资产已删除”，无图时同时提供停用/上传且不自动执行。每次 mutation 通过 T5 刷新 Clip+slots，不乐观改号/状态。
   - **R：** R8、R9、R10、R12；PRD §3.1、§3.3、§5、§9、§11 M4。

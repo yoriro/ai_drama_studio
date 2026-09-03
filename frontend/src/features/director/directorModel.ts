@@ -6,6 +6,8 @@ import type {
   ClipFreshness,
   ClipGenerationState,
   ClipPreviewResponse,
+  ClipSlot,
+  ClipSlotsResponse,
 } from "../../api/clips";
 import type { Shot } from "../../api/shots";
 
@@ -710,6 +712,69 @@ export function projectDirectorGenerationGate(
     return { allowed: false, message: "请先保存请求时长" };
   }
   return { allowed: true, message: null };
+}
+
+export type DirectorSlotActionKind =
+  | "enable"
+  | "disable"
+  | "upload_override"
+  | "clear_override";
+
+export interface DirectorSlotProjection {
+  slotId: number;
+  slotNo: number;
+  assetNameSnapshot: string;
+  assetTypeSnapshot: string;
+  assetDeleted: boolean;
+  enabled: boolean;
+  imageSource: ClipSlot["image_source"];
+  imageUrl: string | null;
+  sourceLabel: string;
+  assetStatusLabel: string;
+  imageStatusLabel: string;
+  actions: DirectorSlotActionKind[];
+}
+
+export interface DirectorSlotsProjection {
+  slots: DirectorSlotProjection[];
+  warnings: ClipSlotsResponse["warnings"];
+}
+
+export function projectDirectorSlots(
+  response: ClipSlotsResponse,
+): DirectorSlotsProjection {
+  const slots = [...response.items]
+    .sort((left, right) => left.slot_no - right.slot_no)
+    .map((slot) => {
+      const actions: DirectorSlotActionKind[] = [
+        slot.enabled ? "disable" : "enable",
+        "upload_override",
+      ];
+      if (slot.image_source === "override") {
+        actions.push("clear_override");
+      }
+      return {
+        slotId: slot.id,
+        slotNo: slot.slot_no,
+        assetNameSnapshot: slot.asset_name_snapshot,
+        assetTypeSnapshot: slot.asset_type_snapshot,
+        assetDeleted: slot.asset_deleted,
+        enabled: slot.enabled,
+        imageSource: slot.image_source,
+        imageUrl: slot.image_url,
+        sourceLabel:
+          slot.image_source === "override"
+            ? "override"
+            : slot.image_source === "asset_current"
+              ? "当前资产图片"
+              : "无图",
+        assetStatusLabel: slot.asset_deleted ? "原资产已删除" : "资产快照",
+        imageStatusLabel: slot.image_url === null ? "缺图" : "可用图片",
+        actions,
+      };
+    });
+
+  return { slots, warnings: [...response.warnings] };
 }
 
 export interface DirectorClipCreateProjection {
