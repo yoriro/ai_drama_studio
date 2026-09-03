@@ -17,10 +17,12 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 7. 新增 C010 所需的前端纯逻辑与任务事件竞态自动测试、真实浏览器走查和生产通路证据；保持后端完整回归全绿。
 8. 仅为解除 T12 现场发现的 MiniMax H3 外部枚举漂移，允许把 `backend/workflows/minimax_h3_ref2v.json` 节点 `310.inputs.lora_name` 从裸文件名精确改为当前 Comfy `/object_info` 注册的 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`；由该唯一字面值变化产生新的 workflow hash。
 9. 为同步第 8 项必然改变的 raw workflow hash，仅按 `AGENTS.md` 的 C010 一次性窄例外，把四个既有测试文件中的单一固定 hash 常量从 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780` 精确更新为当前 Windows checkout 的 `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`；不改变测试结构、参数或断言强度。
+10. 修复 T12 使用的既有一次性 Director fixture driver：由 driver 在内存中确定性生成 13 张互不相同的 `512×512` RGB PNG，每张至少包含两种像素颜色，并继续通过正式资产图片 API 上传；不要求用户提供图片、不读取旧数据库或外部素材文件，也不把图片或 driver 纳入提交。
+11. 修复真实 Comfy `execution_error` 事件合同：`gen_clip_video` 对匹配当前 prompt 的事件读取非空 `data.node_id`、`data.node_type` 与 `data.exception_message`，将三者完整写入任务错误并按既有失败路径 `/free` 一次；仅按 `AGENTS.md` 的 C010 一次性窄例外同步一个既有跨进程测试的错误事件夹具和精确断言。
 
 ### 范围外
 
-- 不新增或修改后端 router、schema、service、task handler、模型、migration、工作流绑定配置或提示词模板；除范围内第 8 项对既有 workflow JSON 单一叶子的精确修正和第 9 项四个测试常量的窄同步外，C010 只消费 C008/C009 已有合同。不得借该修正加入动态 LoRA 查找、basename 归一化、兼容别名、fallback、retry，或修改 Comfy 错误体处理。
+- 不新增或修改后端 router、schema、service、模型、migration、工作流绑定配置或提示词模板；除范围内第 8 项 workflow 单叶修正、第 9 项四个 hash 常量同步，以及第 11 项 `backend/app/tasks/gen_clip_video.py` 的真实 `node_id` 字段修正与一个既有测试的窄同步外，C010 只消费 C008/C009 已有合同。不得借这些修正加入动态 LoRA 查找、basename 归一化、兼容 `node` 别名、fallback、retry、共享事件注册表或其他 task handler 改动；`gen_asset_image` 的同名代码不在本 change 范围内。
 - 不实现 C011 的全局导航重做、全站响应式/视觉统一、任务中心取消/历史/过滤、全局 toast 框架或跨页面状态框架；C010 只做导演台可操作所需的局部布局、反馈、空态和错误态。
 - 不实现 C012 的整集发布 E2E、自动化视觉质量判定或无人值守全链路验收。
 - 不实现分镜增删/拆分/合并/排序、候选分镜版本、资产别名/合并、风格/模板版本化、独立 `generation_runs`、continuity 字段或逻辑、`fl2v`/`context_loop` 交互与生成、音频数据/API/控件/占位轨。PRD §9 的“为 v2 预留音频轨位置”在 v1 只表示当前两轨布局不得声称交付音频；不得据此预建音频组件或扩展点。
@@ -31,9 +33,11 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 
 - C009 完成提交 `ba8730175ce4f5647152c7c682270058ebe8d196` 与归档提交 `af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e` 均已提交并作为当前 C010 执行基线的祖先。C009 全部 checkbox 已完成，`.work/c009/T29-full-pytest.log` 为 `346 passed`，T29 前端 build 为 `55 modules transformed` 且成功；C009 完成报告同时明确 Director UI 尚未交付。
 - `frontend/src/routes/AppRoutes.tsx` 已有 `/projects/:projectId/episodes/:episodeId/director` 路由；`EpisodeWorkspacePage` 的导演台 tab 目前只显示“暂未交付”空态。当前没有 clips 前端 API 模块、Director 页面或前端自动测试 runner。
-- 后端已经提供本 change 所需的 preview/create/list/detail/PATCH/DELETE、slots、generate-video、videos/current/delete、Task REST/WS 与 `/media` 路由；公开 seed 已是十进制 string，Clip 响应已含两维状态和 warnings。本 change 预期 **零 migration、零后端 Python/测试变化**；唯一 backend 工件变化是范围内第 8 项的 workflow JSON 单叶修正。
+- 后端已经提供本 change 所需的 preview/create/list/detail/PATCH/DELETE、slots、generate-video、videos/current/delete、Task REST/WS 与 `/media` 路由；公开 seed 已是十进制 string，Clip 响应已含两维状态和 warnings。本 change 保持 **零 migration**；backend 允许变化仅为范围内第 8 项 workflow JSON 单叶、第 9 项四个 hash 常量，以及第 11 项一个视频 task handler 与一个既有测试文件的窄修正。
 - C010 T12 首次真实生成已证明 vLLM chat 返回 200、9 次参考图片上传均返回 200，但 Comfy `POST /prompt` 在入队前返回 400，queue/history 为空。`.work/c010/T12-comfy-object-info.json` 显示当前 `LoraLoaderModelOnly.lora_name` 允许带 `minimax_h3\` 前缀的注册名，不允许仓库 workflow 节点 310 使用的裸文件名；当前旧 workflow SHA256 为 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`。这说明 C009 的历史成功只证明当时运行环境可接受该值，不能证明当前外部枚举未漂移。
-- T11A 首轮已证明外部注册名、workflow 单叶语义 diff、`1 insertion/1 deletion`、raw hash `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`、生产 binding loader、frontend test/build 均通过；完整 pytest 的 `339 passed, 7 failed` 全部只因四个既有常量仍固定旧 hash。该结果不是 workflow 功能失败，但在四个常量按授权同步并完整 pytest 全绿前，T11A 仍未完成。
+- T11A 已由提交 `83c82ce` 完成：外部注册名、workflow 单叶语义 diff、`1 insertion/1 deletion`、raw hash `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`、生产 binding loader、四个获授权常量、定向 `14 passed`、完整 `346 passed` 与 frontend test/build 均已有原始证据。
+- T12 第二次全新库 `ai_drama_studio_c010_t12_rerun_20260903_170851` 已证明修正后 health 为 vLLM/Comfy healthy、binding valid、`POST /prompt` 200，但 Task/Clip failed、视频为 0且 `/free` 200。Comfy prompt `33bc1ebd-1af5-47db-bff5-2e68a8b5203f` 的真实 history 指向 `node_id=405`、`node_type=LoadImage`、输入 `c009/task-1/subject9.png` 与 `av.error.ArgumentError: Invalid argument returned 22`；T10A driver 当前上传的 13 张图片均来自同一张 68-byte、`1×1`、`LA/ya8` PNG。现场以同一 PyAV filter graph 已复现 `1×1 → 32×32` padding/fillborders 配置失败，故这是验收装置输入缺陷，不是分镜文本或 LoRA 失败。
+- 同一 T12 还暴露独立生产合同错误：当前 Comfy `execution_error.data` 使用 `node_id`，而 `gen_clip_video` 读取 `node`，导致持久化错误变成 `execution_error.node must be non-blank text` 并遮蔽上游完整原因。修正夹具不能代替该协议修复；二者均完成后才可重跑 T12。
 - C009 文档已由提交 `af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e` 以内容不变的 rename 归档至 `openspec/archive/C009/`，活动目录 `openspec/changes/c009/` 已不存在。C010 将归档文档视为只读，不再次移动或改写。
 - `.work/` 是既有未跟踪证据目录；C010 只在 `.work/c010/` 保存原始日志、截图和临时验收资料，不纳入提交。
 
@@ -55,13 +59,15 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 | 媒体/调试字段泄露内部路径或大整数失真 | 图片/视频仅使用 API 给出的 `/media/...`；seed 保持 string；只在响应实际包含 DEBUG 字段时展示，不构造内部路径 |
 | 静态 binding 合法但 Comfy 外部枚举已漂移 | 在 T11A/T12 启动新任务前读取当前生产 Comfy `/object_info`；节点 310 必须精确使用注册值，禁止根据目录或 basename 猜测、运行时改写、别名兼容或失败后 fallback |
 | workflow 已授权变化但固定 hash 测试仍停在旧基线 | 只更新 `AGENTS.md` 明列的四个常量到同一个新 raw hash；保留所有既有断言，不改成动态 expected、不修改其他测试或生产 hash 算法 |
+| 一次性 fixture 用可解码但生产链路不可执行的极小图片伪装“已有素材” | driver 自行生成 13 张确定性 `512×512` RGB、非单色且互不相同的 PNG，并经正式上传与 `/media` 回读；不向用户索取文件、不复用旧数据库、不直接写资产图片文件 |
+| Comfy 真实错误被错误事件解析器再次报错遮蔽 | 对匹配 prompt 只读取真实 `node_id`，保留 node type 与原始 exception message；缺失/错型继续 fail fast，不回退读取 `node`，且主错误、无 take、无 retry、`/free` 一次均由跨进程测试验证 |
 | C010 借局部页面提前完成 C011/C012 | 样式限定 Director class，测试只覆盖当前业务交互；不加全局设计系统、移动端重构、完整 E2E 平台或后续业务入口 |
 
 ## 外部依赖
 
 | 来源 | C010 开工或验收门槛 | 当前证据 | 缺失项与结论 |
 |---|---|---|---|
-| PRD §12.1：MiniMax H3 ref2v API workflow 与 binding | 编写前端与纯逻辑测试不依赖 workflow 现场运行；真实“点击生成→take 可播放”验收前，当前 Comfy `/object_info` 必须包含 workflow 节点 310 的精确 LoRA 注册名，生产 binding loader 必须通过，后端 health 必须报告 `workflow_bindings.status=valid` 且 `hashes.minimaxh3` 等于本次修正后的现场值 | C009 T17 曾用旧裸文件名完成 1-reference/2-reference 视频，但 C010 T12 的 `.work/c010/T12-failure-final.log`、`T12-comfy-input-diagnosis.log` 与 `T12-comfy-object-info.json` 已证明当前运行时在 9 次 upload 200 后拒绝裸文件名并令 `/prompt` 返回 400；仓库旧 hash 为 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780` | **当前阻塞 T12，不阻塞已完成的前端任务**；先完成 T11A 的精确单叶修正并取得当前 `/object_info`、生产 loader 与新 hash 证据，再以全新数据库、DATA_DIR、Task 和 request 重新执行 T12；不得重试旧 failed Task、伪造注册名或用 C009 历史成功替代 |
+| PRD §12.1：MiniMax H3 ref2v API workflow 与 binding | 真实“点击生成→take 可播放”验收前，当前 Comfy `/object_info` 必须包含 workflow 节点 310 的精确 LoRA 注册名，生产 binding loader 必须通过，后端 health 必须报告 `workflow_bindings.status=valid` 且 `hashes.minimaxh3` 等于 T11A 记录值；验收输入图片还必须能由同一生产 `LoadImage` 通路读取 | T11A 提交 `83c82ce` 已取得注册名、单叶 diff、raw hash、loader、health 基线和完整回归证据；随后全新 T12 的 `/prompt` 已为 200，真实 history 证明当前阻塞转为 T10A 的 `1×1 LA` 图片在 `LoadImage`/PyAV 失败，而非 workflow 枚举、vLLM 或队列失败 | **外部 workflow/binding 门槛已满足；验收装置与错误事件解析仍阻塞 T12**。先完成 T11B/T11C，再以全新数据库、DATA_DIR、实体和 Task 重跑；不得手工补图、切回旧数据库、重试旧 failed Task或用 C009 历史成功替代 |
 | PRD §12.2：正式 `minimaxh3` 提示词模板 | UI 不读模板正文；真实视频验收要求隔离库中的 `minimaxh3` 已通过正式设置 API 安装并能被 C009 生成链路读取 | C009 完成报告记录模板 PATCH/GET 逐字相等及真实生成证据 | **实现门槛已满足、现场验收需重证**；不得由 C010 写默认/占位模板，也不得把下载文件复制进仓库 |
 | PRD §12.3：vLLM `/sleep`、`/wake_up` | 普通 Director UI、preview/create/slot/take CRUD 不依赖 GPU；真实视频验收要求 vLLM health 可达，且任务结束后资源终态可观测 | C009 T17/T26 已有真实资源生命周期证据 | **非普通 UI 开工门槛**；真实视频 task 前后重新记录 health/sleep 状态，失败直接报告，不重试或 fallback |
 | PRD §12.4：PostgreSQL DSN、vLLM/Comfy 地址端口 | C010 API/WS 浏览器验收和完整 pytest 必须使用显式 `DATABASE_URL` 指向全新隔离 PostgreSQL；真实视频还要求正式配置的 vLLM/Comfy 可达。浏览器仍只访问同源 `/api`、`/media`、`/ws` | `NOTES.md` 记录 PostgreSQL `127.0.0.1:5432`、显式导出 DSN、全新库/Alembic 与 advisory-lock 坑；C009 T29 在全新库通过。C009 完成报告明确终态后 Comfy 存活曾漂移，不能沿用为当前在线声明 | **开工时需现场刷新**；PostgreSQL 不可达则停止 T0；GPU 服务不可达只阻塞真实视频验收 task，不得改用 mock 冒充该证据 |
@@ -85,6 +91,7 @@ C010 不需要用户再提供 MiniMax JSON 或 prompt 模板。唯一可能阻�
 11. take 按 API 顺序显示 current、requested/actual duration、string seed 和可播放视频；设 current 后刷新且至多一项标记 current。current take 的删除控件置为不可用并说明原因；non-current 删除需确认且 204 后消失。
 12. `DEBUG_PROMPTS=false` 时页面没有空的调试占位；响应实际带 `built_prompt`、`input_hash` 或 `input_snapshot` 时，所选 take 出现可展开调试区并逐字/结构化展示公开值，seed 仍按 string 处理。
 13. 所有 API `ApiError` 的 `detail.message` 在 Director 页面可见；网络、非 JSON 或响应协议错误同样可见，但不得替换成旧数据成功态、自动重试 mutation 或吞异常。
+14. 当与当前视频任务 prompt 匹配的 Comfy `execution_error` 到达时，任务进入 failed，完整原因必须包含真实 `node_id`、`node_type` 与 `exception_message`；不得先因读取不存在的 `node` 字段产生第二个错误，也不得 retry、生成 take 或跳过 `/free`。
 
 ## 2. 数据与 API 约束
 
@@ -129,6 +136,13 @@ C010 新增前端 TypeScript 表示与调用，但不改变后端 OpenAPI：
 - 修正后必须现场计算并保存原始文件 SHA256：值须为 64 位小写十六进制且不同于修正前当前 Windows 工作区记录的 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`；生产 `load_minimax_binding_snapshot()` 与重启后的 `/api/system/health` 必须逐字返回该次记录的新值。原始 bytes hash 会受 Git checkout 的 LF/CRLF 表示影响，因此不得把跨 checkout 的预计算常量当成验收真相，也不得为命中某个 hash 改写换行；hash 变化只来自完整 workflow 文件的既有计算，不新增 hash 机制。
 - 当前 Windows checkout 已现场得到新 raw hash `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`。现有 health/binding 测试本来就以精确常量固定该 checkout 的生产工件，因此四个获授权常量必须同步为该值；不得改成运行时读取 workflow 后自证相等。该测试基线不是 T12 外部验收的替代，loader/health 仍须与 `T11A-workflow-hash.txt` 交叉核对。
 - `/object_info` 是外部注册值的现场真相，但单独只能证明输入枚举匹配，不能证明 workflow 可执行或视频有效；T12 必须继续用生产浏览器、任务、Comfy `/prompt`/queue/history 与 MP4 闭环证明执行成功。
+
+### 2.4 Comfy `execution_error` 真实事件合同
+
+- C010 只修正 `gen_clip_video` 的现有 WS 消费路径。与当前提交 prompt 匹配的 `execution_error.data` 必须把 `prompt_id`、`node_id`、`node_type` 与 `exception_message` 视为外部输入；后三项必须分别为非空 string。缺失、空白或错型时直接保留字段级校验失败，不读取旧键 `node`、不猜节点、不查询 history 兜底。
+- 合法事件的任务错误末行精确包含 `RuntimeError: Comfy execution_error node_id=<node_id> type=<node_type> exception=<exception_message>`；`exception_message` 原值不截断。事件 prompt_id 与当前任务不匹配时，在校验节点字段前忽略，保持既有多任务隔离。
+- 该事件沿用 C009 失败状态机：Task/Clip 终态 failed，不创建 `clip_videos` 或正式视频文件，不重试任何外部调用，既有 cleanup owner 在 `finally` 中调用 `/free` 精确一次并保留主错误。公开 API、409/422、payload、数据库 schema、workflow 与 binding 均不变化。
+- 本节不授权修改 `gen_asset_image` 或建立通用兼容解析层；该相同历史代码不作为 C010 T12 修复范围。测试必须使用当前 Comfy 实际字段 `node_id`，不得为了保留旧 mock 而让生产同时接受 `node`。
 
 ## 3. 一带两轨一板
 
@@ -227,6 +241,7 @@ C010 不改变错误状态码，只完整消费：
 | 409 / `conflict` | 逐字显示：包括零 enabled、保留 generation_mode、current take 禁删及其他前置/冲突；随后刷新 | 将生成 409 伪装为 failed Task、自动启用槽位/切 mode/切 current |
 | 422 / `validation_error` | 逐字显示输入/业务校验失败：create 重裁决、duration、reference、slot upload、跨 Clip video 等 | 当成冲突 409、静默修剪数组/文件或用 200 包装 |
 | 202 immediate-failed Task | 先显示已提交，再通过 Task detail 显示完整 `error_msg` 并刷新 Clip | 当成同步 422/409，或只显示“生成失败”丢失原因 |
+| Comfy `execution_error` | 匹配当前 prompt 时按 §2.4 读取 `node_id/node_type/exception_message`，Task/Clip failed并显示完整原因，`/free` 一次 | 读取不存在的 `node`、用解析错误遮蔽上游异常、查询 history 猜原因、retry或落 take |
 | 500 / `internal_error` | 逐字显示服务端 message，保留待同步/错误态 | fallback 到旧数据、假成功、自动重试 |
 | network / protocol / media error | 显示实际 client error 或媒体错误，允许用户显式重试读取/操作 | 吞异常、无限重连 mutation、构造假 JSON/媒体 |
 
@@ -235,10 +250,10 @@ C010 不改变错误状态码，只完整消费：
 ## 9. 验收装置与证明范围
 
 1. T1 先安装并锁定成熟的前端单元测试 runner，只用于 C010 的 TypeScript 纯投影与 Director 专用同步协调器测试。测试直接导入生产模块，以 deferred Promise/fake TaskEvent 控制顺序；网络、WS 与 storage 为注入替身。它能证明同一生产状态算法在指定事件顺序下丢弃旧响应、补发 refresh、保留错误和控制通知，不能证明真实 Vite proxy、浏览器 WebSocket、PostgreSQL、布局或媒体播放。
-2. 当前没有手工创建 Shot 的正式 API，而 C010 必须稳定构造零场景、双场景、非连续、changed 与 >9 候选。T10A 因此先在 `.work/c010/` 交付一次性确定性 fixture driver：project/style/episode/assets、图片、初始 Clip 与 changed mutation 仍用正式 API；只对没有公开创建入口的 Shot/ShotAsset 使用生产 SQLAlchemy model/session 写入同一全新 PostgreSQL。脚本不得写前端状态、伪造 Task/take、修改 production module 或被提交。它与生产共享数据库 schema/storage，但绕过上游 `gen_shots`；只能证明 Director 对这些既有 Shot 事实的读取与后续正式 API mutation，不能证明 M2 生成分镜或直写夹具本身的输入校验。
+2. 当前没有手工创建 Shot 的正式 API，而 C010 必须稳定构造零场景、双场景、非连续、changed 与 >9 候选。T10A 因此先在 `.work/c010/` 交付一次性确定性 fixture driver：project/style/episode/assets、图片、初始 Clip 与 changed mutation仍用正式 API；只对没有公开创建入口的 Shot/ShotAsset 使用生产 SQLAlchemy model/session 写入同一全新 PostgreSQL。T11B 修正该装置的图片输入：driver 使用项目已有 Pillow 在内存中按资产序号生成 13 张 `512×512` RGB PNG，每张至少两种颜色且 bytes 互不相同，文件名为 `reference-01.png` 至 `reference-13.png`，然后仍调用 `POST /api/assets/{id}/images`；不得读取用户文件、旧 DATA_DIR/数据库或手工替换图片。脚本不得写前端状态、伪造 Task/take、修改 production module 或被提交。它与生产共享 API、PostgreSQL schema、资产媒体存储与 `/media` 回读通路，但绕过上游 `gen_shots`；只能证明 Director 对这些既有 Shot 事实的读取、正式图片上传/读取和后续 mutation，不能证明 M2 生成分镜、真实素材审美或直写 Shot 夹具自身的输入校验。
 3. 真实视频验收继续使用 C009 的生产 worker、正式 vLLM/Comfy、经 T11A 单叶修正的正式 workflow、正式 template、PostgreSQL、Task REST/WS 和正式 MP4 媒体通路，没有 C010 专用代理或 fake。它能证明浏览器按钮到可播放 take 和 stale 竞态的完整链路；画面审美、长期一致性和模型确定性不适合自动断言，只人工记录“可播放、有视频流、actual_duration>0、画面非空”及现场截图/日志。
 4. CSS 视觉像素与响应式不新增稳定自动测试：当前仓库没有浏览器 E2E runner，且 C011/C012 分别负责全局响应式视觉与完整 E2E。替代验收为固定数据下的真实浏览器 DOM/截图、三个轨道共享列的 computed style/边界对齐、文本/按钮状态和生产 API transcript；纯投影仍由自动测试覆盖，不以“无追溯行”跳过。
-5. 除 T10A 的单一一次性 fixture driver 外，本 change 不自建 demo、长期验收 endpoint、第二数据存储或仓库脚本。T11/T12 的页面读取、preview/create、PATCH/DELETE、Task/WS、vLLM/Comfy 与媒体仍走生产通路；T11A 的 `/object_info` 也读取 T12 使用的同一 Comfy 进程，生产 loader 读取生产 workflow 文件，二者没有替代存储或代理。该预检能证明当前枚举与静态 binding/hash 匹配，不能证明 `/prompt` 接受、执行完成或 MP4 有效，后者必须由 T12 证明。依赖 fixture 的证据不得扩张为“上游生成也已验收”。审查阶段若按授权另建 `.work/c010/probe-*.py`，必须说明代理/延迟差异，且不能替代生产浏览器和真实视频证据。
+5. 除 T10A/T11B 维护的同一个一次性 fixture driver 外，本 change 不自建 demo、长期验收 endpoint、第二数据存储或仓库脚本。T11/T12 的页面读取、preview/create、PATCH/DELETE、Task/WS、vLLM/Comfy 与媒体仍走生产通路；T11A 的 `/object_info` 也读取 T12 使用的同一 Comfy 进程，生产 loader 读取生产 workflow 文件，二者没有替代存储或代理。T11C 的定向测试使用本机临时 HTTP/WS stub 注入与当前 Comfy 相同的 `execution_error.data.node_id` 结构，并运行生产 worker、PostgreSQL任务状态与正式 cleanup owner；它能确定性证明错误字段、无 retry/无 take和 `/free` 一次，不能证明 GPU 节点会失败或成功。T11A 预检不能证明 `/prompt` 接受、执行完成或 MP4 有效，后者必须由 T12 证明。依赖 fixture 的证据不得扩张为“上游生成也已验收”。审查阶段若按授权另建 `.work/c010/probe-*.py`，必须说明代理/延迟差异，且不能替代生产浏览器和真实视频证据。
 
 ## 10. 验收标准
 
@@ -246,7 +261,7 @@ C010 不改变错误状态码，只完整消费：
 
 | ID | 风险 | 触发条件 | 观测点 | 期望值 |
 |---|---|---|---|---|
-| AC-01 | [常规] | 对 baseline..C010 HEAD 做文件、OpenAPI、migration、围栏与依赖审计 | git diff、`backend/`、Alembic、package lock、路由 | 业务 diff 只含 Director 前端、C010 新前端测试/runner、节点 310 的单叶 workflow 修正、四个既有测试的单一 hash 常量同步、change/追溯/NOTES；后端 Python、binding TOML、migration、其余既有测试以及 `openspec/archive/C009/` 相对 C010 执行 baseline 均无改动；无范围外围栏能力、retry/fallback/polling/版本化；Director 空态被真实页面替换 |
+| AC-01 | [常规] | 对 baseline..C010 HEAD 做文件、OpenAPI、migration、围栏与依赖审计 | git diff、`backend/`、Alembic、package lock、路由 | 业务 diff 只含 Director 前端、C010 新前端测试/runner、节点 310 单叶 workflow、四个既有 hash 常量、`gen_clip_video.py` 的 `node_id` 修正、获授权的一个既有 WS 测试精确同步、change/追溯/AGENTS/NOTES；binding TOML、migration、其他后端 Python/既有测试以及 `openspec/archive/C009/` 相对 baseline 均无改动；`.work` driver/证据未提交；无围栏能力、retry/fallback/polling/版本化；Director 空态被真实页面替换 |
 | AC-02 | [外部输入] | 分别让 assets/shots/clips 初始 REST 成功、结构化 404/422/500、非 JSON 和连接失败 | Director loading/ready/error DOM、请求 URL、控制台 | 只访问同源 `/api`；三源都成功才 ready；空 shots 显示明确空态；任一失败显示实际 message且不伪造空数据、不自动重试 mutation、不硬编码端口 |
 | AC-03 | [常规] | 用相邻同场景、零场景、不同场景、双场景与 duration 1/2/5 的 Shot fixture 加载页面 | 场景带段数/标签、三轨 grid columns、Shot 文本/changed 角标 | 相邻同 classification 合段；scene/灰/警示均有文字；三轨共享精确 `1fr 2fr 5fr...` 权重并对齐；Shot 显示 order/type/duration，changed 独立可见，颜色不是唯一信息 |
 | AC-04 | [外部输入] | 依次勾选未占用的单场景 S、零场景、不同场景 T、双场景、已占用与非连续 Shot，并再取消 | checkbox disabled/reason、selection IDs、preview 请求 | S 与零场景可同时选；T/双场景/已占用不可新选且原因可见；已选可取消；非连续选择不被自动补齐并原样发 preview；任一选择变化使旧 preview/candidates/draft 消失 |
@@ -260,10 +275,12 @@ C010 不改变错误状态码，只完整消费：
 | AC-12 | [外部输入] | 分别在 note 未变/改为普通 string/空串/null 时生成并连续两次有意点击，再得到 queued→running→done、202 immediate failed、同步 409 和 transport error | POST 次数/body/task_id、Task/Clip/note/take/提示 | note 未变 body `{}`，实际草稿精确显式提交且不 trim/混同，均无 request_id；每次在途只一 POST，首个 202 后可再次创建独立 Task；只提示已提交，done 且最新 take 可见后才提示完成；immediate failed保留 note mutation并显示完整 error_msg；409/transport直显且无假 Task/take；Clip 两维只取 REST |
 | AC-13 | [并发] | 用 deferred REST 在 initial snapshot 期间送入相关 WS 事件；再制造 initial 失败、socket 关闭和重连 | 事件 buffer、request generations、应用次数、loading/error、REST calls | socket open 先于 snapshot；旧 snapshot 零应用；事件顺序保留并触发最新 snapshot；失败 socket 关闭且错误可见；重连重复 socket-first 流程；最终只应用最新数据且不遗留 refreshing、不启动 polling |
 | AC-14 | [并发] | 在 create/save/slot/current/delete/generate 或 terminal refresh 在途时送入更新事件，在 dirty 期间刷新，并在途中切换 selected Clip | 页面/详情 generation、base/草稿、replacement REST、成功通知、task detail GET | 每个未知 task 同时至多一条 detail GET；旧页面/旧 Clip 响应零应用；事件使在途 refresh 失效并精确补发最新 refresh；同 Clip dirty 精确保留且重算，切 Clip 才废弃；成功/terminal通知晚于最新快照；task去重不吞 replacement；最新失败可见 |
-| AC-15 | [跨进程] | 在 T10A 已披露的确定性 Shot 前置数据上，以全新 PostgreSQL、生产 FastAPI/Vite/WS 与正式 vLLM/Comfy，从浏览器勾 3 个连续同场景 Shot→preview→create→生成两次→播放/切 current | fixture 边界、浏览器 DOM、HTTP/WS、Task、DB、Comfy queue/history、MP4/media、截图/log | fixture 只建立无公开创建入口的前置事实且不伪造 Task/take；其后槽位按正式候选出场顺序；状态可观察 queued/generating/ready且 freshness 独立；两次生成形成两个不同 seed string 的 take，首个 current、切换后精确一 current；媒体可播放、有 video stream、actual_duration>0；被验收操作期间无直接 DB/文件写入 |
+| AC-15 | [跨进程] | 在 T10A/T11B 自给自足的确定性前置数据上，以全新 PostgreSQL、生产 FastAPI/Vite/WS 与正式 vLLM/Comfy，从浏览器勾 3 个连续同场景 Shot→preview→create→生成两次→播放/切 current | fixture 图片/API边界、浏览器 DOM、HTTP/WS、Task、DB、Comfy queue/history、MP4/media、截图/log | fixture 自动生成并经正式 API 上传可由 `/media` 回读的 13 张合格图片，不要求人工图片或旧库；只直写无公开创建入口的 Shot 前置且不伪造 Task/take；其后槽位按正式候选出场顺序；状态可观察 queued/generating/ready且 freshness 独立；两次生成形成两个不同 seed string 的 take，首个 current、切换后精确一 current；媒体可播放、有 video stream、actual_duration>0；driver 完成后的被验收操作无直接 DB/文件写入 |
 | AC-16 | [跨进程] | 在生产浏览器/API通路验证跨场景置灰、双场景不可选、>9 精简、建片后改绑定破坏同场景并生成、运行中编辑 Shot、删除引用资产 | UI/API/Task error、Clip/Shot/Slot终态、WS/REST顺序 | 跨场景/双场景在 UI 有确定原因且 API正式违规仍按既有合同；>9 所有候选可见但最多合法 N项；破坏绑定后任务202→failed并显示 R5a原因；运行中编辑后 take仍保存但 Clip保持 stale/Shot changed；删除资产显示快照并要求处置 |
-| AC-17 | [常规] | 执行 C010 定向测试、完整前端测试/build、完整 pytest、Alembic current/check、范围/追溯/完成报告审计 | 原始命令输出、TRACEABILITY、`.work/c010/completion-report.md`、git | 所有新增测试先有追溯行并回填真实 ID；完整 frontend/backend 通过，Alembic唯一 head且 no new operations；后端 Python 与 migration 零修改，workflow 只含 AC-18 单叶修正，既有测试只含 `AGENTS.md` 明列四个常量的精确旧→新替换；完成报告逐项“操作 → 观测值”覆盖 AC-01..16、AC-18 与异常分支，未验证项不宣称完成；NOTES/DECISIONS/checkbox/commit一致 |
+| AC-17 | [常规] | 执行 C010 定向测试、完整前端测试/build、完整 pytest、Alembic current/check、范围/追溯/完成报告审计 | 原始命令输出、TRACEABILITY、`.work/c010/completion-report.md`、git | 所有新增/修正测试先有追溯行与窄授权并回填真实 ID；完整 frontend/backend 通过，Alembic唯一 head且 no new operations；migration 零修改，workflow 只含 AC-18 单叶，后端 Python只含 AC-20 视频事件字段，既有测试只含 `AGENTS.md` 明列的四个 hash 常量与一个 WS 事件测试精确同步；完成报告逐项“操作 → 观测值”覆盖 AC-01..20 与异常分支，未验证项不宣称完成；NOTES/DECISIONS/checkbox/commit一致 |
 | AC-18 | [外部输入] | 当前 Comfy `/object_info` 将带目录前缀的 LoRA 名列为允许项后，完成 T11A 并以新数据库、新 DATA_DIR、新 Task 重跑 T12 | T11A 原始 `/object_info`、workflow 与四个测试常量的精确 diff/raw SHA256、生产 binding loader、定向/完整 pytest、重启后 health、T12 `/prompt`/queue/history/Task | 节点 `310.inputs.lora_name` 解析值精确为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` 且存在于现场允许列表；相对 T11A 前 workflow 仅该叶变化；现场 raw hash 与四个获授权常量均精确为 `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`，loader/health 均逐字等于该次记录值，七个原失败用例及完整 pytest 通过；旧 failed Task 保持原终态且未重试，新 Task 的 Comfy `/prompt` 返回 200并在 history 以其 prompt_id 可定位；无运行时猜测、别名、fallback、retry、为命中 hash 改换行、动态 expected 或其他测试修改 |
+| AC-19 | [跨进程] | 在无用户图片、无旧库/旧 DATA_DIR 输入的全新 fixture 验证库运行 T11B driver | driver 源码、13 次正式上传响应、资产图片列表、`/media/asset-images/{id}` bytes、Pillow 解码、数据库/文件计数 | driver 不含固定 1×1 PNG或外部文件读取；精确创建 13 个 current 图片，每个回读为 `512×512` RGB PNG、至少两种像素颜色，13 份 bytes 两两不同；正式 API/媒体通路均成功，driver 不写 Task/ClipVideo/正式视频且无需人工干预 |
+| AC-20 | [外部输入] | 本机 HTTP/WS stub 先发送一个其他 prompt 的畸形 `execution_error`，再为当前 prompt 发送只含真实 `node_id`（不含 `node`）的合法错误事件 | WS 原始事件、Task/Clip/ClipVideo、错误末行、外部调用次数与顺序、`/free` | 其他 prompt 事件在节点字段校验前被忽略；当前 Task/Clip 精确 failed且错误末行为 `RuntimeError: Comfy execution_error node_id=168 type=T25StubNode exception=T25 WS stage failure`；ClipVideo 为 0、无 retry、既有调用顺序不变、`/free` 精确一次；生产代码不读取/接受 `node` |
 
 ## 11. 追溯覆盖
 
@@ -279,5 +296,7 @@ C010 不改变错误状态码，只完整消费：
 | AC-15、AC-16 | `C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径` |
 | AC-01、AC-17 | `C010 范围、零 migration、构建回归与完成证据` |
 | AC-18 | `C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback` |
+| AC-19 | `C010 自洽 Director 夹具参考图：无需用户素材或旧库，driver 经正式 API 生成/上传/回读 13 张生产可加载图片` |
+| AC-20 | `C010 Comfy execution_error 真实协议：node_id 完整原因、跨 prompt 隔离、failed/no-take/no-retry 与 free-once` |
 
-AC-01/AC-17 的范围、文档、Alembic 与完成报告不适合新增单一运行时自动测试；替代验收固定为 git diff/range、OpenAPI 与围栏扫描、`alembic current/check`、完整 pytest、前端 test/build 和人工逐项核对。AC-18 的关键允许列表来自当前外部 Comfy 进程，固定 mock 会把会漂移的外部状态伪装成仓库事实；因此不新增测试，只按 `AGENTS.md` 窄例外同步四个既有精确 hash 常量，并以这些既有用例、同一生产 Comfy 的原始 `/object_info`、生产 binding loader/raw hash、重启后 health 以及 T12 新 Task 的真实 `/prompt`/history/MP4 联合验收。AC-03/04/13/14 的可确定投影与竞态必须有前端自动测试；AC-02/05-12 的实际控件/DOM、AC-15/16 的生产链路按 §9 的理由采用真实浏览器证据，不以“追溯表无行”跳过。
+AC-01/AC-17 的范围、文档、Alembic 与完成报告不适合新增单一运行时自动测试；替代验收固定为 git diff/range、OpenAPI 与围栏扫描、`alembic current/check`、完整 pytest、前端 test/build 和人工逐项核对。AC-18 的关键允许列表来自当前外部 Comfy 进程，固定 mock 会把会漂移的外部状态伪装成仓库事实；因此不新增测试，只按 `AGENTS.md` 窄例外同步四个既有精确 hash 常量，并以这些既有用例、同一生产 Comfy 的原始 `/object_info`、生产 binding loader/raw hash、重启后 health以及 T12 新 Task 的真实 `/prompt`/history/MP4 联合验收。AC-19 是一次性验收装置本身且 `.work` 不提交，不新增仓库自动测试；替代验收必须在全新库经正式 API/媒体通路运行 driver，并逐个回读和解码 13 张图片。AC-20 使用既有跨进程资源生命周期用例按窄授权改为真实 `node_id` 事件结构，直接运行生产 worker/状态机与 cleanup owner；它不能证明 GPU 成功，T12 仍须证明真实 MP4。AC-03/04/13/14 的可确定投影与竞态必须有前端自动测试；AC-02/05-12 的实际控件/DOM、AC-15/16 的生产链路按 §9 的理由采用真实浏览器证据，不以“追溯表无行”跳过。

@@ -457,20 +457,36 @@
 
     首次 `T11A-hash-baseline-targeted.log` 因命令未显式导出 DSN而回退到 `backend/.env` 的非 C010 数据库，并被既有进程的 advisory lock 拒绝；该日志必须保留，不能宣称为代码/测试失败或覆盖。此前同一次 T11A 运行中已经 exit 0 且对应 frontend 文件此后零 diff 的 `T11A-frontend-test.log`、`T11A-frontend-build.log` 可以保留，不要求重复运行。定向通过后，必须在同一 shell 继续使用上面已显式设置的 C010 `DATABASE_URL`/`DATA_DIR`，或在新的 shell 中重新执行同一 DSN 构造与零 lock preflight，再运行完整 `python -m pytest -q` 写入 `T11A-full-pytest-rerun.log`，随后执行 `git diff --check`。全部 exit 0 后才将本追溯行回填为 `/object_info`、workflow/hash/binding、四常量精确 diff、数据库零锁、定向与完整 pytest、frontend test/build 原始证据，勾选 T11A并提交。最终 commit 只允许 workflow、上述四个测试文件、tasks checkbox 与追溯回填；不得为命中 hash 改变 workflow 换行。该 task 不新增测试；`/object_info` 不能代替 T12 的真实 `/prompt`/history/MP4。
 
+- [ ] **T11B — 修复自给自足的 Director 参考图片夹具**
+
+  - **交付：** 保留全部既有 T12 失败数据库、DATA_DIR、Task 与日志不动；只修改未跟踪的 `.work/c010/director-fixture.py`，删除固定 68-byte `1×1` `PNG_BYTES`，使用项目既有 Pillow 在内存中按资产序号生成 13 张互不相同的 `512×512` RGB PNG。每张至少有背景与对比图形两种像素颜色，文件名精确为 `reference-01.png` 至 `reference-13.png`；driver 仍逐张调用正式 `POST /api/assets/{id}/images`。不得读取用户图片、旧数据库、旧 DATA_DIR或其他外部素材文件，不得直接写资产图片正式路径、Task、ClipVideo或视频，不得要求用户手工干预。用一套全新 fixture 验证库/隔离 DATA_DIR 实际运行并回读验证；`.work` 脚本与图片不提交，本 task 提交只含 checkbox 与追溯证据回填。
+  - **R：** R7、R9、R10；PRD §3.4、§8、§9、§11 M4、§12.1。R7/R9/R10 的业务实现不变，本 task 只保证验收装置提供可走生产图片通路的前置输入。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C010 自洽 Director 夹具参考图：无需用户素材或旧库，driver 经正式 API 生成/上传/回读 13 张生产可加载图片`。
+  - **验收方式与命令/人工检查：** 创建名称含 `ai_drama_studio_c010_t11b_<timestamp>` 且现场证明不存在的全新 PostgreSQL，显式导出该 DSN和绝对 `DATA_DIR=D:\ai_drama_studio\.work\c010\T11B-data`，执行 `python -m alembic upgrade head/current/check`。确认 8002 空闲后，从 `D:\ai_drama_studio\backend` 启动本 task 独占的 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8002` 并记录 PID；执行 `python 'D:\ai_drama_studio\.work\c010\director-fixture.py' --base-url http://127.0.0.1:8002 --output 'D:\ai_drama_studio\.work\c010\T11B-fixture.json'`。随后用 `httpx` 逐个读取 JSON 中 13 个 asset id 的 `GET /api/assets/{id}/images` 与唯一 current image 的 `GET /media/asset-images/{image_id}`，用 Pillow 精确断言 HTTP 200、每资产一张 current、format=`PNG`、size=`(512,512)`、mode=`RGB`、`len(getcolors(maxcolors=262144)) >= 2`，并断言 13 个响应 bytes 两两不同；再对 driver 创建的所有 Clip 执行 videos GET 并断言均为空、tasks GET 为空。静态检查 driver 不再含 `base64`/`PNG_BYTES`/`1×1`，图片生成不接收路径参数。停止且只停止本 task Uvicorn，证明 8002 释放。另建一个无 lock 的全新回归库，显式导出 DSN后执行 `python -m pytest -q`。所有命令和原始输出写入不覆盖旧证据的 `.work/c010/T11B-*`；任一失败立即停止，不勾选、不手工换图、不切旧库、不进入 T11C/T12。
+
+- [ ] **T11C — 对齐真实 Comfy `execution_error.node_id` 并保留完整失败原因**
+
+  - **交付：** 仅在 `backend/app/tasks/gen_clip_video.py` 将匹配当前 prompt 的 `execution_error` 节点读取从 `data.get("node")` 改为 `data.get("node_id")`，字段校验标签与最终 RuntimeError 标签同步为 `node_id`；`node_type`、`exception_message`、跨 prompt 先忽略、failed/no-take/no-retry与单一 `/free` owner 均保持。仅按 `AGENTS.md` C010 窄授权同步 `backend/tests/task_system/test_c009_review_worker_failures.py` 的四个事件/body键和一个末行标签；不得兼容旧 `node`、查询 history fallback、修改 `gen_asset_image`、其他生产/测试文件、API/schema/migration/workflow/binding/前端或错误状态机。
+  - **R：** 无；PRD §6.4、§8、§11 M4（任何异常 failed + 完整 `error_msg`、不重试，Comfy WS 进度/错误通路）。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C010 Comfy execution_error 真实协议：node_id 完整原因、跨 prompt 隔离、failed/no-take/no-retry 与 free-once`。
+  - **验收方式与命令：** 先以只读命令保存当前 `F:\ComfyUI\execution.py` 中 `execution_error` 的 `node_id/node_type/exception_message` 发送片段和 T12 prompt `33bc1ebd-1af5-47db-bff5-2e68a8b5203f` history（若当前 Comfy history 仍存在；不存在只记录漂移，不以伪造响应替代）到 `.work/c010/T11C-*`。修改后执行 `git diff --check` 与精确 diff 审计：生产文件只允许 `node`→`node_id` 的读取/标签变化；获授权测试只允许 `_worker_failure_websocket` 及精确 body 断言的四处 key、`_assert_failure_error` 的一处标签变化，且 `rg -n 'data.get\("node"\)' backend/app/tasks/gen_clip_video.py` 无匹配；其他既有测试零 diff。用名称含 `ai_drama_studio_c010_t11c_<timestamp>` 的全新已迁移 PostgreSQL和隔离 DATA_DIR，执行 `python -m pytest -q tests/task_system/test_c009_review_worker_failures.py`，必须保留 `[wake]`/`[sleep]`/`[ws]` 全部通过并由 `[ws]` 精确证明：无关 prompt 的畸形 node 字段被忽略、当前事件只含 `node_id`、错误末行为 `RuntimeError: Comfy execution_error node_id=168 type=T25StubNode exception=T25 WS stage failure`、Task/Clip failed、ClipVideo=0、调用顺序/次数不变、无 retry且 `/free` 一次。随后同一无 lock DSN运行 `python -m pytest -q`。全部 exit 0 后回填真实用例/日志、勾选并单独提交；任一失败立即停止，不进入 T12。
+
 - [ ] **T12 — 真实 MiniMax 浏览器生成、take 与 stale 竞态验收**
 
-  - **交付：** T11A 通过并提交后，保留首次 T12 的失败数据库、failed Task、DATA_DIR 与日志不动，另建全新 PostgreSQL、隔离 DATA_DIR、全新实体与新 Task；以生产浏览器→Vite→FastAPI→Task/WS→vLLM/Comfy→MP4 全通路完成两次视频生成、播放/current 切换，并在另一条实际 running 任务期间通过正式 Shot PATCH 制造 source revision 漂移；记录全部服务、queue/history、Task、DB、媒体与最终资源态。不得 mock、直接写 DB/文件、重试旧 failed Task、复用旧 request_id 或沿用 C009/首次 T12 日志冒充。
+  - **交付：** T11A/T11B/T11C 均通过并提交后，保留两轮既有 T12 失败数据库、failed Task、DATA_DIR 与日志不动，另建全新 PostgreSQL、隔离 DATA_DIR、全新实体与新 Task；由修正后的同一个 driver 自动生成/正式上传图片，不接受用户素材或旧库输入。以生产浏览器→Vite→FastAPI→Task/WS→vLLM/Comfy→MP4 全通路完成两次视频生成、播放/current 切换，并在另一条实际 running 任务期间通过正式 Shot PATCH 制造 source revision 漂移；记录全部服务、queue/history、Task、DB、媒体与最终资源态。不得 mock、直接写 DB/文件、手工换图、切旧库、重试旧 failed Task、复用旧 request_id 或沿用 C009/既有 T12 日志冒充。
   - **R：** R4、R5、R5a、R6、R7、R8、R9、R10；PRD §3.1-§3.3、§6.1-§6.3、§7、§9、§11 M4、§12.1-§12.4。
   - **计划测试层级：** 跨进程/资源生命周期。
-  - **追溯行：** `C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新`；`C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`；`C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
-  - **验收方式与命令/人工检查：** 新库创建前证明名称不存在且不同于所有既有 T12 库，执行 `python -m alembic upgrade head/current/check`，使用新的绝对 DATA_DIR，再运行 T10A driver 建立已披露的确定性 Shot 前置；用正式设置 API从 `C:\Users\Administrator\Downloads\minimaxh3-流水线适配版模板.md` 安装模板并 GET 逐字核对。发起任何生成前重新保存当前 Comfy `/object_info` 并断言节点 310 的精确值仍在允许列表；读取 `.work/c010/T11A-workflow-hash.txt`，用重启后的生产后端检查 health 必须 vLLM/Comfy healthy、bindings valid、`hashes.minimaxh3` 与该记录值逐字相等，Comfy queue 初始为空。浏览器完成 AC-15 主路径：同场景连续三 Shot preview/create，槽位顺序可见，点击生成并记录 queued/generating/ready、WS、task_id、prompt_id、Comfy `POST /prompt` 200、history、take/media/seed/actual；再次点击得到第二 seed/take，切 current。另建/复用合法 Clip，待新 Task 与 Comfy prompt 确认 running 后经正式 Shots 页面/API修改所含 Shot，任务 done 后断言 take 保存而 Clip stale/Shot changed。首次失败 Task 只读核对仍为 failed，不调用重试或重复提交其 request。driver 完成后全部被验收操作不得直写 DB/文件。新证据使用不覆盖旧文件的 `.work/c010/T12-rerun-*` 名称；终态要求 temp 空、Comfy queue 空、vLLM sleeping、页面与 REST/DB一致。外部文件缺失、`object_info`/health/hash/queue 前置不满足、无法在 running 窗口完成编辑或任一真实任务失败时立即停止，不以 C009 成功、首次 T12 失败资料、静态 MP4 或 mock 替代。
+  - **追溯行：** `C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新`；`C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`；`C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`；`C010 自洽 Director 夹具参考图：无需用户素材或旧库，driver 经正式 API 生成/上传/回读 13 张生产可加载图片`；`C010 Comfy execution_error 真实协议：node_id 完整原因、跨 prompt 隔离、failed/no-take/no-retry 与 free-once`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
+  - **验收方式与命令/人工检查：** 新库创建前证明名称不存在且不同于所有既有 T12 库，执行 `python -m alembic upgrade head/current/check`，使用新的绝对 DATA_DIR，再运行 T11B 已验收的同一个 T10A driver 建立已披露的确定性 Shot与 13 张自动图片前置；生成前按 T11B 的正式 API/媒体回读检查再次精确证明 13 张图片均为 `512×512` RGB、非单色且 bytes 两两不同，全程不接受人工文件。用正式设置 API从 `C:\Users\Administrator\Downloads\minimaxh3-流水线适配版模板.md` 安装模板并 GET 逐字核对。发起任何生成前重新保存当前 Comfy `/object_info` 并断言节点 310 的精确值仍在允许列表；读取 `.work/c010/T11A-workflow-hash.txt`，用重启后的生产后端检查 health 必须 vLLM/Comfy healthy、bindings valid、`hashes.minimaxh3` 与该记录值逐字相等，Comfy queue 初始为空。浏览器完成 AC-15 主路径：同场景连续三 Shot preview/create，槽位顺序可见，点击生成并记录 queued/generating/ready、WS、task_id、prompt_id、Comfy `POST /prompt` 200、完整 history、take/media/seed/actual；再次点击得到第二 seed/take，切 current。另建/复用合法 Clip，待新 Task 与 Comfy prompt 确认 running 后经正式 Shots 页面/API修改所含 Shot，任务 done 后断言 take 保存而 Clip stale/Shot changed。两轮旧 failed Task 只读核对仍为 failed，不调用重试或重复提交其 request。driver 完成后全部被验收操作不得直写 DB/文件。新证据使用不覆盖旧文件的 `.work/c010/T12-rerun-*` 名称；终态要求 temp 空、Comfy queue 空、vLLM sleeping、页面与 REST/DB一致。若任一新 Task failed，停止前必须按 payload prompt_id 保存该次原始 `/history/{prompt_id}`，不得只记录后端二次错误。外部文件缺失、`object_info`/health/hash/queue 前置不满足、无法在 running 窗口完成编辑或任一真实任务失败时立即停止，不以 C009 成功、既有 T12 失败资料、静态 MP4、mock、手工素材或旧库替代。
 
 - [ ] **T13 — 最终全量回归、追溯回填、范围审计与完成报告**
 
-  - **交付：** 用全新最终 PostgreSQL 重跑 Alembic、完整 frontend test/build 与完整 pytest；逐条映射 AC-01..18 到代码、新测试、T11A 获授权的四个既有 hash 常量、T11/T11A/T12 原始证据，回填所有 C010 追溯行真实 node ID/证据路径；创建 `.work/c010/completion-report.md`，不新增实现。
+  - **交付：** 用全新最终 PostgreSQL 重跑 Alembic、完整 frontend test/build 与完整 pytest；逐条映射 AC-01..20 到代码、新/窄修正测试、T11A 获授权的四个 hash 常量、T11B fixture、T11C node_id 与 T11/T12 原始证据，回填所有 C010 追溯行真实 node ID/证据路径；创建 `.work/c010/completion-report.md`，不新增实现。
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R12；PRD §0、§3、§9、§11 M4、§12。
   - **计划测试层级：** 跨进程/资源生命周期。
-  - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`，并审计全部 C010 行。
+  - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`；`C010 自洽 Director 夹具参考图：无需用户素材或旧库，driver 经正式 API 生成/上传/回读 13 张生产可加载图片`；`C010 Comfy execution_error 真实协议：node_id 完整原因、跨 prompt 隔离、failed/no-take/no-retry 与 free-once`，并审计全部 C010 行。
   - **验收方式与命令：** 创建名为 `ai_drama_studio_c010_final_<timestamp>` 且现场证明不存在的数据库，显式导出其 `DATABASE_URL` 和新的 `.work/c010/T13-data`，依次运行并保留原生 stdout/stderr：
 
     ```powershell
@@ -495,10 +511,12 @@
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $allowedBackend = @(
         'backend/workflows/minimax_h3_ref2v.json',
+        'backend/app/tasks/gen_clip_video.py',
         'backend/tests/api/test_c007_health.py',
         'backend/tests/api/test_c009_health.py',
         'backend/tests/api/test_system.py',
-        'backend/tests/unit/test_c009_workflow_binding.py'
+        'backend/tests/unit/test_c009_workflow_binding.py',
+        'backend/tests/task_system/test_c009_review_worker_failures.py'
     )
     $forbidden = @($backendAndOldActive | Where-Object { $_ -notin $allowedBackend })
     $forbidden | Set-Content -LiteralPath '.work\c010\T13-forbidden-diff.log'
@@ -536,8 +554,26 @@
         current = Path(name).read_bytes().replace(b"\r\n", b"\n")
         assert prior.count(old_hash) == 1, (name, prior.count(old_hash))
         assert current == prior.replace(old_hash, new_hash), f"unauthorized test diff: {name}"
+    error_test = "backend/tests/task_system/test_c009_review_worker_failures.py"
+    prior = subprocess.check_output(["git", "show", f"{baseline}:{error_test}"]).replace(b"\r\n", b"\n")
+    current = Path(error_test).read_bytes().replace(b"\r\n", b"\n")
+    assert prior.count(b'"node": None') == 2, prior.count(b'"node": None')
+    assert prior.count(b'"node": "168"') == 2, prior.count(b'"node": "168"')
+    assert prior.count(b'"node=168 type=T25StubNode exception=T25 WS stage failure"') == 1
+    expected_error_test = prior.replace(b'"node": None', b'"node_id": None')
+    expected_error_test = expected_error_test.replace(b'"node": "168"', b'"node_id": "168"')
+    expected_error_test = expected_error_test.replace(
+        b'"node=168 type=T25StubNode exception=T25 WS stage failure"',
+        b'"node_id=168 type=T25StubNode exception=T25 WS stage failure"',
+    )
+    assert current == expected_error_test, f"unauthorized test diff: {error_test}"
+    handler = Path("backend/app/tasks/gen_clip_video.py").read_text(encoding="utf-8")
+    assert 'data.get("node_id")' in handler
+    assert 'data.get("node")' not in handler
+    assert 'Comfy execution_error node_id=' in handler
     print(f"C010_WORKFLOW_EXACT_DIFF=PASS HASH={digest}")
     print("C010_HASH_TEST_BASELINE_EXACT_DIFF=PASS")
+    print("C010_COMFY_NODE_ID_EXACT_DIFF=PASS")
     '@ | python - 2>&1 | Tee-Object -FilePath '.work\c010\T13-workflow-scope.log'
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $pending = rg -n 'C010 .*\|.*待填' openspec/TRACEABILITY.md
@@ -546,7 +582,7 @@
     git status --short
     ```
 
-    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS，raw hash 与 T11A 现场记录、生产 loader/health 逐字一致且不同于修正前值；四个既有测试文件各自只含旧→新 hash 单常量替换，其他既有测试零 diff；每个新增测试真实 node ID/人工证据已回填；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
+    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS，raw hash 与 T11A 现场记录、生产 loader/health 逐字一致且不同于修正前值；四个既有测试文件各自只含旧→新 hash 单常量替换，worker failure 测试只含四个 `node_id` key与一个错误标签替换，其他既有测试零 diff；视频 handler 不再读取 `node`；T11B driver/图片保持未跟踪且不入 commit；每个新增/修正测试真实 node ID/人工证据已回填；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
@@ -567,4 +603,4 @@
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；后端 Python、binding TOML 与 migration 零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶修正，既有测试仅有 `AGENTS.md` 明列四个常量的精确旧→新替换。
+  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；binding TOML 与 migration 零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶，后端 Python仅有 T11C/AC-20 的 `gen_clip_video.py` node_id 修正，既有测试仅有 `AGENTS.md` 明列四个 hash 常量与一个 worker failure 测试的精确替换。
