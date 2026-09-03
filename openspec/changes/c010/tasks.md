@@ -408,14 +408,54 @@
     $testNumstat = @(git diff --numstat HEAD -- backend/tests)
     $testNumstat | Tee-Object -FilePath "$work\T11A-test-baseline-numstat.log"
     if ($testNumstat.Count -ne 4 -or @($testNumstat | Where-Object { $_ -notmatch '^1\s+1\s+backend/tests/' }).Count -ne 0) { throw "unexpected test numstat: $($testNumstat -join '; ')" }
+    $c010Db = (Get-Content -LiteralPath "$work\database-name.txt" -Raw).Trim()
+    if (-not $c010Db) { throw 'C010 database-name.txt is empty' }
+    $databaseLine = Get-Content -LiteralPath 'backend\.env' | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+    if (-not $databaseLine) { throw 'backend/.env DATABASE_URL is missing' }
+    $sourceUrl = $databaseLine.Substring('DATABASE_URL='.Length)
+    $env:DATABASE_URL = $sourceUrl -replace '/[^/]+$', ('/' + $c010Db)
+    $env:DATA_DIR = "$work\test-data"
+    $env:C010_EXPECTED_DB = $c010Db
     Push-Location backend
-    python -m pytest -q tests/api/test_c007_health.py tests/api/test_c009_health.py tests/api/test_system.py tests/unit/test_c009_workflow_binding.py 2>&1 | Tee-Object -FilePath "$work\T11A-hash-baseline-targeted.log"
+    @'
+    import asyncio
+    import os
+
+    import asyncpg
+
+    async def main() -> None:
+        dsn = os.environ["DATABASE_URL"].replace("postgresql+asyncpg://", "postgresql://", 1)
+        connection = await asyncpg.connect(dsn)
+        try:
+            database = await connection.fetchval("select current_database()")
+            holders = await connection.fetchval(
+                """
+                select count(*)
+                from pg_locks locks
+                join pg_stat_activity activity on activity.pid = locks.pid
+                where locks.locktype = 'advisory'
+                  and locks.granted
+                  and activity.datname = current_database()
+                """
+            )
+        finally:
+            await connection.close()
+        assert database == os.environ["C010_EXPECTED_DB"], (database, os.environ["C010_EXPECTED_DB"])
+        assert holders == 0, f"C010 database advisory lock holders={holders}"
+        print(f"DATABASE={database}")
+        print("ADVISORY_HOLDERS=0")
+
+    asyncio.run(main())
+    '@ | python - 2>&1 | Tee-Object -FilePath "$work\T11A-database-preflight-rerun.log"
+    $preflightExit = $LASTEXITCODE
+    if ($preflightExit -ne 0) { Pop-Location; exit $preflightExit }
+    python -m pytest -q tests/api/test_c007_health.py tests/api/test_c009_health.py tests/api/test_system.py tests/unit/test_c009_workflow_binding.py 2>&1 | Tee-Object -FilePath "$work\T11A-hash-baseline-targeted-rerun.log"
     $targetedExit = $LASTEXITCODE
     Pop-Location
     if ($targetedExit -ne 0) { exit $targetedExit }
     ```
 
-    此前同一次 T11A 运行中已经 exit 0 且对应 frontend 文件此后零 diff 的 `T11A-frontend-test.log`、`T11A-frontend-build.log` 可以保留，不要求重复运行；四个常量修改后必须重新运行完整 `python -m pytest -q` 写入不覆盖失败证据的 `T11A-full-pytest-rerun.log`，随后执行 `git diff --check`。全部 exit 0 后才将本追溯行回填为 `/object_info`、workflow/hash/binding、四常量精确 diff、定向与完整 pytest、frontend test/build 原始证据，勾选 T11A并提交。最终 commit 只允许 workflow、上述四个测试文件、tasks checkbox 与追溯回填；不得为命中 hash 改变 workflow 换行。该 task 不新增测试；`/object_info` 不能代替 T12 的真实 `/prompt`/history/MP4。
+    首次 `T11A-hash-baseline-targeted.log` 因命令未显式导出 DSN而回退到 `backend/.env` 的非 C010 数据库，并被既有进程的 advisory lock 拒绝；该日志必须保留，不能宣称为代码/测试失败或覆盖。此前同一次 T11A 运行中已经 exit 0 且对应 frontend 文件此后零 diff 的 `T11A-frontend-test.log`、`T11A-frontend-build.log` 可以保留，不要求重复运行。定向通过后，必须在同一 shell 继续使用上面已显式设置的 C010 `DATABASE_URL`/`DATA_DIR`，或在新的 shell 中重新执行同一 DSN 构造与零 lock preflight，再运行完整 `python -m pytest -q` 写入 `T11A-full-pytest-rerun.log`，随后执行 `git diff --check`。全部 exit 0 后才将本追溯行回填为 `/object_info`、workflow/hash/binding、四常量精确 diff、数据库零锁、定向与完整 pytest、frontend test/build 原始证据，勾选 T11A并提交。最终 commit 只允许 workflow、上述四个测试文件、tasks checkbox 与追溯回填；不得为命中 hash 改变 workflow 换行。该 task 不新增测试；`/object_info` 不能代替 T12 的真实 `/prompt`/history/MP4。
 
 - [ ] **T12 — 真实 MiniMax 浏览器生成、take 与 stale 竞态验收**
 
