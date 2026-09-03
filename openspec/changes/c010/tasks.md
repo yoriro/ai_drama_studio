@@ -222,7 +222,7 @@
   - **追溯行：** `C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功`。
   - **验收方式与命令：** `npm --prefix frontend run test -- src/api/clips.test.ts`，期望每个公开函数至少有一条精确 request 断言，seed 被断言为 string，DEBUG 字段可选，upload `Headers` 不含显式 multipart Content-Type；随后运行固定回归命令。通过后把真实 Vitest node 名回填本追溯行，再勾选并提交。
 
-- [ ] **T3 — 实现共享轨道投影与分镜选择纯逻辑**
+- [x] **T3 — 实现共享轨道投影与分镜选择纯逻辑**
 
   - **交付：** 新建 Director 专用纯模块（建议 `frontend/src/features/director/directorModel.ts`）和同名测试，产出 scene classification/bands、共享 Shot index/grid columns、Clip spans、连续 gaps、状态展示 token、占用/跨场景/零场景/多场景选择 eligibility 与 preview 最大候选数。非法 duration、未知/重叠/非连续 Clip 必须抛可见上层可处理的明确错误，不默认或修剪。
   - **R：** R5、R5a、R6、R7、R8；PRD §3.2、§9“一带两轨一板”、§11 M4。
