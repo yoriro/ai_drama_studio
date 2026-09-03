@@ -349,7 +349,9 @@
     expected["310"]["inputs"]["lora_name"] = "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
     assert after == expected, "workflow has a semantic change outside node 310 lora_name"
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    assert digest == "61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967", digest
+    assert len(digest) == 64 and digest == digest.lower()
+    assert digest != "bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780", digest
+    Path(r"D:\ai_drama_studio\.work\c010\T11A-workflow-hash.txt").write_text(digest + "\n", encoding="ascii")
     print(f"WORKFLOW_SHA256={digest}")
     '@ | python - 2>&1 | Tee-Object -FilePath "$work\T11A-workflow-diff-check.log"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -362,10 +364,11 @@
     Push-Location backend
     @'
     from app.integrations.workflow_binding import load_minimax_binding_snapshot
+    from pathlib import Path
 
     snapshot = load_minimax_binding_snapshot()
     expected_name = "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
-    expected_hash = "61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967"
+    expected_hash = Path(r"D:\ai_drama_studio\.work\c010\T11A-workflow-hash.txt").read_text(encoding="ascii").strip()
     assert snapshot.definition["310"]["inputs"]["lora_name"] == expected_name
     assert snapshot.workflow_hash == expected_hash
     print(f"BINDING_STATUS=valid HASH={snapshot.workflow_hash}")
@@ -375,7 +378,7 @@
     if ($bindingExit -ne 0) { exit $bindingExit }
     ```
 
-    最后把固定回归中的 `$task` 设为 `T11A`，分开保留 frontend test、build、完整 pytest 与 `git diff --check` 的原始输出，全部 exit 0 后才将本追溯行回填为 `T11A-comfy-object-info.json`、三个检查日志及固定回归日志、勾选 T11A并提交。该 task 不新增自动测试；`/object_info` 只能证明外部枚举匹配，不能代替 T12 的真实 `/prompt`/history/MP4。
+    最后把固定回归中的 `$task` 设为 `T11A`，分开保留 frontend test、build、完整 pytest 与 `git diff --check` 的原始输出，全部 exit 0 后才将本追溯行回填为 `T11A-comfy-object-info.json`、`T11A-workflow-hash.txt`、三个检查日志及固定回归日志、勾选 T11A并提交。不得为命中预计算常量而改变文件换行；当前 checkout 的 raw hash 以该证据文件为唯一值，并由生产 loader 与 T12 health 逐字交叉核对。该 task 不新增自动测试；`/object_info` 只能证明外部枚举匹配，不能代替 T12 的真实 `/prompt`/history/MP4。
 
 - [ ] **T12 — 真实 MiniMax 浏览器生成、take 与 stale 竞态验收**
 
@@ -383,7 +386,7 @@
   - **R：** R4、R5、R5a、R6、R7、R8、R9、R10；PRD §3.1-§3.3、§6.1-§6.3、§7、§9、§11 M4、§12.1-§12.4。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新`；`C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`；`C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`；`§3.2 完成判定反竞态：source_revisions 全一致时回写 fresh/normal；任一不一致时产物仍保存且不得覆盖 stale/changed；generation_state 始终按 C009 聚合`。
-  - **验收方式与命令/人工检查：** 新库创建前证明名称不存在且不同于所有既有 T12 库，执行 `python -m alembic upgrade head/current/check`，使用新的绝对 DATA_DIR，再运行 T10A driver 建立已披露的确定性 Shot 前置；用正式设置 API从 `C:\Users\Administrator\Downloads\minimaxh3-流水线适配版模板.md` 安装模板并 GET 逐字核对。发起任何生成前重新保存当前 Comfy `/object_info` 并断言节点 310 的精确值仍在允许列表；用重启后的生产后端检查 health 必须 vLLM/Comfy healthy、bindings valid、`hashes.minimaxh3` 精确为 `61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967`，Comfy queue 初始为空。浏览器完成 AC-15 主路径：同场景连续三 Shot preview/create，槽位顺序可见，点击生成并记录 queued/generating/ready、WS、task_id、prompt_id、Comfy `POST /prompt` 200、history、take/media/seed/actual；再次点击得到第二 seed/take，切 current。另建/复用合法 Clip，待新 Task 与 Comfy prompt 确认 running 后经正式 Shots 页面/API修改所含 Shot，任务 done 后断言 take 保存而 Clip stale/Shot changed。首次失败 Task 只读核对仍为 failed，不调用重试或重复提交其 request。driver 完成后全部被验收操作不得直写 DB/文件。新证据使用不覆盖旧文件的 `.work/c010/T12-rerun-*` 名称；终态要求 temp 空、Comfy queue 空、vLLM sleeping、页面与 REST/DB一致。外部文件缺失、`object_info`/health/hash/queue 前置不满足、无法在 running 窗口完成编辑或任一真实任务失败时立即停止，不以 C009 成功、首次 T12 失败资料、静态 MP4 或 mock 替代。
+  - **验收方式与命令/人工检查：** 新库创建前证明名称不存在且不同于所有既有 T12 库，执行 `python -m alembic upgrade head/current/check`，使用新的绝对 DATA_DIR，再运行 T10A driver 建立已披露的确定性 Shot 前置；用正式设置 API从 `C:\Users\Administrator\Downloads\minimaxh3-流水线适配版模板.md` 安装模板并 GET 逐字核对。发起任何生成前重新保存当前 Comfy `/object_info` 并断言节点 310 的精确值仍在允许列表；读取 `.work/c010/T11A-workflow-hash.txt`，用重启后的生产后端检查 health 必须 vLLM/Comfy healthy、bindings valid、`hashes.minimaxh3` 与该记录值逐字相等，Comfy queue 初始为空。浏览器完成 AC-15 主路径：同场景连续三 Shot preview/create，槽位顺序可见，点击生成并记录 queued/generating/ready、WS、task_id、prompt_id、Comfy `POST /prompt` 200、history、take/media/seed/actual；再次点击得到第二 seed/take，切 current。另建/复用合法 Clip，待新 Task 与 Comfy prompt 确认 running 后经正式 Shots 页面/API修改所含 Shot，任务 done 后断言 take 保存而 Clip stale/Shot changed。首次失败 Task 只读核对仍为 failed，不调用重试或重复提交其 request。driver 完成后全部被验收操作不得直写 DB/文件。新证据使用不覆盖旧文件的 `.work/c010/T12-rerun-*` 名称；终态要求 temp 空、Comfy queue 空、vLLM sleeping、页面与 REST/DB一致。外部文件缺失、`object_info`/health/hash/queue 前置不满足、无法在 running 窗口完成编辑或任一真实任务失败时立即停止，不以 C009 成功、首次 T12 失败资料、静态 MP4 或 mock 替代。
 
 - [ ] **T13 — 最终全量回归、追溯回填、范围审计与完成报告**
 
@@ -420,6 +423,7 @@
     import copy
     import hashlib
     import json
+    import re
     import subprocess
     from pathlib import Path
 
@@ -431,7 +435,10 @@
     expected["310"]["inputs"]["lora_name"] = "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
     assert after == expected, "workflow differs outside node 310 lora_name"
     digest = hashlib.sha256(workflow_path.read_bytes()).hexdigest()
-    assert digest == "61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967", digest
+    recorded = Path(".work/c010/T11A-workflow-hash.txt").read_text(encoding="ascii").strip()
+    assert re.fullmatch(r"[0-9a-f]{64}", recorded), recorded
+    assert digest == recorded, (digest, recorded)
+    assert digest != "bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780", digest
     print(f"C010_WORKFLOW_EXACT_DIFF=PASS HASH={digest}")
     '@ | python - 2>&1 | Tee-Object -FilePath '.work\c010\T13-workflow-scope.log'
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -441,7 +448,7 @@
     git status --short
     ```
 
-    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS且 hash 为 AC-18 固定值；只新增 C010 测试且每个真实 node ID/人工证据已回填；没有修改任何既有测试；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
+    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS，raw hash 与 T11A 现场记录、生产 loader/health 逐字一致且不同于修正前值；只新增 C010 测试且每个真实 node ID/人工证据已回填；没有修改任何既有测试；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 

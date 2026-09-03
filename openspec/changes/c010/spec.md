@@ -123,7 +123,7 @@ C010 新增前端 TypeScript 表示与调用，但不改变后端 OpenAPI：
 
 - 仓库 JSON 中节点 `310.inputs.lora_name` 的 JSON 字面值必须精确为 `"minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"`，解析后的值必须精确等于当前 Comfy `/object_info` 的允许项 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`。
 - 相对 T11A 开始前的 workflow，唯一允许的 JSON 语义差异是上述一个叶值；节点、连接、prompt/seed/duration/reference 路径、模型、采样参数和输出均不得变化。后端 Python、binding TOML、迁移和任何测试文件不得变化。
-- 修正后原始文件 SHA256 必须为 `61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967`，生产 `load_minimax_binding_snapshot()` 返回相同 hash，重启后的 `/api/system/health` 也必须返回该值。hash 变化只来自完整 workflow 文件的既有计算，不新增 hash 机制。
+- 修正后必须现场计算并保存原始文件 SHA256：值须为 64 位小写十六进制且不同于修正前当前 Windows 工作区记录的 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`；生产 `load_minimax_binding_snapshot()` 与重启后的 `/api/system/health` 必须逐字返回该次记录的新值。原始 bytes hash 会受 Git checkout 的 LF/CRLF 表示影响，因此不得把跨 checkout 的预计算常量当成验收真相，也不得为命中某个 hash 改写换行；hash 变化只来自完整 workflow 文件的既有计算，不新增 hash 机制。
 - `/object_info` 是外部注册值的现场真相，但单独只能证明输入枚举匹配，不能证明 workflow 可执行或视频有效；T12 必须继续用生产浏览器、任务、Comfy `/prompt`/queue/history 与 MP4 闭环证明执行成功。
 
 ## 3. 一带两轨一板
@@ -259,7 +259,7 @@ C010 不改变错误状态码，只完整消费：
 | AC-15 | [跨进程] | 在 T10A 已披露的确定性 Shot 前置数据上，以全新 PostgreSQL、生产 FastAPI/Vite/WS 与正式 vLLM/Comfy，从浏览器勾 3 个连续同场景 Shot→preview→create→生成两次→播放/切 current | fixture 边界、浏览器 DOM、HTTP/WS、Task、DB、Comfy queue/history、MP4/media、截图/log | fixture 只建立无公开创建入口的前置事实且不伪造 Task/take；其后槽位按正式候选出场顺序；状态可观察 queued/generating/ready且 freshness 独立；两次生成形成两个不同 seed string 的 take，首个 current、切换后精确一 current；媒体可播放、有 video stream、actual_duration>0；被验收操作期间无直接 DB/文件写入 |
 | AC-16 | [跨进程] | 在生产浏览器/API通路验证跨场景置灰、双场景不可选、>9 精简、建片后改绑定破坏同场景并生成、运行中编辑 Shot、删除引用资产 | UI/API/Task error、Clip/Shot/Slot终态、WS/REST顺序 | 跨场景/双场景在 UI 有确定原因且 API正式违规仍按既有合同；>9 所有候选可见但最多合法 N项；破坏绑定后任务202→failed并显示 R5a原因；运行中编辑后 take仍保存但 Clip保持 stale/Shot changed；删除资产显示快照并要求处置 |
 | AC-17 | [常规] | 执行 C010 定向测试、完整前端测试/build、完整 pytest、Alembic current/check、范围/追溯/完成报告审计 | 原始命令输出、TRACEABILITY、`.work/c010/completion-report.md`、git | 所有新增测试先有追溯行并回填真实 ID；完整 frontend/backend 通过，Alembic唯一 head且 no new operations；所有既有测试、后端 Python 与 migration 零修改，workflow 只含 AC-18 单叶修正；完成报告逐项“操作 → 观测值”覆盖 AC-01..16、AC-18 与异常分支，未验证项不宣称完成；NOTES/DECISIONS/checkbox/commit一致 |
-| AC-18 | [外部输入] | 当前 Comfy `/object_info` 将带目录前缀的 LoRA 名列为允许项后，完成 T11A 并以新数据库、新 DATA_DIR、新 Task 重跑 T12 | T11A 原始 `/object_info`、workflow 语义 diff/raw SHA256、生产 binding loader、重启后 health、T12 `/prompt`/queue/history/Task | 节点 `310.inputs.lora_name` 解析值精确为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` 且存在于现场允许列表；相对 T11A 前 workflow 仅该叶变化；raw/loader/health hash 均为 `61ae1ab8591a5539bd77c456123f5f4dac75fa6754e84d2b9ce8706c2c7d6967`；旧 failed Task 保持原终态且未重试，新 Task 的 Comfy `/prompt` 返回 200并在 history 以其 prompt_id 可定位；无运行时猜测、别名、fallback、retry 或测试文件修改 |
+| AC-18 | [外部输入] | 当前 Comfy `/object_info` 将带目录前缀的 LoRA 名列为允许项后，完成 T11A 并以新数据库、新 DATA_DIR、新 Task 重跑 T12 | T11A 原始 `/object_info`、workflow 语义 diff/raw SHA256、生产 binding loader、重启后 health、T12 `/prompt`/queue/history/Task | 节点 `310.inputs.lora_name` 解析值精确为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` 且存在于现场允许列表；相对 T11A 前 workflow 仅该叶变化；现场 raw hash 为 64 位小写十六进制且不等于修正前 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`，loader/health 均逐字等于该次记录值；旧 failed Task 保持原终态且未重试，新 Task 的 Comfy `/prompt` 返回 200并在 history 以其 prompt_id 可定位；无运行时猜测、别名、fallback、retry、为命中 hash 改换行或测试文件修改 |
 
 ## 11. 追溯覆盖
 
