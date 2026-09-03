@@ -2,6 +2,7 @@ import type { Asset } from "../../api/assets";
 import type {
   Clip,
   ClipCreateRequest,
+  ClipPatchRequest,
   ClipFreshness,
   ClipGenerationState,
   ClipPreviewResponse,
@@ -607,6 +608,108 @@ export function parseDirectorRequestedDuration(
   }
   const parsed = Number(requestedDuration);
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+export interface DirectorClipSettingsDraft {
+  baseUserNote: string | null;
+  baseRequestedDuration: number;
+  userNote: string | null;
+  requestedDuration: string;
+  dirtyUserNote: boolean;
+  dirtyRequestedDuration: boolean;
+}
+
+export interface DirectorClipSettingsSource {
+  user_note: string | null;
+  requested_duration: number;
+}
+
+export function createDirectorClipSettingsDraft(
+  clip: DirectorClipSettingsSource,
+): DirectorClipSettingsDraft {
+  return {
+    baseUserNote: clip.user_note,
+    baseRequestedDuration: clip.requested_duration,
+    userNote: clip.user_note,
+    requestedDuration: String(clip.requested_duration),
+    dirtyUserNote: false,
+    dirtyRequestedDuration: false,
+  };
+}
+
+export function updateDirectorClipSettingsDraft(
+  draft: DirectorClipSettingsDraft,
+  patch: {
+    userNote?: string | null;
+    requestedDuration?: string;
+  },
+): DirectorClipSettingsDraft {
+  const userNote = Object.prototype.hasOwnProperty.call(patch, "userNote")
+    ? patch.userNote!
+    : draft.userNote;
+  const requestedDuration = Object.prototype.hasOwnProperty.call(
+    patch,
+    "requestedDuration",
+  )
+    ? patch.requestedDuration!
+    : draft.requestedDuration;
+  return {
+    ...draft,
+    userNote,
+    requestedDuration,
+    dirtyUserNote: userNote !== draft.baseUserNote,
+    dirtyRequestedDuration:
+      requestedDuration !== String(draft.baseRequestedDuration),
+  };
+}
+
+export interface DirectorClipSettingsProjection {
+  input: ClipPatchRequest | null;
+  validationMessage: string | null;
+  hasChanges: boolean;
+}
+
+export function projectDirectorClipSettingsPatch(
+  draft: DirectorClipSettingsDraft,
+): DirectorClipSettingsProjection {
+  const hasChanges = draft.dirtyUserNote || draft.dirtyRequestedDuration;
+  if (!hasChanges) {
+    return { input: null, validationMessage: null, hasChanges: false };
+  }
+
+  const input: ClipPatchRequest = {};
+  if (draft.dirtyUserNote) {
+    input.user_note = draft.userNote;
+  }
+  if (draft.dirtyRequestedDuration) {
+    const requestedDuration = parseDirectorRequestedDuration(
+      draft.requestedDuration,
+    );
+    if (requestedDuration === null) {
+      return {
+        input: null,
+        validationMessage: "请求时长必须是十进制整数",
+        hasChanges: true,
+      };
+    }
+    input.requested_duration = requestedDuration;
+  }
+
+  return { input, validationMessage: null, hasChanges: true };
+}
+
+export interface DirectorGenerationGate {
+  allowed: boolean;
+  message: string | null;
+}
+
+export function projectDirectorGenerationGate(
+  draft: DirectorClipSettingsDraft,
+): DirectorGenerationGate {
+  if (draft.dirtyRequestedDuration) {
+    return { allowed: false, message: "请先保存请求时长" };
+  }
+  return { allowed: true, message: null };
 }
 
 export interface DirectorClipCreateProjection {

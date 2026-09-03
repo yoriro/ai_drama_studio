@@ -254,7 +254,7 @@
   - **追溯行：** `C010 预检与创建交互：服务端 violations/warnings、候选原序/default、响应推导硬上限、软提示与创建后权威刷新`；`C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功`。
   - **验收方式与命令：** `npm --prefix frontend run test -- src/features/director/directorModel.test.ts src/api/clips.test.ts`；断言 request 精确、候选顺序/default、0/N/N+1、soft warning 原文、selection invalidation 与 422 保留状态，再运行固定回归。回填新增 node ID；真实“非连续 preview→violation”“合法 preview→201”的 HTTP/DOM 证据留到 T11，不得只凭 mock 声称完成浏览器追溯行。
 
-- [ ] **T7 — 交付片段设置保存与删除**
+- [x] **T7 — 交付片段设置保存与删除**
 
   - **交付：** 选中 Clip 后显示 note/requested duration 草稿；note 控件区分 null、空串与普通/空白 string，并以独立“清空为未填写”产生 null；同时扩充 Director 纯状态测试覆盖 dirty/no-op/changed field 计算。no-op 不请求，实际变化以一个只含 changed fields 的 PATCH 保存，非整数本地明确阻止、范围交给 API。只有 requested duration dirty 时生成按钮不可用并显示“请先保存请求时长”；note dirty 留给 T10 按 generate-video 的显式 user_note 语义提交。删除用 `window.confirm` + `requestNoContent`；204 及最新页面快照后才清空/提示，失败不乐观修改。
   - **R：** R4（保存后的生成输入）、R6；无直接 R 的删除，PRD §3.2、§3.3 删除片段、§5、§9、§11 M4。

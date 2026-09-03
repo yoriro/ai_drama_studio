@@ -12,10 +12,14 @@ import {
   invalidateDirectorPreview,
   preserveDirectorPreviewAfterCreateError,
   projectClipCreateRequest,
+  projectDirectorClipSettingsPatch,
+  projectDirectorGenerationGate,
   projectReferenceSelection,
   projectShotSelection,
   parseDirectorRequestedDuration,
+  createDirectorClipSettingsDraft,
   startDirectorPreview,
+  updateDirectorClipSettingsDraft,
   type DirectorAsset,
   type DirectorClip,
   type DirectorShot,
@@ -431,6 +435,100 @@ describe("Director projection", () => {
       error: null,
     });
     expect(clearDirectorPreview()).toEqual(createDirectorPreviewState());
+  });
+
+  it("projects Clip settings as exact changed-field PATCH and preserves note semantics", () => {
+    const base = createDirectorClipSettingsDraft({
+      user_note: null,
+      requested_duration: 5,
+    });
+
+    expect(projectDirectorClipSettingsPatch(base)).toEqual({
+      input: null,
+      validationMessage: null,
+      hasChanges: false,
+    });
+
+    const emptyNote = updateDirectorClipSettingsDraft(base, { userNote: "" });
+    expect(emptyNote).toMatchObject({
+      userNote: "",
+      requestedDuration: "5",
+      dirtyUserNote: true,
+      dirtyRequestedDuration: false,
+    });
+    expect(projectDirectorClipSettingsPatch(emptyNote)).toEqual({
+      input: { user_note: "" },
+      validationMessage: null,
+      hasChanges: true,
+    });
+
+    const whitespaceNote = updateDirectorClipSettingsDraft(base, {
+      userNote: "  原样保留  ",
+    });
+    expect(projectDirectorClipSettingsPatch(whitespaceNote).input).toEqual({
+      user_note: "  原样保留  ",
+    });
+
+    const changedBoth = updateDirectorClipSettingsDraft(base, {
+      userNote: "  精确意见  ",
+      requestedDuration: "999",
+    });
+    expect(projectDirectorClipSettingsPatch(changedBoth)).toEqual({
+      input: {
+        user_note: "  精确意见  ",
+        requested_duration: 999,
+      },
+      validationMessage: null,
+      hasChanges: true,
+    });
+
+    const reverted = updateDirectorClipSettingsDraft(changedBoth, {
+      userNote: null,
+      requestedDuration: "5",
+    });
+    expect(reverted).toMatchObject({
+      userNote: null,
+      requestedDuration: "5",
+      dirtyUserNote: false,
+      dirtyRequestedDuration: false,
+    });
+    expect(projectDirectorClipSettingsPatch(reverted).input).toBeNull();
+
+    const invalidDuration = updateDirectorClipSettingsDraft(base, {
+      requestedDuration: "7.5",
+    });
+    expect(projectDirectorClipSettingsPatch(invalidDuration)).toEqual({
+      input: null,
+      validationMessage: "请求时长必须是十进制整数",
+      hasChanges: true,
+    });
+  });
+
+  it("blocks generation only for an unsaved requested duration", () => {
+    const base = createDirectorClipSettingsDraft({
+      user_note: null,
+      requested_duration: 5,
+    });
+    expect(projectDirectorGenerationGate(base)).toEqual({
+      allowed: true,
+      message: null,
+    });
+    expect(
+      projectDirectorGenerationGate(
+        updateDirectorClipSettingsDraft(base, { userNote: "未保存意见" }),
+      ),
+    ).toEqual({
+      allowed: true,
+      message: null,
+    });
+    expect(
+      projectDirectorGenerationGate(
+        updateDirectorClipSettingsDraft(base, { requestedDuration: "6" }),
+      ),
+    ).toEqual({
+      allowed: false,
+      message: "请先保存请求时长",
+    });
   });
 
   it("throws a clear visible error for every invalid clip or shot projection fact", () => {

@@ -990,6 +990,52 @@ button:disabled {
   padding: 10px 12px;
 }
 
+.director-clip-settings {
+  border-top: 1px solid #ded5c8;
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.director-clip-note,
+.director-clip-duration {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  max-width: 560px;
+}
+
+.director-clip-note textarea,
+.director-clip-duration input {
+  background: #fffdf9;
+  border: 1px solid #b8aea0;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.director-clip-note textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.director-settings-note-state {
+  color: #746c61;
+  margin: 0;
+}
+
+.director-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.director-danger-button {
+  border-color: #b35f55;
+  color: #8a3028;
+}
+
 @media (max-width: 640px) {
   .app-header {
     align-items: flex-start;

@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { listAssets } from "../api/assets";
-import { createClip, listClips, previewClips } from "../api/clips";
+import {
+  createClip,
+  deleteClip,
+  getClip,
+  listClipSlots,
+  listClipVideos,
+  listClips,
+  previewClips,
+  updateClip,
+} from "../api/clips";
 import type { Clip } from "../api/clips";
 import { listShots } from "../api/shots";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
@@ -15,6 +24,8 @@ import {
   invalidateDirectorPreview,
   preserveDirectorPreviewAfterCreateError,
   projectClipCreateRequest,
+  projectDirectorClipSettingsPatch,
+  projectDirectorGenerationGate,
   projectReferenceSelection,
   projectShotSelection,
   startDirectorPreview,
@@ -44,6 +55,14 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
           buildDirectorProjection({ assets, shots, clips });
           return { assets, shots, clips };
         },
+        readClipDetail: async (clipId) => {
+          const [clip, slots, videos] = await Promise.all([
+            getClip(clipId),
+            listClipSlots(clipId),
+            listClipVideos(clipId),
+          ]);
+          return { clip, slots, videos };
+        },
       }),
     [episodeId, projectId],
   );
@@ -55,7 +74,18 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     createDirectorPreviewState(),
   );
   const [createdClipId, setCreatedClipId] = useState<number | null>(null);
+  const [settingsActionError, setSettingsActionError] = useState<unknown | null>(
+    null,
+  );
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const [settingsSavingClipId, setSettingsSavingClipId] = useState<number | null>(
+    null,
+  );
+  const [pendingDeleteClipId, setPendingDeleteClipId] = useState<number | null>(
+    null,
+  );
   const previewGeneration = useRef(0);
+  const previousSelectedClipId = useRef<number | null>(null);
 
   useEffect(() => {
     setSelectedShotIds([]);
@@ -81,6 +111,62 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setPreviewState(clearDirectorPreview());
     setCreatedClipId(null);
   }, [createdClipId, sync, syncState.pagePhase, syncState.pageSnapshot]);
+
+  useEffect(() => {
+    if (pendingDeleteClipId === null) {
+      return;
+    }
+    if (
+      syncState.pagePhase !== "ready" ||
+      syncState.pageSnapshot === null ||
+      syncState.pageSnapshot.clips.some(
+        (clip) => clip.id === pendingDeleteClipId,
+      )
+    ) {
+      return;
+    }
+    setPendingDeleteClipId(null);
+    setSettingsNotice(`Clip #${pendingDeleteClipId} 已删除`);
+  }, [pendingDeleteClipId, syncState.pagePhase, syncState.pageSnapshot]);
+
+  useEffect(() => {
+    if (previousSelectedClipId.current === syncState.selectedClipId) {
+      return;
+    }
+    previousSelectedClipId.current = syncState.selectedClipId;
+    setSettingsActionError(null);
+    setSettingsNotice(null);
+    setSettingsSavingClipId(null);
+  }, [syncState.selectedClipId]);
+
+  useEffect(() => {
+    if (settingsSavingClipId === null) {
+      return;
+    }
+    if (
+      syncState.selectedClipId !== settingsSavingClipId ||
+      syncState.detailPhase === "error" ||
+      syncState.pagePhase === "error"
+    ) {
+      setSettingsSavingClipId(null);
+      return;
+    }
+    if (
+      syncState.detailPhase === "ready" &&
+      syncState.clipDraft !== null &&
+      !syncState.clipDraft.dirtyUserNote &&
+      !syncState.clipDraft.dirtyRequestedDuration
+    ) {
+      setSettingsSavingClipId(null);
+      setSettingsNotice(`Clip #${settingsSavingClipId} 设置已保存`);
+    }
+  }, [
+    settingsSavingClipId,
+    syncState.clipDraft,
+    syncState.detailPhase,
+    syncState.pagePhase,
+    syncState.selectedClipId,
+  ]);
 
   if (
     syncState.pagePhase === "connecting" ||
@@ -122,6 +208,14 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   );
 
   const createProjection = projectClipCreateRequest(previewState);
+  const settingsProjection =
+    syncState.clipDraft === null
+      ? null
+      : projectDirectorClipSettingsPatch(syncState.clipDraft);
+  const generationGate =
+    syncState.clipDraft === null
+      ? null
+      : projectDirectorGenerationGate(syncState.clipDraft);
 
   function toggleShot(shotId: number): void {
     const item = selection.eligibility.find((entry) => entry.shotId === shotId);
@@ -147,10 +241,84 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   }
 
   function selectClip(clipId: number): void {
+    if (pendingDeleteClipId !== null) {
+      return;
+    }
     previewGeneration.current += 1;
     setSelectedShotIds([]);
     setPreviewState(invalidateDirectorPreview([]));
     sync.selectClip(clipId);
+  }
+
+  function updateSelectedClipDraft(patch: {
+    userNote?: string | null;
+    requestedDuration?: string;
+  }): void {
+    if (syncState.selectedClipId === null || syncState.clipDraft === null) {
+      return;
+    }
+    setSettingsActionError(null);
+    setSettingsNotice(null);
+    sync.updateClipDraft(patch);
+  }
+
+  function handleSaveSettings(): void {
+    const clipId = syncState.selectedClipId;
+    const draft = syncState.clipDraft;
+    if (
+      clipId === null ||
+      draft === null ||
+      syncState.detailPhase !== "ready" ||
+      settingsSavingClipId !== null ||
+      pendingDeleteClipId !== null
+    ) {
+      return;
+    }
+    const projected = projectDirectorClipSettingsPatch(draft);
+    if (projected.input === null) {
+      if (projected.validationMessage !== null) {
+        setSettingsActionError(new Error(projected.validationMessage));
+      }
+      return;
+    }
+    setSettingsActionError(null);
+    setSettingsNotice(null);
+    setSettingsSavingClipId(clipId);
+    void updateClip(clipId, projected.input).then(
+      () => {
+        sync.refreshPage({ refreshSelectedClip: true });
+      },
+      (error: unknown) => {
+        setSettingsSavingClipId(null);
+        setSettingsActionError(error);
+      },
+    );
+  }
+
+  function handleDeleteClip(): void {
+    const clipId = syncState.selectedClipId;
+    if (
+      clipId === null ||
+      pendingDeleteClipId !== null ||
+      settingsSavingClipId !== null
+    ) {
+      return;
+    }
+    if (!window.confirm(`确定删除 Clip #${clipId}？`)) {
+      return;
+    }
+    setSettingsActionError(null);
+    setSettingsNotice(null);
+    setPendingDeleteClipId(clipId);
+    void deleteClip(clipId).then(
+      () => {
+        sync.refreshPage();
+      },
+      (error: unknown) => {
+        setPendingDeleteClipId(null);
+        setSettingsActionError(error);
+      },
+    );
   }
 
   function startPreview(): void {
@@ -241,6 +409,11 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       {syncState.notices.length > 0 && (
         <p className="director-success" role="status">
           {syncState.notices[syncState.notices.length - 1].message}
+        </p>
+      )}
+      {settingsNotice !== null && (
+        <p className="director-success" role="status">
+          {settingsNotice}
         </p>
       )}
 
@@ -361,7 +534,22 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
 
       <DirectorSelectionPanel
         clips={syncState.pageSnapshot.clips}
+        detailPhase={syncState.detailPhase}
+        detailError={syncState.detailError}
+        generationGate={generationGate}
+        onClearNote={() => updateSelectedClipDraft({ userNote: null })}
+        onDelete={handleDeleteClip}
+        onSave={handleSaveSettings}
+        onUserNoteChange={(userNote) => updateSelectedClipDraft({ userNote })}
+        onRequestedDurationChange={(requestedDuration) =>
+          updateSelectedClipDraft({ requestedDuration })
+        }
         selection={selection}
+        settingsActionError={settingsActionError}
+        settingsProjection={settingsProjection}
+        settingsSaving={settingsSavingClipId !== null}
+        deleting={pendingDeleteClipId !== null}
+        clipDraft={syncState.clipDraft}
         selectedClipId={syncState.selectedClipId}
         selectedShotIds={selectedShotIds}
       />
@@ -511,19 +699,65 @@ function DirectorPreviewPanel({
 
 interface DirectorSelectionPanelProps {
   clips: Clip[];
+  clipDraft: DirectorSyncState["clipDraft"];
+  deleting: boolean;
+  detailError: unknown | null;
+  detailPhase: DirectorSyncState["detailPhase"];
+  generationGate: ReturnType<typeof projectDirectorGenerationGate> | null;
+  onClearNote: () => void;
+  onDelete: () => void;
+  onRequestedDurationChange: (requestedDuration: string) => void;
+  onSave: () => void;
+  onUserNoteChange: (userNote: string) => void;
   selection: ShotSelectionProjection;
   selectedClipId: number | null;
   selectedShotIds: number[];
+  settingsActionError: unknown | null;
+  settingsProjection: ReturnType<typeof projectDirectorClipSettingsPatch> | null;
+  settingsSaving: boolean;
+}
+
+function describeDirectorNote(note: string | null): string {
+  if (note === null) {
+    return "未填写（null）";
+  }
+  if (note === "") {
+    return "空字符串";
+  }
+  return "string（原始空白保留）";
 }
 
 function DirectorSelectionPanel({
   clips,
+  clipDraft,
+  deleting,
+  detailError,
+  detailPhase,
+  generationGate,
+  onClearNote,
+  onDelete,
+  onRequestedDurationChange,
+  onSave,
+  onUserNoteChange,
   selection,
   selectedClipId,
   selectedShotIds,
+  settingsActionError,
+  settingsProjection,
+  settingsSaving,
 }: DirectorSelectionPanelProps) {
   if (selectedClipId !== null) {
     const selectedClip = clips.find((clip) => clip.id === selectedClipId);
+    const settingsReady =
+      detailPhase === "ready" &&
+      clipDraft !== null &&
+      settingsProjection !== null &&
+      generationGate !== null;
+    const canSave =
+      settingsReady &&
+      settingsProjection.input !== null &&
+      !settingsSaving &&
+      !deleting;
     return (
       <section aria-label="当前选择" className="director-selection-panel panel">
         <h3>已选择 Clip #{selectedClipId}</h3>
@@ -532,7 +766,72 @@ function DirectorSelectionPanel({
             generation_state：{selectedClip.generation_state} · freshness：{selectedClip.freshness}
           </p>
         )}
-        <p className="director-selection-hint">轨道选择已更新，详情内容随权威数据加载。</p>
+        {detailPhase === "loading" && (
+          <p className="director-selection-hint">正在加载 Clip 详情…</p>
+        )}
+        {detailPhase === "error" && detailError !== null && (
+          <ApiErrorMessage error={detailError} />
+        )}
+        {settingsActionError !== null && (
+          <ApiErrorMessage error={settingsActionError} />
+        )}
+        {settingsReady && clipDraft !== null && settingsProjection !== null && (
+          <div className="director-clip-settings">
+            <label className="director-clip-note">
+              片段意见
+              <textarea
+                aria-label="片段意见"
+                onChange={(event) => onUserNoteChange(event.target.value)}
+                value={clipDraft.userNote ?? ""}
+              />
+            </label>
+            <p className="director-settings-note-state">
+              当前语义：{describeDirectorNote(clipDraft.userNote)}
+            </p>
+            <button
+              disabled={clipDraft.userNote === null || settingsSaving || deleting}
+              onClick={onClearNote}
+              type="button"
+            >
+              清空为未填写
+            </button>
+
+            <label className="director-clip-duration">
+              请求时长（秒）
+              <input
+                aria-invalid={settingsProjection.validationMessage !== null}
+                inputMode="numeric"
+                onChange={(event) =>
+                  onRequestedDurationChange(event.target.value)
+                }
+                type="text"
+                value={clipDraft.requestedDuration}
+              />
+            </label>
+            {settingsProjection.validationMessage !== null && (
+              <p className="director-preview-hint">
+                {settingsProjection.validationMessage}
+              </p>
+            )}
+            {generationGate !== null && generationGate.message !== null && (
+              <p className="director-preview-hint">{generationGate.message}</p>
+            )}
+
+            <div className="director-settings-actions">
+              <button disabled={!canSave} onClick={onSave} type="button">
+                {settingsSaving ? "保存中…" : "保存设置"}
+              </button>
+              <button
+                className="director-danger-button"
+                disabled={settingsSaving || deleting}
+                onClick={onDelete}
+                type="button"
+              >
+                {deleting ? "删除中…" : "删除 Clip"}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     );
   }
