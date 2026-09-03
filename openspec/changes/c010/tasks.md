@@ -270,7 +270,7 @@
   - **追溯行：** `C010 槽位与 R12 处置：固定 slot、enabled、override、R9 media、soft warning、已删资产快照与用户显式处置`；`C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功`。
   - **验收方式与命令：** 执行 `npm --prefix frontend run test -- src/features/director/directorModel.test.ts src/api/clips.test.ts`，逐项断言 current/override/null/disabled/deleted 的文案、动作集合、URL原值和 JSON/FormData/clear request；再运行固定回归。真实合法/非法上传、R12、DOM 与 refresh 证据统一留到 T11，不能由视图模型测试替代。
 
-- [ ] **T9 — 交付 take 画廊、current、删除、媒体与 DEBUG 展示**
+- [x] **T9 — 交付 take 画廊、current、删除、媒体与 DEBUG 展示**
 
   - **交付：** 为所选 Clip 加载 videos；实现并测试 take 视图模型的 API 原序、string seed、duration/null、current action 与可选 DEBUG 映射；按该模型显示 `<video controls>`，实现设 current 与 non-current 删除确认，current delete 控件禁用且零请求。媒体错误可见且不修改 take。
   - **R：** 无；PRD §3.2、§5 take API、§9 DEBUG/详情面板、§11 M4。

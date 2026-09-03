@@ -8,6 +8,7 @@ import type {
   ClipPreviewResponse,
   ClipSlot,
   ClipSlotsResponse,
+  ClipVideo,
 } from "../../api/clips";
 import type { Shot } from "../../api/shots";
 
@@ -775,6 +776,78 @@ export function projectDirectorSlots(
     });
 
   return { slots, warnings: [...response.warnings] };
+}
+
+export interface DirectorTakeAction {
+  kind: "set_current" | "delete";
+  label: string;
+  disabled: boolean;
+}
+
+export interface DirectorTakeDebugProjection {
+  builtPrompt: string | null;
+  inputSnapshot: Record<string, unknown> | null;
+}
+
+export interface DirectorTakeProjection {
+  id: number;
+  clipId: number;
+  sha256: string;
+  seed: string;
+  requestedDuration: number;
+  requestedDurationLabel: string;
+  actualDuration: number | null;
+  actualDurationLabel: string;
+  isCurrent: boolean;
+  mediaUrl: string;
+  createdAt: string;
+  actions: DirectorTakeAction[];
+  debug: DirectorTakeDebugProjection | null;
+}
+
+export function projectDirectorTakes(
+  videos: readonly ClipVideo[],
+): DirectorTakeProjection[] {
+  return videos.map((video) => {
+    const hasDebugFields =
+      Object.prototype.hasOwnProperty.call(video, "built_prompt") ||
+      Object.prototype.hasOwnProperty.call(video, "input_snapshot");
+    return {
+      id: video.id,
+      clipId: video.clip_id,
+      sha256: video.sha256,
+      seed: video.seed,
+      requestedDuration: video.requested_duration,
+      requestedDurationLabel: `${video.requested_duration} 秒`,
+      actualDuration: video.actual_duration,
+      actualDurationLabel:
+        video.actual_duration === null
+          ? "未探测"
+          : `${video.actual_duration} 秒`,
+      isCurrent: video.is_current,
+      mediaUrl: video.media_url,
+      createdAt: video.created_at,
+      actions: video.is_current
+        ? [
+            { kind: "set_current", label: "当前 take", disabled: true },
+            {
+              kind: "delete",
+              label: "当前 take 不能删除",
+              disabled: true,
+            },
+          ]
+        : [
+            { kind: "set_current", label: "设为 current", disabled: false },
+            { kind: "delete", label: "删除 take", disabled: false },
+          ],
+      debug: hasDebugFields
+        ? {
+            builtPrompt: video.built_prompt ?? null,
+            inputSnapshot: video.input_snapshot ?? null,
+          }
+        : null,
+    };
+  });
 }
 
 export interface DirectorClipCreateProjection {

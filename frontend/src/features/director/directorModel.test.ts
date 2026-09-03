@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type {
   ClipPreviewResponse,
   ClipSlot,
+  ClipVideo,
 } from "../../api/clips";
 import {
   applyDirectorPreview,
@@ -18,6 +19,7 @@ import {
   projectDirectorClipSettingsPatch,
   projectDirectorGenerationGate,
   projectDirectorSlots,
+  projectDirectorTakes,
   projectReferenceSelection,
   projectShotSelection,
   parseDirectorRequestedDuration,
@@ -67,6 +69,21 @@ function slot(overrides: Partial<ClipSlot> = {}): ClipSlot {
     enabled: true,
     image_source: "asset_current",
     image_url: "/media/assets/101/current",
+    ...overrides,
+  };
+}
+
+function video(overrides: Partial<ClipVideo> = {}): ClipVideo {
+  return {
+    id: 1,
+    clip_id: 33,
+    sha256: "a".repeat(64),
+    seed: "9007199254740993",
+    requested_duration: 5,
+    actual_duration: null,
+    is_current: false,
+    media_url: "/media/clip-videos/1",
+    created_at: "2026-09-03T00:00:00Z",
     ...overrides,
   };
 }
@@ -620,6 +637,53 @@ describe("Director projection", () => {
       { code: "R8", message: "启用槽位建议不超过 4 个" },
       { code: "R12", message: "原资产已删除" },
     ]);
+  });
+
+  it("projects takes in API order with current actions, media, and optional DEBUG", () => {
+    expect(projectDirectorTakes([])).toEqual([]);
+
+    const result = projectDirectorTakes([
+      video({
+        id: 9,
+        actual_duration: 4.5,
+        media_url: "/media/clip-videos/9",
+      }),
+      video({
+        id: 7,
+        is_current: true,
+        seed: "9223372036854775807",
+        built_prompt: "原样 prompt",
+        input_snapshot: { seed: "9223372036854775807", note: "debug" },
+      }),
+    ]);
+
+    expect(result.map((take) => take.id)).toEqual([9, 7]);
+    expect(result[0]).toMatchObject({
+      id: 9,
+      seed: "9007199254740993",
+      actualDuration: 4.5,
+      actualDurationLabel: "4.5 秒",
+      mediaUrl: "/media/clip-videos/9",
+      debug: null,
+      actions: [
+        { kind: "set_current", label: "设为 current", disabled: false },
+        { kind: "delete", label: "删除 take", disabled: false },
+      ],
+    });
+    expect(result[1]).toMatchObject({
+      id: 7,
+      seed: "9223372036854775807",
+      actualDuration: null,
+      actualDurationLabel: "未探测",
+      debug: {
+        builtPrompt: "原样 prompt",
+        inputSnapshot: { seed: "9223372036854775807", note: "debug" },
+      },
+      actions: [
+        { kind: "set_current", label: "当前 take", disabled: true },
+        { kind: "delete", label: "当前 take 不能删除", disabled: true },
+      ],
+    });
   });
 
   it("throws a clear visible error for every invalid clip or shot projection fact", () => {

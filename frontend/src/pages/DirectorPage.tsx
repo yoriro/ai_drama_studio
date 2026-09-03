@@ -5,11 +5,13 @@ import {
   createClip,
   clearClipSlotOverride,
   deleteClip,
+  deleteClipVideo,
   getClip,
   listClipSlots,
   listClipVideos,
   listClips,
   previewClips,
+  setCurrentClipVideo,
   updateClipSlotEnabled,
   updateClip,
   uploadClipSlotOverride,
@@ -30,6 +32,7 @@ import {
   projectDirectorClipSettingsPatch,
   projectDirectorGenerationGate,
   projectDirectorSlots,
+  projectDirectorTakes,
   projectReferenceSelection,
   projectShotSelection,
   startDirectorPreview,
@@ -93,6 +96,12 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   const [slotMutationError, setSlotMutationError] = useState<unknown | null>(
     null,
   );
+  const [takeMutationKey, setTakeMutationKey] = useState<string | null>(null);
+  const [takeMutationRefreshing, setTakeMutationRefreshing] = useState(false);
+  const [takeMutationError, setTakeMutationError] = useState<unknown | null>(
+    null,
+  );
+  const [mediaErrors, setMediaErrors] = useState<Record<number, string>>({});
   const previewGeneration = useRef(0);
   const previousSelectedClipId = useRef<number | null>(null);
 
@@ -147,6 +156,8 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSettingsNotice(null);
     setSettingsSavingClipId(null);
     setSlotMutationError(null);
+    setTakeMutationError(null);
+    setMediaErrors({});
   }, [syncState.selectedClipId]);
 
   useEffect(() => {
@@ -205,6 +216,33 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     syncState.selectedClipId,
   ]);
 
+  useEffect(() => {
+    if (takeMutationKey === null || !takeMutationRefreshing) {
+      return;
+    }
+    if (
+      syncState.selectedClipId === null ||
+      syncState.detailPhase === "error" ||
+      syncState.pagePhase === "error"
+    ) {
+      setTakeMutationKey(null);
+      setTakeMutationRefreshing(false);
+      return;
+    }
+    if (syncState.detailPhase === "ready" && syncState.clipDetail !== null) {
+      setTakeMutationKey(null);
+      setTakeMutationRefreshing(false);
+      setSettingsNotice("视频 take 已按最新快照更新");
+    }
+  }, [
+    syncState.clipDetail,
+    syncState.detailPhase,
+    syncState.pagePhase,
+    syncState.selectedClipId,
+    takeMutationKey,
+    takeMutationRefreshing,
+  ]);
+
   if (
     syncState.pagePhase === "connecting" ||
     syncState.pagePhase === "snapshot-loading"
@@ -257,9 +295,13 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     syncState.clipDetail === null
       ? null
       : projectDirectorSlots(syncState.clipDetail.slots);
+  const takesProjection =
+    syncState.clipDetail === null
+      ? null
+      : projectDirectorTakes(syncState.clipDetail.videos);
 
   function toggleShot(shotId: number): void {
-    if (slotMutationKey !== null) {
+    if (slotMutationKey !== null || takeMutationKey !== null) {
       return;
     }
     const item = selection.eligibility.find((entry) => entry.shotId === shotId);
@@ -285,7 +327,11 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   }
 
   function selectClip(clipId: number): void {
-    if (pendingDeleteClipId !== null || slotMutationKey !== null) {
+    if (
+      pendingDeleteClipId !== null ||
+      slotMutationKey !== null ||
+      takeMutationKey !== null
+    ) {
       return;
     }
     previewGeneration.current += 1;
@@ -344,7 +390,8 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     if (
       clipId === null ||
       pendingDeleteClipId !== null ||
-      settingsSavingClipId !== null
+      settingsSavingClipId !== null ||
+      takeMutationKey !== null
     ) {
       return;
     }
@@ -422,6 +469,53 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     handleSlotMutation(`clear:${slotNo}`, () =>
       clearClipSlotOverride(clipId, slotNo),
     );
+  }
+
+  function handleTakeMutation(
+    key: string,
+    mutation: () => Promise<unknown>,
+  ): void {
+    const clipId = syncState.selectedClipId;
+    if (
+      clipId === null ||
+      takeMutationKey !== null ||
+      slotMutationKey !== null ||
+      pendingDeleteClipId !== null ||
+      settingsSavingClipId !== null
+    ) {
+      return;
+    }
+    setTakeMutationError(null);
+    setTakeMutationKey(key);
+    setTakeMutationRefreshing(false);
+    void mutation().then(
+      () => {
+        setTakeMutationRefreshing(true);
+        sync.refreshSelectedClip();
+      },
+      (error: unknown) => {
+        setTakeMutationKey(null);
+        setTakeMutationRefreshing(false);
+        setTakeMutationError(error);
+      },
+    );
+  }
+
+  function handleSetCurrentTake(videoId: number): void {
+    const clipId = syncState.selectedClipId;
+    if (clipId === null) {
+      return;
+    }
+    handleTakeMutation(`current:${videoId}`, () =>
+      setCurrentClipVideo(clipId, videoId),
+    );
+  }
+
+  function handleDeleteTake(videoId: number, isCurrent: boolean): void {
+    if (isCurrent || !window.confirm(`确定删除 take #${videoId}？`)) {
+      return;
+    }
+    handleTakeMutation(`delete:${videoId}`, () => deleteClipVideo(videoId));
   }
 
   function startPreview(): void {
@@ -657,6 +751,18 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         slotMutationError={slotMutationError}
         slotMutationKey={slotMutationKey}
         slotsProjection={slotsProjection}
+        takeMutationError={takeMutationError}
+        takeMutationKey={takeMutationKey}
+        takesProjection={takesProjection}
+        mediaErrors={mediaErrors}
+        onDeleteTake={handleDeleteTake}
+        onSetCurrentTake={handleSetCurrentTake}
+        onMediaError={(videoId) =>
+          setMediaErrors((current) => ({
+            ...current,
+            [videoId]: "视频媒体加载失败",
+          }))
+        }
         deleting={pendingDeleteClipId !== null}
         clipDraft={syncState.clipDraft}
         selectedClipId={syncState.selectedClipId}
@@ -908,6 +1014,129 @@ function DirectorSlotsPanel({
   );
 }
 
+interface DirectorTakesPanelProps {
+  mediaErrors: Record<number, string>;
+  mutationError: unknown | null;
+  mutationKey: string | null;
+  onDelete: (videoId: number, isCurrent: boolean) => void;
+  onMediaError: (videoId: number) => void;
+  onSetCurrent: (videoId: number) => void;
+  projection: ReturnType<typeof projectDirectorTakes>;
+}
+
+function DirectorTakesPanel({
+  mediaErrors,
+  mutationError,
+  mutationKey,
+  onDelete,
+  onMediaError,
+  onSetCurrent,
+  projection,
+}: DirectorTakesPanelProps) {
+  return (
+    <section aria-label="视频 take" className="director-takes-panel">
+      <h4>视频 take</h4>
+      {mutationError !== null && <ApiErrorMessage error={mutationError} />}
+      {projection.length === 0 ? (
+        <p className="director-selection-hint">暂无 take</p>
+      ) : (
+        <div className="director-take-list">
+          {projection.map((take) => {
+            const currentAction = take.actions.find(
+              (action) => action.kind === "set_current",
+            );
+            const deleteAction = take.actions.find(
+              (action) => action.kind === "delete",
+            );
+            return (
+              <article className="director-take-row" key={take.id}>
+                <div className="director-take-heading">
+                  <strong>take #{take.id}</strong>
+                  {take.isCurrent && (
+                    <span className="director-take-current">current</span>
+                  )}
+                </div>
+                <dl className="director-take-summary">
+                  <div>
+                    <dt>请求时长</dt>
+                    <dd>{take.requestedDurationLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>实际时长</dt>
+                    <dd>{take.actualDurationLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>seed</dt>
+                    <dd>{take.seed}</dd>
+                  </div>
+                  <div>
+                    <dt>创建时间</dt>
+                    <dd>{take.createdAt}</dd>
+                  </div>
+                </dl>
+                <video
+                  controls
+                  onError={() => onMediaError(take.id)}
+                  src={take.mediaUrl}
+                />
+                {mediaErrors[take.id] !== undefined && (
+                  <p className="error-message" role="alert">
+                    {mediaErrors[take.id]}
+                  </p>
+                )}
+                <div className="director-take-actions">
+                  <button
+                    disabled={mutationKey !== null || currentAction?.disabled === true}
+                    onClick={() => onSetCurrent(take.id)}
+                    type="button"
+                  >
+                    {currentAction?.label}
+                  </button>
+                  <button
+                    disabled={mutationKey !== null || deleteAction?.disabled === true}
+                    onClick={() => onDelete(take.id, take.isCurrent)}
+                    title={deleteAction?.disabled ? deleteAction.label : undefined}
+                    type="button"
+                  >
+                    {deleteAction?.label}
+                  </button>
+                </div>
+                {take.debug !== null && (
+                  <details className="director-take-debug">
+                    <summary>DEBUG</summary>
+                    <dl>
+                      <div>
+                        <dt>built_prompt</dt>
+                        <dd>
+                          <pre>{take.debug.builtPrompt ?? "null"}</pre>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>input_snapshot</dt>
+                        <dd>
+                          <pre>
+                            {take.debug.inputSnapshot === null
+                              ? "null"
+                              : JSON.stringify(
+                                  take.debug.inputSnapshot,
+                                  null,
+                                  2,
+                                )}
+                          </pre>
+                        </dd>
+                      </div>
+                    </dl>
+                  </details>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 interface DirectorSelectionPanelProps {
   clips: Clip[];
   clipDraft: DirectorSyncState["clipDraft"];
@@ -921,6 +1150,9 @@ interface DirectorSelectionPanelProps {
   onSlotClear: (slotNo: number) => void;
   onSlotEnabledChange: (slotNo: number, enabled: boolean) => void;
   onSlotUpload: (slotNo: number, file: File) => void;
+  onDeleteTake: (videoId: number, isCurrent: boolean) => void;
+  onMediaError: (videoId: number) => void;
+  onSetCurrentTake: (videoId: number) => void;
   onSave: () => void;
   onUserNoteChange: (userNote: string) => void;
   selection: ShotSelectionProjection;
@@ -932,6 +1164,10 @@ interface DirectorSelectionPanelProps {
   slotMutationError: unknown | null;
   slotMutationKey: string | null;
   slotsProjection: ReturnType<typeof projectDirectorSlots> | null;
+  takeMutationError: unknown | null;
+  takeMutationKey: string | null;
+  takesProjection: ReturnType<typeof projectDirectorTakes> | null;
+  mediaErrors: Record<number, string>;
 }
 
 function describeDirectorNote(note: string | null): string {
@@ -957,6 +1193,9 @@ function DirectorSelectionPanel({
   onSlotClear,
   onSlotEnabledChange,
   onSlotUpload,
+  onDeleteTake,
+  onMediaError,
+  onSetCurrentTake,
   onSave,
   onUserNoteChange,
   selection,
@@ -968,6 +1207,10 @@ function DirectorSelectionPanel({
   slotMutationError,
   slotMutationKey,
   slotsProjection,
+  takeMutationError,
+  takeMutationKey,
+  takesProjection,
+  mediaErrors,
 }: DirectorSelectionPanelProps) {
   if (selectedClipId !== null) {
     const selectedClip = clips.find((clip) => clip.id === selectedClipId);
@@ -1063,6 +1306,17 @@ function DirectorSelectionPanel({
             onEnabledChange={onSlotEnabledChange}
             onUpload={onSlotUpload}
             projection={slotsProjection}
+          />
+        )}
+        {detailPhase === "ready" && takesProjection !== null && (
+          <DirectorTakesPanel
+            mediaErrors={mediaErrors}
+            mutationError={takeMutationError}
+            mutationKey={takeMutationKey}
+            onDelete={onDeleteTake}
+            onMediaError={onMediaError}
+            onSetCurrent={onSetCurrentTake}
+            projection={takesProjection}
           />
         )}
       </section>
