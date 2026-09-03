@@ -294,7 +294,7 @@
   - **追溯行：** 不适用。
   - **验收方式与命令：** 先运行固定回归。按 T0 的数据库创建方式另建名称含 `c010_browser_<timestamp>` 的全新库，记录名称，显式设置该 DSN 与绝对 DATA_DIR `D:\ai_drama_studio\.work\c010\T10A-data`；确认 8000 未被非本 task 进程占用后，从任意当前目录使用 `Start-Process -FilePath python -ArgumentList '-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8000' -PassThru -WindowStyle Hidden -WorkingDirectory 'D:\ai_drama_studio\backend'` 启动本 task Uvicorn并记录 PID。设置 `$env:PYTHONPATH='D:\ai_drama_studio\backend'`，执行 `python 'D:\ai_drama_studio\.work\c010\director-fixture.py' --base-url http://127.0.0.1:8000 --output 'D:\ai_drama_studio\.work\c010\director-fixture.json'`；再通过正式 `GET assets/shots/clips/slots` 逐项核对：至少两个 scene、一个 unbound、一个绑定两个 scene、一个 changed、一个非连续可选组合、11 个候选、一个已占用 Shot和一个可删除资产槽位；脚本 SQL 日志只能出现 `shots`/`shot_assets` INSERT。执行 `rg -n 'Task|ClipVideo|clip_videos|tasks|frontend' 'D:\ai_drama_studio\.work\c010\director-fixture.py'` 并人工确认无写入这些对象的代码。结束仅停止本 task PID并证明 8000 释放。报告必须明确：装置与生产共享 PostgreSQL/schema/ORM，唯一区别是绕过 `gen_shots` 建 Shot；它不能证明 M2 或直写夹具校验。通过后只提交 tasks checkbox，不提交 `.work`。
 
-- [ ] **T11 — 真实浏览器非 GPU 合同走查**
+- [x] **T11 — 真实浏览器非 GPU 合同走查**
 
   - **交付：** 使用 T10A 独立浏览器 PostgreSQL/fixture、生产 FastAPI/Vite/Task WS 和正式 API；T10A 完成后不再直接写数据库，不创建第二个脚本、不调用 mock。覆盖一带两轨、选择/preview/create、>9、settings/delete、slots/R12、immediate R5a/R10 failed、错误体与刷新；保存逐项原始 HTTP/WS/DOM/截图。
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R12；PRD §3.1-§3.5、§5、§9、§11 M4。
