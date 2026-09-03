@@ -591,21 +591,97 @@
 
     期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件、T20A 获窄授权的既有生命周期测试、T22A 获窄授权的既有视频文件测试及 T25 获窄授权的既有视频 handler 测试，三者分别只含 helper 跨组件筛选/准确重命名及三处调用、`video_files.av` → `av`、三个 `free_calls` 断言演进，其他既有测试零修改；`video_files.py` 只含 PyAV import 移位；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
 
-- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [ ] **T28 — 修复参考媒体上传字节与快照 hash 的同源竞态并补回归**
+
+  - **依赖：** T27 已完成；2026-09-03 最终复审探针 `.work/c009/probe-reference-media-toctou.py` / `.work/c009/probe-final-reference-media-toctou.log` 已证明 `backend/app/tasks/gen_clip_video.py::_reference_media` 可读取一份字节上传、再从同一路径读取另一份字节验 hash，因而接受与入队快照 hash 不一致的上传内容。开始前把当前 HEAD 写入 `.work/c009/T28-baseline-sha.txt`。
+  - **交付：** 仅修改 `backend/app/tasks/gen_clip_video.py`：参考文件只读一次，使用这次读取所得的同一份内存 `content` 计算 SHA-256，并把同一 `content` 放入随后交给 `ComfyClient.upload_image` 的 uploads；删除已无用途的路径二次 hash import。快照 hash 不匹配时保持既有精确 `ValueError`、Task `failed`、完整 `error_msg`、不上传、不 submit、不 retry 的语义。不得增加文件锁、重读、fallback、缓存、生产测试 hook、schema/migration、兼容层或其他文件的生产改动。
+  - **测试交付：** 只新增 `backend/tests/task_system/test_c009_review_reference_media_race.py`，不得修改任何既有测试。测试使用真实临时文件与单独 writer 子进程构造可控竞态：快照 hash 对应 A，生产第一次读取时文件内容为 B；测试边界在取得 B 后通知 writer 原子恢复 A，并等待恢复完成后才让生产调用继续。期望固定代码仍以已读取的 B 计算 hash，精确抛出 `gen_clip_video reference_media[0] hash does not match`，不返回可上传 tuple；writer 子进程 exitcode 精确为 0，失败信息必须打印 PID 与真实 exitcode。测试不得靠 sleep、概率循环、修改生产常量、识别测试路径或伪造 `sha256_file` 返回值；同一用例另以未竞态的 A 证明返回的上传 bytes SHA-256 与快照 hash 精确相等。
+  - **R：** 无；PRD §3.2 任务快照、§6.2 `gen_clip_video`、§6.4 失败与清理；C009 spec §5.2、§6.3、AC-04、AC-10。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C009 复审参考媒体上传字节与快照 hash 同源竞态`；完成时把待填项回填为本 task 新测试的真实 pytest node ID。
+  - **验收方式与命令：** 按 `NOTES.md` 创建全新 PostgreSQL 数据库并显式设置 `DATABASE_URL`；用 PowerShell `2>&1 | Tee-Object` 保存原生命令输出，并在每份日志末尾追加真实 `$LASTEXITCODE`：
+
+    ```powershell
+    git rev-parse HEAD | Set-Content -Encoding ascii .work/c009/T28-baseline-sha.txt
+    Set-Location backend
+    python -m alembic upgrade head 2>&1 | Tee-Object -FilePath ../.work/c009/T28-alembic-upgrade.log
+    $t28UpgradeExit = $LASTEXITCODE
+    "EXIT_CODE=$t28UpgradeExit" | Tee-Object -FilePath ../.work/c009/T28-alembic-upgrade.log -Append
+    if ($t28UpgradeExit -ne 0) { exit $t28UpgradeExit }
+    python -m pytest -q tests/task_system/test_c009_review_reference_media_race.py tests/task_system/test_c009_gen_clip_video.py tests/task_system/test_c009_resource_lifecycle.py 2>&1 | Tee-Object -FilePath ../.work/c009/T28-reference-media-race.log
+    $t28TargetExit = $LASTEXITCODE
+    "EXIT_CODE=$t28TargetExit" | Tee-Object -FilePath ../.work/c009/T28-reference-media-race.log -Append
+    if ($t28TargetExit -ne 0) { exit $t28TargetExit }
+    python -m pytest -q 2>&1 | Tee-Object -FilePath ../.work/c009/T28-full-pytest.log
+    $t28FullExit = $LASTEXITCODE
+    "EXIT_CODE=$t28FullExit" | Tee-Object -FilePath ../.work/c009/T28-full-pytest.log -Append
+    if ($t28FullExit -ne 0) { exit $t28FullExit }
+    Set-Location ..
+    git diff --check
+    git diff --name-status (Get-Content .work/c009/T28-baseline-sha.txt)..HEAD
+    git diff --name-only (Get-Content .work/c009/T28-baseline-sha.txt)..HEAD -- backend/tests
+    rg -n "C009 复审参考媒体上传字节与快照 hash 同源竞态" openspec/TRACEABILITY.md
+    ```
+
+    每条外部命令后立即保存并检查 `$LASTEXITCODE`，非 0 即停止，不能继续到下一条或勾选。期望：定向测试和完整 pytest 均 exit 0；竞态用例在旧的双读实现上必定失败、在同源实现上稳定通过；新追溯行已回填真实 node ID且无 `待填`；提交只含 `backend/app/tasks/gen_clip_video.py`、新增 T28 测试、`openspec/TRACEABILITY.md` 与本 checkbox，`.work/` 不提交。
+
+- [ ] **T29 — 重做最终隔离验收与可审计原始输出**
+
+  - **依赖：** T28 的定向测试、完整 pytest、追溯回填与提交均通过；任何一项未通过不得执行或勾选。
+  - **交付：** 不修改生产代码、迁移、前端或测试。保留既有 T27 日志作为历史证据，另建全新隔离 PostgreSQL 数据库并生成 `.work/c009/T29-*` 日志；每份日志必须同时含该原生命令的 stdout/stderr 与真实 exit code，不得仅保存 `Start-Transcript` wrapper。更新 `.work/c009/completion-report.md`，明确 T27 的 Alembic/pytest/build 日志缺少原生输出、已由 T29 重验取代；所有最终通过声明改为引用 T29 日志，不得把 Sol 复跑或旧 T27 wrapper 当成 Luna 原始证据。
+  - **R：** 无；PRD §0、§3、§6-§8、§11 M4、§12。
+  - **计划测试层级：** 不新增自动测试。
+  - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`；`C009 复审参考媒体上传字节与快照 hash 同源竞态`。
+  - **验收方式与命令：** 按 `NOTES.md` 创建全新数据库并显式设置 `DATABASE_URL`；下列每条命令均按“运行 → 立即把 `$LASTEXITCODE` 赋给独立变量 → 用 `Tee-Object -Append` 写入同一日志 → 非 0 立即停止”的方式执行：
+
+    ```powershell
+    Set-Location backend
+    python -m alembic upgrade head 2>&1 | Tee-Object -FilePath ../.work/c009/T29-alembic-upgrade.log
+    $t29UpgradeExit = $LASTEXITCODE
+    "EXIT_CODE=$t29UpgradeExit" | Tee-Object -FilePath ../.work/c009/T29-alembic-upgrade.log -Append
+    if ($t29UpgradeExit -ne 0) { exit $t29UpgradeExit }
+    python -m alembic current 2>&1 | Tee-Object -FilePath ../.work/c009/T29-alembic-current.log
+    $t29CurrentExit = $LASTEXITCODE
+    "EXIT_CODE=$t29CurrentExit" | Tee-Object -FilePath ../.work/c009/T29-alembic-current.log -Append
+    if ($t29CurrentExit -ne 0) { exit $t29CurrentExit }
+    python -m alembic check 2>&1 | Tee-Object -FilePath ../.work/c009/T29-alembic-check.log
+    $t29CheckExit = $LASTEXITCODE
+    "EXIT_CODE=$t29CheckExit" | Tee-Object -FilePath ../.work/c009/T29-alembic-check.log -Append
+    if ($t29CheckExit -ne 0) { exit $t29CheckExit }
+    python -m pytest -q 2>&1 | Tee-Object -FilePath ../.work/c009/T29-full-pytest.log
+    $t29PytestExit = $LASTEXITCODE
+    "EXIT_CODE=$t29PytestExit" | Tee-Object -FilePath ../.work/c009/T29-full-pytest.log -Append
+    if ($t29PytestExit -ne 0) { exit $t29PytestExit }
+    Set-Location ..
+    npm --prefix frontend run build 2>&1 | Tee-Object -FilePath .work/c009/T29-frontend-build.log
+    $t29BuildExit = $LASTEXITCODE
+    "EXIT_CODE=$t29BuildExit" | Tee-Object -FilePath .work/c009/T29-frontend-build.log -Append
+    if ($t29BuildExit -ne 0) { exit $t29BuildExit }
+    git diff --check
+    git diff --name-status (Get-Content .work/c009/baseline-sha.txt)..HEAD | Tee-Object -FilePath .work/c009/T29-scope.log
+    git diff --name-only (Get-Content .work/c009/baseline-sha.txt)..HEAD -- backend/alembic | Tee-Object -FilePath .work/c009/T29-migration-diff.log
+    rg -n "C009 .*待填|待填（T2[0-9]" openspec/TRACEABILITY.md
+    git status --short
+    Get-Content -Raw .work/c009/completion-report.md
+    ```
+
+    期望：upgrade/current/check、完整 pytest、前端 build均 exit 0；`T29-alembic-current.log` 含当前唯一 `(head)`，`T29-alembic-check.log` 含 `No new upgrade operations detected.`，`T29-full-pytest.log` 含真实 `passed in` 汇总，`T29-frontend-build.log` 含真实 `built in` 汇总；migration diff为空；追溯待填查询无输出（exit 1）；scope 日志中每个 tracked 文件均能指向 C009 task且无范围外围栏能力，`.work/` 不入提交。任一日志缺少上述原生输出、任何命令失败或完成报告仍把 T27 wrapper 写成最终原始证据，均不得勾选或提交。
+
+- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 范围、零 migration 与完整回归/完成证据`。
-  - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18/T20/T26/T27 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
+  - **验收方式与命令：** `git diff -- NOTES.md`；只写 T17/T18/T20/T26/T28/T29 实际验证且仍有复用价值的命令、端口、版本与坑，历史/未验证事实明确标注。确无内容时保持文件不变，并在完成报告写“NOTES.md：无”。
 
-- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
   - **R：** 无；PRD §0、§3.2、§6.1 与需求方 2026-09-01/2026-09-02 C009 裁决。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C009 多任务 generation_state 聚合与重启恢复`；`C009 generate-video 入队快照、user_note 与全局 request_id 并发幂等`。
-  - **验收方式与人工检查：** 完成报告逐项列“立即failed任务、多任务聚合、user_note三态、public seed、全局request-id事务锁、零 enabled 409、保留 generation_mode 409”是否应进入 DECISIONS及理由；本 task 不自行修改 DECISIONS。无候选时精确写“DECISIONS.md 候选项：无”。
+  - **验收方式与人工检查：** 完成报告逐项列“立即failed任务、多任务聚合、user_note三态、public seed、全局request-id事务锁、零 enabled 409、保留 generation_mode 409、参考媒体上传 bytes 与快照 hash 同源”是否应进入 DECISIONS及理由；本 task 不自行修改 DECISIONS。无候选时精确写“DECISIONS.md 候选项：无”。
 
-- [x] change 文档与 commit 状态一致
+- [ ] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4，AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
