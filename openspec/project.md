@@ -60,6 +60,10 @@ pytest 测试只分三层：
 
 所有自动测试必须先对应 `openspec/TRACEABILITY.md` 的一行，并在 change 实施时回填用例 ID；同一用例允许覆盖多行。没有追溯行的基础设施 task 采用命令或人工验收，不新增自动测试。
 
+## 正式模板部署约定
+
+全新 PostgreSQL 只由 Alembic migration 建立 schema 和四个明确占位模板，不从 spec、旧数据库或本机设置历史复制运行数据。四份正式模板是已经在 C005-C009 确认、由设置 API 管理的运行配置；C012 必须在全新生产等价库上通过正式 API 自动安装，安装后及后端重启后逐字回读，并由 M6 全链路实际消费。不得修改 migration seed、直接写库、克隆旧库或要求 E2E 操作者临时补模板。
+
 ## Change 工作流
 
 1. **proposal**：Sol 根据 ROADMAP、当前代码与 PRD 相关章节，写清目标、边界、影响和外部依赖。
@@ -68,4 +72,3 @@ pytest 测试只分三层：
 4. **执行**：Luna 一次只完成一个指定 task，不得越出 spec；运行计划测试与完整 pytest 后才可勾选并提交。
 5. **审查**：Sol 按 spec 审查 diff、围栏、错误码、追溯回填和真实测试证据；发现问题退回执行阶段。
 6. **archive**：change 全部验收并获确认后，完整移动到 `openspec/archive/{change编号}/`，不保留双份活动文档。
-
