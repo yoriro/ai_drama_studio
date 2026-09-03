@@ -38,39 +38,76 @@
   - **R：** 无；PRD §0、§11 M4、§12.1-§12.4；ROADMAP C010 依赖 C009。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令：** 从仓库根目录执行并把完整 stdout/stderr 保存到 `.work/c010/T00-baseline.log`：
+  - **验收方式与命令：** 以下五段必须作为 **五次独立 shell/tool 调用** 按顺序执行，不得再包进同一个有总超时的外层命令。任一段非 0 或工具超时立即停止；后续段不得执行。每段分别保留完整 stdout/stderr。首次重跑前先复制而非覆盖已有超时日志、`baseline-sha.txt` 与 `database-name.txt`；既有数据库不删除、不复用。
+
+    **第 1 段：基线、归档状态与端口现场。**
 
     ```powershell
+    $ErrorActionPreference = 'Stop'
     Set-Location D:\ai_drama_studio
     New-Item -ItemType Directory -Path '.work\c010' -Force | Out-Null
+    $evidenceStamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    if (Test-Path -LiteralPath '.work\c010\T00-baseline.log') {
+        Copy-Item -LiteralPath '.work\c010\T00-baseline.log' -Destination ".work\c010\T00-baseline-before-$evidenceStamp.log"
+    }
+    if (Test-Path -LiteralPath '.work\c010\baseline-sha.txt') {
+        Copy-Item -LiteralPath '.work\c010\baseline-sha.txt' -Destination ".work\c010\baseline-sha-before-$evidenceStamp.txt"
+    }
+    if (Test-Path -LiteralPath '.work\c010\database-name.txt') {
+        Copy-Item -LiteralPath '.work\c010\database-name.txt' -Destination ".work\c010\database-name-before-$evidenceStamp.txt"
+    }
     Start-Transcript -LiteralPath '.work\c010\T00-baseline.log' -Force
-    git rev-parse HEAD | Tee-Object -FilePath '.work\c010\baseline-sha.txt'
-    git status --short
-    git merge-base --is-ancestor 74990fc86ad0540294bc09df6c6327a4c8e35089 HEAD
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    git merge-base --is-ancestor af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e HEAD
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    $activeSpec = Test-Path 'openspec\changes\c009\spec.md'
-    $archiveSpec = Test-Path 'openspec\archive\C009\spec.md'
-    Write-Output "c009_active_spec=$activeSpec"
-    Write-Output "c009_archive_spec=$archiveSpec"
-    if ($activeSpec -or -not $archiveSpec) { throw 'C009 archive state does not match the C010 baseline' }
-    $unchecked = rg -n '^- \[ \]' openspec/archive/C009/tasks.md
-    if ($LASTEXITCODE -eq 0) { $unchecked; exit 1 }
-    if ($LASTEXITCODE -ne 1) { exit $LASTEXITCODE }
-    rg -n 'director.*暂未交付|导演台.*暂未交付|activeTab === "director"' frontend/src/pages/EpisodeWorkspacePage.tsx
-    Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet
-    Test-NetConnection -ComputerName 127.0.0.1 -Port 8001 -InformationLevel Quiet
-    Test-NetConnection -ComputerName 127.0.0.1 -Port 8188 -InformationLevel Quiet
+    try {
+        $headSha = git rev-parse HEAD
+        if ($LASTEXITCODE -ne 0) { throw "git rev-parse failed: $LASTEXITCODE" }
+        $headSha | Tee-Object -FilePath '.work\c010\baseline-sha.txt'
+        git status --short
+        if ($LASTEXITCODE -ne 0) { throw "git status failed: $LASTEXITCODE" }
+        $trackedStatus = @(git status --short --untracked-files=no)
+        if ($LASTEXITCODE -ne 0) { throw "tracked git status failed: $LASTEXITCODE" }
+        if ($trackedStatus.Count -ne 0) { $trackedStatus; throw 'tracked worktree is not clean' }
+        git merge-base --is-ancestor 74990fc86ad0540294bc09df6c6327a4c8e35089 HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'C010 planning commit is not an ancestor of HEAD' }
+        git merge-base --is-ancestor af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'C009 archive commit is not an ancestor of HEAD' }
+        $activeSpec = Test-Path 'openspec\changes\c009\spec.md'
+        $archiveSpec = Test-Path 'openspec\archive\C009\spec.md'
+        Write-Output "c009_active_spec=$activeSpec"
+        Write-Output "c009_archive_spec=$archiveSpec"
+        if ($activeSpec -or -not $archiveSpec) { throw 'C009 archive state does not match the C010 baseline' }
+        $unchecked = @(rg -n '^- \[ \]' openspec/archive/C009/tasks.md)
+        $uncheckedExit = $LASTEXITCODE
+        if ($uncheckedExit -eq 0) { $unchecked; throw 'C009 archive contains unchecked tasks' }
+        if ($uncheckedExit -ne 1) { throw "C009 task scan failed: $uncheckedExit" }
+        rg -n 'director.*暂未交付|导演台.*暂未交付|activeTab === "director"' frontend/src/pages/EpisodeWorkspacePage.tsx
+        if ($LASTEXITCODE -ne 0) { throw 'Director placeholder baseline was not found' }
+        $postgresReady = Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet
+        $vllmReady = Test-NetConnection -ComputerName 127.0.0.1 -Port 8001 -InformationLevel Quiet
+        $comfyReady = Test-NetConnection -ComputerName 127.0.0.1 -Port 8188 -InformationLevel Quiet
+        Write-Output "PostgreSQL 127.0.0.1:5432=$postgresReady"
+        Write-Output "vLLM 127.0.0.1:8001=$vllmReady"
+        Write-Output "ComfyUI 127.0.0.1:8188=$comfyReady"
+        if (-not $postgresReady) { throw 'PostgreSQL is not reachable' }
+    }
+    finally {
+        Stop-Transcript
+    }
+    ```
 
-    $c010Db = 'ai_drama_studio_c010_' + (Get-Date -Format 'yyyyMMdd_HHmmss')
-    Set-Content -LiteralPath '.work\c010\database-name.txt' -Value $c010Db -NoNewline
-    $databaseLine = Get-Content -LiteralPath 'backend\.env' | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
-    if (-not $databaseLine) { throw 'backend/.env DATABASE_URL is missing' }
-    $sourceUrl = $databaseLine.Substring('DATABASE_URL='.Length)
-    $env:DATABASE_URL = $sourceUrl
-    $env:C010_DB = $c010Db
-    @'
+    **第 2 段：创建新的隔离数据库。**
+
+    ```powershell
+    $ErrorActionPreference = 'Stop'
+    Set-Location D:\ai_drama_studio
+    Start-Transcript -LiteralPath '.work\c010\T00-database.log' -Force
+    try {
+        $c010Db = 'ai_drama_studio_c010_' + (Get-Date -Format 'yyyyMMdd_HHmmss')
+        Set-Content -LiteralPath '.work\c010\database-name.txt' -Value $c010Db -NoNewline
+        $databaseLine = Get-Content -LiteralPath 'backend\.env' | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+        if (-not $databaseLine) { throw 'backend/.env DATABASE_URL is missing' }
+        $env:DATABASE_URL = $databaseLine.Substring('DATABASE_URL='.Length)
+        $env:C010_DB = $c010Db
+        @'
     import asyncio, os
     from urllib.parse import urlsplit, urlunsplit
     import asyncpg
@@ -90,26 +127,84 @@
             await connection.close()
     asyncio.run(main())
     '@ | python -
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    $env:DATABASE_URL = $sourceUrl -replace '/[^/]+$', ('/' + $c010Db)
-    $env:DATA_DIR = 'D:\ai_drama_studio\.work\c010\test-data'
-    Push-Location backend
-    python -m alembic upgrade head
-    if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
-    python -m alembic current
-    if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
-    python -m alembic check
-    if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
-    python -m pytest -q
-    $pytestExit = $LASTEXITCODE
-    Pop-Location
-    if ($pytestExit -ne 0) { exit $pytestExit }
-    npm --prefix frontend run build
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Stop-Transcript
+        if ($LASTEXITCODE -ne 0) { throw "database creation failed: $LASTEXITCODE" }
+        Write-Output "C010_DATABASE=$c010Db"
+    }
+    finally {
+        Stop-Transcript
+    }
     ```
 
-    期望：当前 HEAD 同时包含 C010 规划提交 `74990fc` 与 C009 归档提交 `af7f6fd`；C009 archive tasks 无未勾选项，活动 spec 不存在且 archive spec 存在；PostgreSQL 端口为 True，数据库创建/upgrade/current/check/完整 pytest/build 全部 exit 0。vLLM/Comfy 现场 True/False 只记录，不阻塞 T1；不可达时只把 T12 标记为待现场恢复，不伪造 ready。提交只能包含本文件 T0 checkbox。
+    **第 3 段：Alembic upgrade/current/check。**
+
+    ```powershell
+    $ErrorActionPreference = 'Stop'
+    Set-Location D:\ai_drama_studio
+    Start-Transcript -LiteralPath '.work\c010\T00-alembic.log' -Force
+    $locationPushed = $false
+    try {
+        $c010Db = (Get-Content -LiteralPath '.work\c010\database-name.txt' -Raw).Trim()
+        $databaseLine = Get-Content -LiteralPath 'backend\.env' | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+        if (-not $databaseLine) { throw 'backend/.env DATABASE_URL is missing' }
+        $sourceUrl = $databaseLine.Substring('DATABASE_URL='.Length)
+        $env:DATABASE_URL = $sourceUrl -replace '/[^/]+$', ('/' + $c010Db)
+        $env:DATA_DIR = 'D:\ai_drama_studio\.work\c010\test-data'
+        Push-Location backend
+        $locationPushed = $true
+        python -m alembic upgrade head
+        if ($LASTEXITCODE -ne 0) { throw "alembic upgrade failed: $LASTEXITCODE" }
+        python -m alembic current
+        if ($LASTEXITCODE -ne 0) { throw "alembic current failed: $LASTEXITCODE" }
+        python -m alembic check
+        if ($LASTEXITCODE -ne 0) { throw "alembic check failed: $LASTEXITCODE" }
+    }
+    finally {
+        if ($locationPushed) { Pop-Location }
+        Stop-Transcript
+    }
+    ```
+
+    **第 4 段：完整 pytest。** 该段单独使用工具允许的最大超时，不与其他命令共享时间预算。
+
+    ```powershell
+    $ErrorActionPreference = 'Stop'
+    Set-Location D:\ai_drama_studio
+    Start-Transcript -LiteralPath '.work\c010\T00-full-pytest.log' -Force
+    $locationPushed = $false
+    try {
+        $c010Db = (Get-Content -LiteralPath '.work\c010\database-name.txt' -Raw).Trim()
+        $databaseLine = Get-Content -LiteralPath 'backend\.env' | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+        if (-not $databaseLine) { throw 'backend/.env DATABASE_URL is missing' }
+        $sourceUrl = $databaseLine.Substring('DATABASE_URL='.Length)
+        $env:DATABASE_URL = $sourceUrl -replace '/[^/]+$', ('/' + $c010Db)
+        $env:DATA_DIR = 'D:\ai_drama_studio\.work\c010\test-data'
+        Push-Location backend
+        $locationPushed = $true
+        python -m pytest -q
+        if ($LASTEXITCODE -ne 0) { throw "full pytest failed: $LASTEXITCODE" }
+    }
+    finally {
+        if ($locationPushed) { Pop-Location }
+        Stop-Transcript
+    }
+    ```
+
+    **第 5 段：前端 build。**
+
+    ```powershell
+    $ErrorActionPreference = 'Stop'
+    Set-Location D:\ai_drama_studio
+    Start-Transcript -LiteralPath '.work\c010\T00-frontend-build.log' -Force
+    try {
+        npm --prefix frontend run build
+        if ($LASTEXITCODE -ne 0) { throw "frontend build failed: $LASTEXITCODE" }
+    }
+    finally {
+        Stop-Transcript
+    }
+    ```
+
+    期望：五段工具调用均在各自时限内 exit 0；当前 HEAD 同时包含 C010 规划提交 `74990fc` 与 C009 归档提交 `af7f6fd`；C009 archive tasks 无未勾选项，活动 spec 不存在且 archive spec 存在；PostgreSQL 端口为 True；新数据库创建成功，upgrade/current/check、完整 pytest 与 frontend build 全部通过。vLLM/Comfy 现场 True/False 只记录，不阻塞 T1；不可达时只把 T12 标记为待现场恢复，不伪造 ready。提交只能包含本文件 T0 checkbox。
 
 - [ ] **T1 — 交付 C010 前端纯逻辑测试 runner**
 
