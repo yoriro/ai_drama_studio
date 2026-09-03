@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -20,7 +21,7 @@ from app.integrations.comfy import (
     parse_comfy_upload_response,
     parse_comfy_video_history,
 )
-from app.services.asset_files import resolve_data_path, sha256_file
+from app.services.asset_files import resolve_data_path
 from app.services.clip_video_inputs import (
     build_minimaxh3_response_format,
     inject_minimaxh3_workflow_inputs,
@@ -245,11 +246,11 @@ def _reference_media(
         resolved_path = resolve_data_path(settings.DATA_DIR, file_path)
         try:
             content = resolved_path.read_bytes()
-            actual_digest = sha256_file(resolved_path)
         except OSError as exc:
             raise ValueError(
                 f"gen_clip_video reference_media[{index - 1}] is unavailable"
             ) from exc
+        actual_digest = hashlib.sha256(content).hexdigest()
         if actual_digest != digest:
             raise ValueError(
                 f"gen_clip_video reference_media[{index - 1}] hash does not match"

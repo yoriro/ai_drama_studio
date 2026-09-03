@@ -591,7 +591,7 @@
 
     期望：Alembic 无新 revision/漂移，完整 pytest 与 build exit 0；repair baseline 后测试 diff 精确为 T21-T25 五个新文件、T20A 获窄授权的既有生命周期测试、T22A 获窄授权的既有视频文件测试及 T25 获窄授权的既有视频 handler 测试，三者分别只含 helper 跨组件筛选/准确重命名及三处调用、`video_files.av` → `av`、三个 `free_calls` 断言演进，其他既有测试零修改；`video_files.py` 只含 PyAV import 移位；migration 无 diff，frontend diff 精确为 T20 两个既有文件且无其他前端文件；待填 rg 无输出（exit 1）；完成报告逐项引用真实日志，不复用旧 T17 异常或普通全绿替代 T26。
 
-- [ ] **T28 — 修复参考媒体上传字节与快照 hash 的同源竞态并补回归**
+- [x] **T28 — 修复参考媒体上传字节与快照 hash 的同源竞态并补回归**
 
   - **依赖：** T27 已完成；2026-09-03 最终复审探针 `.work/c009/probe-reference-media-toctou.py` / `.work/c009/probe-final-reference-media-toctou.log` 已证明 `backend/app/tasks/gen_clip_video.py::_reference_media` 可读取一份字节上传、再从同一路径读取另一份字节验 hash，因而接受与入队快照 hash 不一致的上传内容。开始前把当前 HEAD 写入 `.work/c009/T28-baseline-sha.txt`。
   - **交付：** 仅修改 `backend/app/tasks/gen_clip_video.py`：参考文件只读一次，使用这次读取所得的同一份内存 `content` 计算 SHA-256，并把同一 `content` 放入随后交给 `ComfyClient.upload_image` 的 uploads；删除已无用途的路径二次 hash import。快照 hash 不匹配时保持既有精确 `ValueError`、Task `failed`、完整 `error_msg`、不上传、不 submit、不 retry 的语义。不得增加文件锁、重读、fallback、缓存、生产测试 hook、schema/migration、兼容层或其他文件的生产改动。
