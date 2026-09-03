@@ -197,7 +197,7 @@ async def _worker_failure_websocket(connection: ServerConnection) -> None:
         "type": "execution_error",
         "data": {
             "prompt_id": "unrelated-prompt-id",
-            "node": None,
+            "node_id": None,
             "node_type": None,
             "exception_message": None,
         },
@@ -219,7 +219,7 @@ async def _worker_failure_websocket(connection: ServerConnection) -> None:
         "type": "execution_error",
         "data": {
             "prompt_id": prompt_id,
-            "node": "168",
+            "node_id": "168",
             "node_type": "T25StubNode",
             "exception_message": "T25 WS stage failure",
         },
@@ -545,7 +545,7 @@ def _assert_failure_error(
     else:
         assert error_msg.splitlines()[-1] == (
             "RuntimeError: Comfy execution_error "
-            "node=168 type=T25StubNode exception=T25 WS stage failure"
+            "node_id=168 type=T25StubNode exception=T25 WS stage failure"
         )
 
 
@@ -842,7 +842,7 @@ def test_c009_review_worker_failures_preserve_resources_and_error(
             "type": "execution_error",
             "data": {
                 "prompt_id": "unrelated-prompt-id",
-                "node": None,
+                "node_id": None,
                 "node_type": None,
                 "exception_message": None,
             },
@@ -857,7 +857,7 @@ def test_c009_review_worker_failures_preserve_resources_and_error(
             "type": "execution_error",
             "data": {
                 "prompt_id": prompt_id,
-                "node": "168",
+                "node_id": "168",
                 "node_type": "T25StubNode",
                 "exception_message": "T25 WS stage failure",
             },

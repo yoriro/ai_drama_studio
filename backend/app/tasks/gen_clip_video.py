@@ -351,7 +351,7 @@ async def _consume_websocket(
                 )
             return True
 
-        node = _required_text(data.get("node"), "Comfy execution_error.node")
+        node = _required_text(data.get("node_id"), "Comfy execution_error.node_id")
         node_type = _required_text(
             data.get("node_type"), "Comfy execution_error.node_type"
         )
@@ -361,7 +361,7 @@ async def _consume_websocket(
         )
         raise RuntimeError(
             "Comfy execution_error "
-            f"node={node} type={node_type} exception={exception_message}"
+            f"node_id={node} type={node_type} exception={exception_message}"
         )
 
 
