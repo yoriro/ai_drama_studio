@@ -3,7 +3,7 @@
 ## 执行纪律与固定回归命令
 
 - 严格按 T0→T1→…→T10→T10A→T11→T11A→T12→T13→三个收尾 task 执行；任一验收命令或人工门槛失败立即停止，不勾选、不回填“已通过”、不提交该 task，也不先做后续 task。
-- 每个 task 只提交其列出的生产/新测试/文档文件和当次 checkbox/追溯回填；不得提交 `.work/`、下载目录工件或无关用户改动。现有任何测试文件均不得修改、删除、skip、改名或弱化。
+- 每个 task 只提交其列出的生产/新测试/文档文件和当次 checkbox/追溯回填；不得提交 `.work/`、下载目录工件或无关用户改动。现有任何测试文件均不得修改、删除、skip、改名或弱化；唯一例外是 T11A 按 `AGENTS.md` C010 窄授权精确替换四个文件各一个旧 hash 常量，除此之外仍零测试 diff。
 - T0 创建并记录同一个 C010 隔离数据库名。T1 之后每个实现 task 完成前，除本 task 的定向命令外，均执行下面的固定回归命令；`$task` 替换为当前 task 编号：
 
   ```powershell
@@ -304,7 +304,7 @@
 
 - [ ] **T11A — 修正 MiniMax H3 LoRA 外部枚举绑定**
 
-  - **交付：** 保留 T12 已有失败数据库、Task 与 `.work/c010/T12-*` 原始证据不动；从当前运行的正式 Comfy `/object_info` 重新取得 `LoraLoaderModelOnly.lora_name` 允许列表，只把 `backend/workflows/minimax_h3_ref2v.json` 节点 `310.inputs.lora_name` 从裸文件名改为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`。不得修改其他 workflow 叶、Python、binding TOML、migration、任何测试或前端，不增加路径查找、别名、fallback、retry，也不修改 Comfy 错误体处理。回填本 task 真实证据并单独提交。
+  - **交付：** 保留 T12 已有失败数据库、Task 与 `.work/c010/T12-*` 原始证据不动；从当前运行的正式 Comfy `/object_info` 重新取得 `LoraLoaderModelOnly.lora_name` 允许列表，只把 `backend/workflows/minimax_h3_ref2v.json` 节点 `310.inputs.lora_name` 从裸文件名改为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`。随后仅按 `AGENTS.md` C010 窄授权，把 `test_c007_health.py`、`test_c009_health.py`、`test_system.py` 的 `MINIMAX_WORKFLOW_HASH` 和 `test_c009_workflow_binding.py` 的 `EXPECTED_HASH` 从旧 hash 精确替换为 `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`。不得修改其他 workflow 叶、测试字符、Python 生产代码、binding TOML、migration 或前端，不增加动态 expected、路径查找、别名、fallback、retry，也不修改 Comfy 错误体处理。回填本 task 真实证据并单独提交。
   - **R：** 无；PRD §7、§12.1、§12.4；spec §2.3、AC-18。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`。
@@ -378,7 +378,44 @@
     if ($bindingExit -ne 0) { exit $bindingExit }
     ```
 
-    最后把固定回归中的 `$task` 设为 `T11A`，分开保留 frontend test、build、完整 pytest 与 `git diff --check` 的原始输出，全部 exit 0 后才将本追溯行回填为 `T11A-comfy-object-info.json`、`T11A-workflow-hash.txt`、三个检查日志及固定回归日志、勾选 T11A并提交。不得为命中预计算常量而改变文件换行；当前 checkout 的 raw hash 以该证据文件为唯一值，并由生产 loader 与 T12 health 逐字交叉核对。该 task 不新增自动测试；`/object_info` 只能证明外部枚举匹配，不能代替 T12 的真实 `/prompt`/history/MP4。
+    完成上述 workflow/binding 检查后，才允许逐项替换四个测试常量；然后执行以下精确 diff 与定向测试：
+
+    ```powershell
+    Set-Location D:\ai_drama_studio
+    $work = 'D:\ai_drama_studio\.work\c010'
+    @'
+    import subprocess
+    from pathlib import Path
+
+    old = b"bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780"
+    new = b"4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772"
+    files = (
+        "backend/tests/api/test_c007_health.py",
+        "backend/tests/api/test_c009_health.py",
+        "backend/tests/api/test_system.py",
+        "backend/tests/unit/test_c009_workflow_binding.py",
+    )
+    for name in files:
+        before = subprocess.check_output(["git", "show", f"HEAD:{name}"]).replace(b"\r\n", b"\n")
+        after = Path(name).read_bytes().replace(b"\r\n", b"\n")
+        assert before.count(old) == 1, (name, before.count(old))
+        assert after == before.replace(old, new), f"unauthorized test diff: {name}"
+    changed = set(subprocess.check_output(["git", "diff", "--name-only", "HEAD", "--", "backend/tests"], text=True).splitlines())
+    assert changed == set(files), changed
+    print("T11A_TEST_BASELINE_DIFF=PASS")
+    '@ | python - 2>&1 | Tee-Object -FilePath "$work\T11A-test-baseline-diff.log"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $testNumstat = @(git diff --numstat HEAD -- backend/tests)
+    $testNumstat | Tee-Object -FilePath "$work\T11A-test-baseline-numstat.log"
+    if ($testNumstat.Count -ne 4 -or @($testNumstat | Where-Object { $_ -notmatch '^1\s+1\s+backend/tests/' }).Count -ne 0) { throw "unexpected test numstat: $($testNumstat -join '; ')" }
+    Push-Location backend
+    python -m pytest -q tests/api/test_c007_health.py tests/api/test_c009_health.py tests/api/test_system.py tests/unit/test_c009_workflow_binding.py 2>&1 | Tee-Object -FilePath "$work\T11A-hash-baseline-targeted.log"
+    $targetedExit = $LASTEXITCODE
+    Pop-Location
+    if ($targetedExit -ne 0) { exit $targetedExit }
+    ```
+
+    此前同一次 T11A 运行中已经 exit 0 且对应 frontend 文件此后零 diff 的 `T11A-frontend-test.log`、`T11A-frontend-build.log` 可以保留，不要求重复运行；四个常量修改后必须重新运行完整 `python -m pytest -q` 写入不覆盖失败证据的 `T11A-full-pytest-rerun.log`，随后执行 `git diff --check`。全部 exit 0 后才将本追溯行回填为 `/object_info`、workflow/hash/binding、四常量精确 diff、定向与完整 pytest、frontend test/build 原始证据，勾选 T11A并提交。最终 commit 只允许 workflow、上述四个测试文件、tasks checkbox 与追溯回填；不得为命中 hash 改变 workflow 换行。该 task 不新增测试；`/object_info` 不能代替 T12 的真实 `/prompt`/history/MP4。
 
 - [ ] **T12 — 真实 MiniMax 浏览器生成、take 与 stale 竞态验收**
 
@@ -390,7 +427,7 @@
 
 - [ ] **T13 — 最终全量回归、追溯回填、范围审计与完成报告**
 
-  - **交付：** 用全新最终 PostgreSQL 重跑 Alembic、完整 frontend test/build 与完整 pytest；逐条映射 AC-01..18 到代码、新测试、T11/T11A/T12 原始证据，回填所有 C010 追溯行真实 node ID/证据路径；创建 `.work/c010/completion-report.md`，不新增实现。
+  - **交付：** 用全新最终 PostgreSQL 重跑 Alembic、完整 frontend test/build 与完整 pytest；逐条映射 AC-01..18 到代码、新测试、T11A 获授权的四个既有 hash 常量、T11/T11A/T12 原始证据，回填所有 C010 追溯行真实 node ID/证据路径；创建 `.work/c010/completion-report.md`，不新增实现。
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R12；PRD §0、§3、§9、§11 M4、§12。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`，并审计全部 C010 行。
@@ -416,7 +453,14 @@
     git diff --name-status "$baseline..HEAD" | Tee-Object -FilePath '.work\c010\T13-scope.log'
     $backendAndOldActive = @(git diff --name-only "$baseline..HEAD" -- backend openspec/changes/c009)
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    $forbidden = @($backendAndOldActive | Where-Object { $_ -ne 'backend/workflows/minimax_h3_ref2v.json' })
+    $allowedBackend = @(
+        'backend/workflows/minimax_h3_ref2v.json',
+        'backend/tests/api/test_c007_health.py',
+        'backend/tests/api/test_c009_health.py',
+        'backend/tests/api/test_system.py',
+        'backend/tests/unit/test_c009_workflow_binding.py'
+    )
+    $forbidden = @($backendAndOldActive | Where-Object { $_ -notin $allowedBackend })
     $forbidden | Set-Content -LiteralPath '.work\c010\T13-forbidden-diff.log'
     if ($forbidden.Count -ne 0) { $forbidden; exit 1 }
     @'
@@ -439,7 +483,21 @@
     assert re.fullmatch(r"[0-9a-f]{64}", recorded), recorded
     assert digest == recorded, (digest, recorded)
     assert digest != "bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780", digest
+    old_hash = b"bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780"
+    new_hash = b"4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772"
+    test_files = (
+        "backend/tests/api/test_c007_health.py",
+        "backend/tests/api/test_c009_health.py",
+        "backend/tests/api/test_system.py",
+        "backend/tests/unit/test_c009_workflow_binding.py",
+    )
+    for name in test_files:
+        prior = subprocess.check_output(["git", "show", f"{baseline}:{name}"]).replace(b"\r\n", b"\n")
+        current = Path(name).read_bytes().replace(b"\r\n", b"\n")
+        assert prior.count(old_hash) == 1, (name, prior.count(old_hash))
+        assert current == prior.replace(old_hash, new_hash), f"unauthorized test diff: {name}"
     print(f"C010_WORKFLOW_EXACT_DIFF=PASS HASH={digest}")
+    print("C010_HASH_TEST_BASELINE_EXACT_DIFF=PASS")
     '@ | python - 2>&1 | Tee-Object -FilePath '.work\c010\T13-workflow-scope.log'
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $pending = rg -n 'C010 .*\|.*待填' openspec/TRACEABILITY.md
@@ -448,7 +506,7 @@
     git status --short
     ```
 
-    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS，raw hash 与 T11A 现场记录、生产 loader/health 逐字一致且不同于修正前值；只新增 C010 测试且每个真实 node ID/人工证据已回填；没有修改任何既有测试；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
+    期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS，raw hash 与 T11A 现场记录、生产 loader/health 逐字一致且不同于修正前值；四个既有测试文件各自只含旧→新 hash 单常量替换，其他既有测试零 diff；每个新增测试真实 node ID/人工证据已回填；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。
 
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
@@ -469,4 +527,4 @@
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；后端 Python、binding TOML、migration 与所有既有测试零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶修正。
+  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；后端 Python、binding TOML 与 migration 零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶修正，既有测试仅有 `AGENTS.md` 明列四个常量的精确旧→新替换。

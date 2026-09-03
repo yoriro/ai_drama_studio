@@ -16,10 +16,11 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 6. 按 D-008 实现 Director 专用的 WS/REST 同步：先连 WS 并缓冲事件，再取 REST 快照；旧响应不得覆盖新事件或新的选中 Clip；mutation/terminal refresh 遇到更新事件时必须重发最新快照，成功提示只能在最新快照落地后出现。
 7. 新增 C010 所需的前端纯逻辑与任务事件竞态自动测试、真实浏览器走查和生产通路证据；保持后端完整回归全绿。
 8. 仅为解除 T12 现场发现的 MiniMax H3 外部枚举漂移，允许把 `backend/workflows/minimax_h3_ref2v.json` 节点 `310.inputs.lora_name` 从裸文件名精确改为当前 Comfy `/object_info` 注册的 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`；由该唯一字面值变化产生新的 workflow hash。
+9. 为同步第 8 项必然改变的 raw workflow hash，仅按 `AGENTS.md` 的 C010 一次性窄例外，把四个既有测试文件中的单一固定 hash 常量从 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780` 精确更新为当前 Windows checkout 的 `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`；不改变测试结构、参数或断言强度。
 
 ### 范围外
 
-- 不新增或修改后端 router、schema、service、task handler、模型、migration、工作流绑定配置或提示词模板；除范围内第 8 项对既有 workflow JSON 单一叶子的精确修正外，C010 只消费 C008/C009 已有合同。不得借该修正加入动态 LoRA 查找、basename 归一化、兼容别名、fallback、retry，或修改 Comfy 错误体处理。
+- 不新增或修改后端 router、schema、service、task handler、模型、migration、工作流绑定配置或提示词模板；除范围内第 8 项对既有 workflow JSON 单一叶子的精确修正和第 9 项四个测试常量的窄同步外，C010 只消费 C008/C009 已有合同。不得借该修正加入动态 LoRA 查找、basename 归一化、兼容别名、fallback、retry，或修改 Comfy 错误体处理。
 - 不实现 C011 的全局导航重做、全站响应式/视觉统一、任务中心取消/历史/过滤、全局 toast 框架或跨页面状态框架；C010 只做导演台可操作所需的局部布局、反馈、空态和错误态。
 - 不实现 C012 的整集发布 E2E、自动化视觉质量判定或无人值守全链路验收。
 - 不实现分镜增删/拆分/合并/排序、候选分镜版本、资产别名/合并、风格/模板版本化、独立 `generation_runs`、continuity 字段或逻辑、`fl2v`/`context_loop` 交互与生成、音频数据/API/控件/占位轨。PRD §9 的“为 v2 预留音频轨位置”在 v1 只表示当前两轨布局不得声称交付音频；不得据此预建音频组件或扩展点。
@@ -32,6 +33,7 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 - `frontend/src/routes/AppRoutes.tsx` 已有 `/projects/:projectId/episodes/:episodeId/director` 路由；`EpisodeWorkspacePage` 的导演台 tab 目前只显示“暂未交付”空态。当前没有 clips 前端 API 模块、Director 页面或前端自动测试 runner。
 - 后端已经提供本 change 所需的 preview/create/list/detail/PATCH/DELETE、slots、generate-video、videos/current/delete、Task REST/WS 与 `/media` 路由；公开 seed 已是十进制 string，Clip 响应已含两维状态和 warnings。本 change 预期 **零 migration、零后端 Python/测试变化**；唯一 backend 工件变化是范围内第 8 项的 workflow JSON 单叶修正。
 - C010 T12 首次真实生成已证明 vLLM chat 返回 200、9 次参考图片上传均返回 200，但 Comfy `POST /prompt` 在入队前返回 400，queue/history 为空。`.work/c010/T12-comfy-object-info.json` 显示当前 `LoraLoaderModelOnly.lora_name` 允许带 `minimax_h3\` 前缀的注册名，不允许仓库 workflow 节点 310 使用的裸文件名；当前旧 workflow SHA256 为 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`。这说明 C009 的历史成功只证明当时运行环境可接受该值，不能证明当前外部枚举未漂移。
+- T11A 首轮已证明外部注册名、workflow 单叶语义 diff、`1 insertion/1 deletion`、raw hash `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`、生产 binding loader、frontend test/build 均通过；完整 pytest 的 `339 passed, 7 failed` 全部只因四个既有常量仍固定旧 hash。该结果不是 workflow 功能失败，但在四个常量按授权同步并完整 pytest 全绿前，T11A 仍未完成。
 - C009 文档已由提交 `af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e` 以内容不变的 rename 归档至 `openspec/archive/C009/`，活动目录 `openspec/changes/c009/` 已不存在。C010 将归档文档视为只读，不再次移动或改写。
 - `.work/` 是既有未跟踪证据目录；C010 只在 `.work/c010/` 保存原始日志、截图和临时验收资料，不纳入提交。
 
@@ -52,6 +54,7 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 | 已删资产槽位被自动修复或重排 | 显示快照名、固定文案“原资产已删除”和当前图片来源；只提供停用或上传 override，不自动停用、替换、压缩或改号 |
 | 媒体/调试字段泄露内部路径或大整数失真 | 图片/视频仅使用 API 给出的 `/media/...`；seed 保持 string；只在响应实际包含 DEBUG 字段时展示，不构造内部路径 |
 | 静态 binding 合法但 Comfy 外部枚举已漂移 | 在 T11A/T12 启动新任务前读取当前生产 Comfy `/object_info`；节点 310 必须精确使用注册值，禁止根据目录或 basename 猜测、运行时改写、别名兼容或失败后 fallback |
+| workflow 已授权变化但固定 hash 测试仍停在旧基线 | 只更新 `AGENTS.md` 明列的四个常量到同一个新 raw hash；保留所有既有断言，不改成动态 expected、不修改其他测试或生产 hash 算法 |
 | C010 借局部页面提前完成 C011/C012 | 样式限定 Director class，测试只覆盖当前业务交互；不加全局设计系统、移动端重构、完整 E2E 平台或后续业务入口 |
 
 ## 外部依赖
@@ -122,8 +125,9 @@ C010 新增前端 TypeScript 表示与调用，但不改变后端 OpenAPI：
 ### 2.3 MiniMax workflow 外部枚举修正
 
 - 仓库 JSON 中节点 `310.inputs.lora_name` 的 JSON 字面值必须精确为 `"minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"`，解析后的值必须精确等于当前 Comfy `/object_info` 的允许项 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors`。
-- 相对 T11A 开始前的 workflow，唯一允许的 JSON 语义差异是上述一个叶值；节点、连接、prompt/seed/duration/reference 路径、模型、采样参数和输出均不得变化。后端 Python、binding TOML、迁移和任何测试文件不得变化。
+- 相对 T11A 开始前的 workflow，唯一允许的 JSON 语义差异是上述一个叶值；节点、连接、prompt/seed/duration/reference 路径、模型、采样参数和输出均不得变化。后端 Python、binding TOML 与迁移不得变化；既有测试只允许 `AGENTS.md` 明列四个常量的精确旧→新替换。
 - 修正后必须现场计算并保存原始文件 SHA256：值须为 64 位小写十六进制且不同于修正前当前 Windows 工作区记录的 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`；生产 `load_minimax_binding_snapshot()` 与重启后的 `/api/system/health` 必须逐字返回该次记录的新值。原始 bytes hash 会受 Git checkout 的 LF/CRLF 表示影响，因此不得把跨 checkout 的预计算常量当成验收真相，也不得为命中某个 hash 改写换行；hash 变化只来自完整 workflow 文件的既有计算，不新增 hash 机制。
+- 当前 Windows checkout 已现场得到新 raw hash `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`。现有 health/binding 测试本来就以精确常量固定该 checkout 的生产工件，因此四个获授权常量必须同步为该值；不得改成运行时读取 workflow 后自证相等。该测试基线不是 T12 外部验收的替代，loader/health 仍须与 `T11A-workflow-hash.txt` 交叉核对。
 - `/object_info` 是外部注册值的现场真相，但单独只能证明输入枚举匹配，不能证明 workflow 可执行或视频有效；T12 必须继续用生产浏览器、任务、Comfy `/prompt`/queue/history 与 MP4 闭环证明执行成功。
 
 ## 3. 一带两轨一板
@@ -242,7 +246,7 @@ C010 不改变错误状态码，只完整消费：
 
 | ID | 风险 | 触发条件 | 观测点 | 期望值 |
 |---|---|---|---|---|
-| AC-01 | [常规] | 对 baseline..C010 HEAD 做文件、OpenAPI、migration、围栏与依赖审计 | git diff、`backend/`、Alembic、package lock、路由 | 业务 diff 只含 Director 前端、C010 新前端测试/runner、节点 310 的单叶 workflow 修正、change/追溯/NOTES；后端 Python、binding TOML、migration、所有既有测试以及 `openspec/archive/C009/` 相对 C010 执行 baseline 均无改动；无范围外围栏能力、retry/fallback/polling/版本化；Director 空态被真实页面替换 |
+| AC-01 | [常规] | 对 baseline..C010 HEAD 做文件、OpenAPI、migration、围栏与依赖审计 | git diff、`backend/`、Alembic、package lock、路由 | 业务 diff 只含 Director 前端、C010 新前端测试/runner、节点 310 的单叶 workflow 修正、四个既有测试的单一 hash 常量同步、change/追溯/NOTES；后端 Python、binding TOML、migration、其余既有测试以及 `openspec/archive/C009/` 相对 C010 执行 baseline 均无改动；无范围外围栏能力、retry/fallback/polling/版本化；Director 空态被真实页面替换 |
 | AC-02 | [外部输入] | 分别让 assets/shots/clips 初始 REST 成功、结构化 404/422/500、非 JSON 和连接失败 | Director loading/ready/error DOM、请求 URL、控制台 | 只访问同源 `/api`；三源都成功才 ready；空 shots 显示明确空态；任一失败显示实际 message且不伪造空数据、不自动重试 mutation、不硬编码端口 |
 | AC-03 | [常规] | 用相邻同场景、零场景、不同场景、双场景与 duration 1/2/5 的 Shot fixture 加载页面 | 场景带段数/标签、三轨 grid columns、Shot 文本/changed 角标 | 相邻同 classification 合段；scene/灰/警示均有文字；三轨共享精确 `1fr 2fr 5fr...` 权重并对齐；Shot 显示 order/type/duration，changed 独立可见，颜色不是唯一信息 |
 | AC-04 | [外部输入] | 依次勾选未占用的单场景 S、零场景、不同场景 T、双场景、已占用与非连续 Shot，并再取消 | checkbox disabled/reason、selection IDs、preview 请求 | S 与零场景可同时选；T/双场景/已占用不可新选且原因可见；已选可取消；非连续选择不被自动补齐并原样发 preview；任一选择变化使旧 preview/candidates/draft 消失 |
@@ -258,8 +262,8 @@ C010 不改变错误状态码，只完整消费：
 | AC-14 | [并发] | 在 create/save/slot/current/delete/generate 或 terminal refresh 在途时送入更新事件，在 dirty 期间刷新，并在途中切换 selected Clip | 页面/详情 generation、base/草稿、replacement REST、成功通知、task detail GET | 每个未知 task 同时至多一条 detail GET；旧页面/旧 Clip 响应零应用；事件使在途 refresh 失效并精确补发最新 refresh；同 Clip dirty 精确保留且重算，切 Clip 才废弃；成功/terminal通知晚于最新快照；task去重不吞 replacement；最新失败可见 |
 | AC-15 | [跨进程] | 在 T10A 已披露的确定性 Shot 前置数据上，以全新 PostgreSQL、生产 FastAPI/Vite/WS 与正式 vLLM/Comfy，从浏览器勾 3 个连续同场景 Shot→preview→create→生成两次→播放/切 current | fixture 边界、浏览器 DOM、HTTP/WS、Task、DB、Comfy queue/history、MP4/media、截图/log | fixture 只建立无公开创建入口的前置事实且不伪造 Task/take；其后槽位按正式候选出场顺序；状态可观察 queued/generating/ready且 freshness 独立；两次生成形成两个不同 seed string 的 take，首个 current、切换后精确一 current；媒体可播放、有 video stream、actual_duration>0；被验收操作期间无直接 DB/文件写入 |
 | AC-16 | [跨进程] | 在生产浏览器/API通路验证跨场景置灰、双场景不可选、>9 精简、建片后改绑定破坏同场景并生成、运行中编辑 Shot、删除引用资产 | UI/API/Task error、Clip/Shot/Slot终态、WS/REST顺序 | 跨场景/双场景在 UI 有确定原因且 API正式违规仍按既有合同；>9 所有候选可见但最多合法 N项；破坏绑定后任务202→failed并显示 R5a原因；运行中编辑后 take仍保存但 Clip保持 stale/Shot changed；删除资产显示快照并要求处置 |
-| AC-17 | [常规] | 执行 C010 定向测试、完整前端测试/build、完整 pytest、Alembic current/check、范围/追溯/完成报告审计 | 原始命令输出、TRACEABILITY、`.work/c010/completion-report.md`、git | 所有新增测试先有追溯行并回填真实 ID；完整 frontend/backend 通过，Alembic唯一 head且 no new operations；所有既有测试、后端 Python 与 migration 零修改，workflow 只含 AC-18 单叶修正；完成报告逐项“操作 → 观测值”覆盖 AC-01..16、AC-18 与异常分支，未验证项不宣称完成；NOTES/DECISIONS/checkbox/commit一致 |
-| AC-18 | [外部输入] | 当前 Comfy `/object_info` 将带目录前缀的 LoRA 名列为允许项后，完成 T11A 并以新数据库、新 DATA_DIR、新 Task 重跑 T12 | T11A 原始 `/object_info`、workflow 语义 diff/raw SHA256、生产 binding loader、重启后 health、T12 `/prompt`/queue/history/Task | 节点 `310.inputs.lora_name` 解析值精确为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` 且存在于现场允许列表；相对 T11A 前 workflow 仅该叶变化；现场 raw hash 为 64 位小写十六进制且不等于修正前 `bfa1fbfffecf1665309b01234621bc32cd29f86fd3dfa40f12605cbf3eb3f780`，loader/health 均逐字等于该次记录值；旧 failed Task 保持原终态且未重试，新 Task 的 Comfy `/prompt` 返回 200并在 history 以其 prompt_id 可定位；无运行时猜测、别名、fallback、retry、为命中 hash 改换行或测试文件修改 |
+| AC-17 | [常规] | 执行 C010 定向测试、完整前端测试/build、完整 pytest、Alembic current/check、范围/追溯/完成报告审计 | 原始命令输出、TRACEABILITY、`.work/c010/completion-report.md`、git | 所有新增测试先有追溯行并回填真实 ID；完整 frontend/backend 通过，Alembic唯一 head且 no new operations；后端 Python 与 migration 零修改，workflow 只含 AC-18 单叶修正，既有测试只含 `AGENTS.md` 明列四个常量的精确旧→新替换；完成报告逐项“操作 → 观测值”覆盖 AC-01..16、AC-18 与异常分支，未验证项不宣称完成；NOTES/DECISIONS/checkbox/commit一致 |
+| AC-18 | [外部输入] | 当前 Comfy `/object_info` 将带目录前缀的 LoRA 名列为允许项后，完成 T11A 并以新数据库、新 DATA_DIR、新 Task 重跑 T12 | T11A 原始 `/object_info`、workflow 与四个测试常量的精确 diff/raw SHA256、生产 binding loader、定向/完整 pytest、重启后 health、T12 `/prompt`/queue/history/Task | 节点 `310.inputs.lora_name` 解析值精确为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` 且存在于现场允许列表；相对 T11A 前 workflow 仅该叶变化；现场 raw hash 与四个获授权常量均精确为 `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`，loader/health 均逐字等于该次记录值，七个原失败用例及完整 pytest 通过；旧 failed Task 保持原终态且未重试，新 Task 的 Comfy `/prompt` 返回 200并在 history 以其 prompt_id 可定位；无运行时猜测、别名、fallback、retry、为命中 hash 改换行、动态 expected 或其他测试修改 |
 
 ## 11. 追溯覆盖
 
@@ -276,4 +280,4 @@ C010 不改变错误状态码，只完整消费：
 | AC-01、AC-17 | `C010 范围、零 migration、构建回归与完成证据` |
 | AC-18 | `C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback` |
 
-AC-01/AC-17 的范围、文档、Alembic 与完成报告不适合新增单一运行时自动测试；替代验收固定为 git diff/range、OpenAPI 与围栏扫描、`alembic current/check`、完整 pytest、前端 test/build 和人工逐项核对。AC-18 的关键允许列表来自当前外部 Comfy 进程，固定 mock 会把会漂移的外部状态伪装成仓库事实，且本次窄修正不授权修改测试文件；因此不新增自动测试，替代验收固定为同一生产 Comfy 的原始 `/object_info`、生产 binding loader/raw hash、重启后 health 以及 T12 新 Task 的真实 `/prompt`/history/MP4 证据。AC-03/04/13/14 的可确定投影与竞态必须有前端自动测试；AC-02/05-12 的实际控件/DOM、AC-15/16 的生产链路按 §9 的理由采用真实浏览器证据，不以“追溯表无行”跳过。
+AC-01/AC-17 的范围、文档、Alembic 与完成报告不适合新增单一运行时自动测试；替代验收固定为 git diff/range、OpenAPI 与围栏扫描、`alembic current/check`、完整 pytest、前端 test/build 和人工逐项核对。AC-18 的关键允许列表来自当前外部 Comfy 进程，固定 mock 会把会漂移的外部状态伪装成仓库事实；因此不新增测试，只按 `AGENTS.md` 窄例外同步四个既有精确 hash 常量，并以这些既有用例、同一生产 Comfy 的原始 `/object_info`、生产 binding loader/raw hash、重启后 health 以及 T12 新 Task 的真实 `/prompt`/history/MP4 联合验收。AC-03/04/13/14 的可确定投影与竞态必须有前端自动测试；AC-02/05-12 的实际控件/DOM、AC-15/16 的生产链路按 §9 的理由采用真实浏览器证据，不以“追溯表无行”跳过。
