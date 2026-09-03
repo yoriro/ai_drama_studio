@@ -104,7 +104,7 @@ C009 全路径 Comfy `/free` 既有断言窄演进授权（需求方于 2026-09-
 | C010 片段详情输入与删除：note/duration 草稿保存、requested-duration 生成门槛、note 随生成提交、204 后权威刷新与失败保真 | 纯函数 + 人工浏览器 | 待填（C010 T7/T10 自动状态用例与 T11 浏览器证据；不新增 DOM runner） |
 | C010 槽位与 R12 处置：固定 slot、enabled、override、R9 media、soft warning、已删资产快照与用户显式处置 | 纯函数 + 人工浏览器 | 待填（C010 T8 视图模型用例与 T11 浏览器证据；后端合同沿用既有用例） |
 | C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新 | 任务系统 mock + 人工浏览器 | 待填（C010 T10 自动用例与 T11/T12 浏览器证据） |
-| C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置 | 任务系统 mock + 跨进程/资源生命周期 | 待填（C010 T4 自动竞态用例与 T11/T12 生产通路证据） |
+| C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置 | 任务系统 mock + 跨进程/资源生命周期 | 待填（C010 T5 自动竞态用例与 T11/T12 生产通路证据） |
 | C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功 | 纯函数 + 人工浏览器 | 待填（C010 T2/T6/T8/T9/T10 自动或浏览器证据） |
 | C010 M4 生产浏览器闭环：真实 API/WS/PostgreSQL/vLLM/Comfy 下创建、生成、take、stale 与 R5a/R10/R12 异常路径 | 真实外部环境 | 待填（C010 T11 非 GPU 与 T12 真实视频原始证据；不新增稳定模型像素断言） |
 | C010 范围、零 migration、构建回归与完成证据 | 不新增自动测试 | 待填（C010 T0/T13 git、Alembic、完整 pytest、frontend test/build 与完成报告原始输出） |

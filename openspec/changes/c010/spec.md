@@ -27,10 +27,10 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 
 ### 现状/影响
 
-- 当前基线 `ba8730175ce4f5647152c7c682270058ebe8d196` 已完成 C009 全部 checkbox。`.work/c009/T29-full-pytest.log` 为 `346 passed`，T29 前端 build 为 `55 modules transformed` 且成功；C009 完成报告同时明确 Director UI 尚未交付。
+- C009 完成提交 `ba8730175ce4f5647152c7c682270058ebe8d196` 与归档提交 `af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e` 均已提交并作为当前 C010 执行基线的祖先。C009 全部 checkbox 已完成，`.work/c009/T29-full-pytest.log` 为 `346 passed`，T29 前端 build 为 `55 modules transformed` 且成功；C009 完成报告同时明确 Director UI 尚未交付。
 - `frontend/src/routes/AppRoutes.tsx` 已有 `/projects/:projectId/episodes/:episodeId/director` 路由；`EpisodeWorkspacePage` 的导演台 tab 目前只显示“暂未交付”空态。当前没有 clips 前端 API 模块、Director 页面或前端自动测试 runner。
 - 后端已经提供本 change 所需的 preview/create/list/detail/PATCH/DELETE、slots、generate-video、videos/current/delete、Task REST/WS 与 `/media` 路由；公开 seed 已是十进制 string，Clip 响应已含两维状态和 warnings。本 change 预期 **零 migration、零后端业务代码变化**。
-- 当前 C009 文档仍位于 `openspec/changes/c009/`，但 tasks 无未勾选项且最终实现/证据提交均为当前 HEAD 祖先。本次按用户明确指令进入 C010，不移动、不改写 C009 文档，也不把“尚未归档”伪装为已归档。
+- C009 文档已由提交 `af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e` 以内容不变的 rename 归档至 `openspec/archive/C009/`，活动目录 `openspec/changes/c009/` 已不存在。C010 将归档文档视为只读，不再次移动或改写。
 - `.work/` 是既有未跟踪证据目录；C010 只在 `.work/c010/` 保存原始日志、截图和临时验收资料，不纳入提交。
 
 ### 风险
@@ -59,7 +59,7 @@ C010 交付 ROADMAP 中 M4 的浏览器导演台：把 C008/C009 已有的 clip�
 | PRD §12.2：正式 `minimaxh3` 提示词模板 | UI 不读模板正文；真实视频验收要求隔离库中的 `minimaxh3` 已通过正式设置 API 安装并能被 C009 生成链路读取 | C009 完成报告记录模板 PATCH/GET 逐字相等及真实生成证据 | **实现门槛已满足、现场验收需重证**；不得由 C010 写默认/占位模板，也不得把下载文件复制进仓库 |
 | PRD §12.3：vLLM `/sleep`、`/wake_up` | 普通 Director UI、preview/create/slot/take CRUD 不依赖 GPU；真实视频验收要求 vLLM health 可达，且任务结束后资源终态可观测 | C009 T17/T26 已有真实资源生命周期证据 | **非普通 UI 开工门槛**；真实视频 task 前后重新记录 health/sleep 状态，失败直接报告，不重试或 fallback |
 | PRD §12.4：PostgreSQL DSN、vLLM/Comfy 地址端口 | C010 API/WS 浏览器验收和完整 pytest 必须使用显式 `DATABASE_URL` 指向全新隔离 PostgreSQL；真实视频还要求正式配置的 vLLM/Comfy 可达。浏览器仍只访问同源 `/api`、`/media`、`/ws` | `NOTES.md` 记录 PostgreSQL `127.0.0.1:5432`、显式导出 DSN、全新库/Alembic 与 advisory-lock 坑；C009 T29 在全新库通过。C009 完成报告明确终态后 Comfy 存活曾漂移，不能沿用为当前在线声明 | **开工时需现场刷新**；PostgreSQL 不可达则停止 T0；GPU 服务不可达只阻塞真实视频验收 task，不得改用 mock 冒充该证据 |
-| ROADMAP 前序 C009（非新增 PRD §12 输入） | C009 的后端/API/WS/媒体能力和回归必须已提交，且当前代码不得仍是 Director 假实现 | 当前 HEAD 为 C009 最终文档提交，C009 tasks 无未勾选项；路由仍是明确空态 | **满足功能前序**；C010 不修改 C009 spec/tasks，是否归档由独立 archive 动作处理 |
+| ROADMAP 前序 C009（非新增 PRD §12 输入） | C009 的后端/API/WS/媒体能力和回归必须已提交，且当前代码不得仍是 Director 假实现 | C009 完成及归档提交均为当前基线祖先；`openspec/archive/C009/tasks.md` 无未勾选项，active spec 不存在，archive spec 存在；路由仍是明确空态 | **满足功能与归档前序**；C010 不改写或再次移动 C009 archive |
 | 前端自动测试 runner（非运行时、非 PRD §12） | 在任何 C010 前端自动测试落盘前，先以单独 task 加入一个与现有 Node/Vite 兼容的成熟 runner、固定 lockfile 与 `npm run test`；不得手写测试执行器 | 当前 `package.json` 只有 dev/build/preview，仓库无 Vitest/Jest/Playwright/Testing Library | **T1 前置交付**；只加纯逻辑/任务事件测试所需的 dev dependency，不引入 C012 浏览器 E2E 平台 |
 
 C010 不需要用户再提供 MiniMax JSON 或 prompt 模板。唯一可能阻塞的是实施期现场服务状态；该状态必须在对应 task 当场验证，历史日志与用户口头“ready”均不冒充本次验收结果。
@@ -232,7 +232,7 @@ C010 不改变错误状态码，只完整消费：
 
 | ID | 风险 | 触发条件 | 观测点 | 期望值 |
 |---|---|---|---|---|
-| AC-01 | [常规] | 对 baseline..C010 HEAD 做文件、OpenAPI、migration、围栏与依赖审计 | git diff、`backend/`、Alembic、package lock、路由 | 业务 diff 只含 Director 前端、C010 新前端测试/runner、change/追溯/NOTES；后端代码、migration、既有测试、C009 文档均无改动；无范围外围栏能力、retry/fallback/polling/版本化；Director 空态被真实页面替换 |
+| AC-01 | [常规] | 对 baseline..C010 HEAD 做文件、OpenAPI、migration、围栏与依赖审计 | git diff、`backend/`、Alembic、package lock、路由 | 业务 diff 只含 Director 前端、C010 新前端测试/runner、change/追溯/NOTES；后端代码、migration、既有测试以及 `openspec/archive/C009/` 相对 C010 执行 baseline 均无改动；无范围外围栏能力、retry/fallback/polling/版本化；Director 空态被真实页面替换 |
 | AC-02 | [外部输入] | 分别让 assets/shots/clips 初始 REST 成功、结构化 404/422/500、非 JSON 和连接失败 | Director loading/ready/error DOM、请求 URL、控制台 | 只访问同源 `/api`；三源都成功才 ready；空 shots 显示明确空态；任一失败显示实际 message且不伪造空数据、不自动重试 mutation、不硬编码端口 |
 | AC-03 | [常规] | 用相邻同场景、零场景、不同场景、双场景与 duration 1/2/5 的 Shot fixture 加载页面 | 场景带段数/标签、三轨 grid columns、Shot 文本/changed 角标 | 相邻同 classification 合段；scene/灰/警示均有文字；三轨共享精确 `1fr 2fr 5fr...` 权重并对齐；Shot 显示 order/type/duration，changed 独立可见，颜色不是唯一信息 |
 | AC-04 | [外部输入] | 依次勾选未占用的单场景 S、零场景、不同场景 T、双场景、已占用与非连续 Shot，并再取消 | checkbox disabled/reason、selection IDs、preview 请求 | S 与零场景可同时选；T/双场景/已占用不可新选且原因可见；已选可取消；非连续选择不被自动补齐并原样发 preview；任一选择变化使旧 preview/candidates/draft 消失 |

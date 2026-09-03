@@ -34,7 +34,7 @@
 
 - [ ] **T0 — 固定规划基线、C009 前序证据与隔离 PostgreSQL**
 
-  - **交付：** 只创建 `.work/c010/` 证据并勾选本项；记录实施前 HEAD、C009 完成/未归档事实、tracked 工作区状态、前端现状、外部端口现场状态，并创建一个全新 C010 PostgreSQL 数据库。不得移动 C009、修改生产代码或把 `.work` 加入 Git。
+  - **交付：** 只创建 `.work/c010/` 证据并勾选本项；记录实施前 HEAD、C010 规划提交与 C009 完成/归档提交的祖先关系、C009 已归档事实、tracked 工作区状态、前端现状、外部端口现场状态，并创建一个全新 C010 PostgreSQL 数据库。不得再次移动或改写 C009 archive、修改生产代码或把 `.work` 加入 Git。
   - **R：** 无；PRD §0、§11 M4、§12.1-§12.4；ROADMAP C010 依赖 C009。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
@@ -46,13 +46,18 @@
     Start-Transcript -LiteralPath '.work\c010\T00-baseline.log' -Force
     git rev-parse HEAD | Tee-Object -FilePath '.work\c010\baseline-sha.txt'
     git status --short
-    git merge-base --is-ancestor ba8730175ce4f5647152c7c682270058ebe8d196 HEAD
+    git merge-base --is-ancestor 74990fc86ad0540294bc09df6c6327a4c8e35089 HEAD
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    $unchecked = rg -n '^- \[ \]' openspec/changes/c009/tasks.md
+    git merge-base --is-ancestor af7f6fd9310ba7ac2dc577a7db7457b7c18f7d4e HEAD
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $activeSpec = Test-Path 'openspec\changes\c009\spec.md'
+    $archiveSpec = Test-Path 'openspec\archive\C009\spec.md'
+    Write-Output "c009_active_spec=$activeSpec"
+    Write-Output "c009_archive_spec=$archiveSpec"
+    if ($activeSpec -or -not $archiveSpec) { throw 'C009 archive state does not match the C010 baseline' }
+    $unchecked = rg -n '^- \[ \]' openspec/archive/C009/tasks.md
     if ($LASTEXITCODE -eq 0) { $unchecked; exit 1 }
     if ($LASTEXITCODE -ne 1) { exit $LASTEXITCODE }
-    Test-Path 'openspec\changes\c009\spec.md'
-    Test-Path 'openspec\archive\C009\spec.md'
     rg -n 'director.*暂未交付|导演台.*暂未交付|activeTab === "director"' frontend/src/pages/EpisodeWorkspacePage.tsx
     Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet
     Test-NetConnection -ComputerName 127.0.0.1 -Port 8001 -InformationLevel Quiet
@@ -104,7 +109,7 @@
     Stop-Transcript
     ```
 
-    期望：规划提交是 HEAD；C009 无未勾选 task，活动 spec 存在且 archive spec 不存在的真实状态被记录；PostgreSQL 端口为 True，数据库创建/upgrade/current/check/完整 pytest/build 全部 exit 0。vLLM/Comfy 现场 True/False 只记录，不阻塞 T1；不可达时只把 T12 标记为待现场恢复，不伪造 ready。提交只能包含本文件 T0 checkbox。
+    期望：当前 HEAD 同时包含 C010 规划提交 `74990fc` 与 C009 归档提交 `af7f6fd`；C009 archive tasks 无未勾选项，活动 spec 不存在且 archive spec 存在；PostgreSQL 端口为 True，数据库创建/upgrade/current/check/完整 pytest/build 全部 exit 0。vLLM/Comfy 现场 True/False 只记录，不阻塞 T1；不可达时只把 T12 标记为待现场恢复，不伪造 ready。提交只能包含本文件 T0 checkbox。
 
 - [ ] **T1 — 交付 C010 前端纯逻辑测试 runner**
 
@@ -192,7 +197,7 @@
   - **R：** 无；PRD §9、§11 M4 的确定性浏览器前置数据，不替代 R5-R12 正式 API 验收。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** 不适用。
-  - **验收方式与命令：** 先运行固定回归。按 T0 的数据库创建方式另建名称含 `c010_browser_<timestamp>` 的全新库，记录名称，显式设置该 DSN 与 `.work/c010/T10A-data`；确认 8000 未被非本 task 进程占用后，在 `backend` 目录以 `Start-Process -PassThru -WindowStyle Hidden python -ArgumentList '-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8000'` 启动本 task Uvicorn并记录 PID。设置 `$env:PYTHONPATH='D:\ai_drama_studio\backend'`，执行 `python .work/c010/director-fixture.py --base-url http://127.0.0.1:8000 --output .work/c010/director-fixture.json`；再通过正式 `GET assets/shots/clips/slots` 逐项核对：至少两个 scene、一个 unbound、一个绑定两个 scene、一个 changed、一个非连续可选组合、11 个候选、一个已占用 Shot和一个可删除资产槽位；脚本 SQL 日志只能出现 `shots`/`shot_assets` INSERT。执行 `rg -n 'Task|ClipVideo|clip_videos|tasks|frontend' .work/c010/director-fixture.py` 并人工确认无写入这些对象的代码。结束仅停止本 task PID并证明 8000 释放。报告必须明确：装置与生产共享 PostgreSQL/schema/ORM，唯一区别是绕过 `gen_shots` 建 Shot；它不能证明 M2 或直写夹具校验。通过后只提交 tasks checkbox，不提交 `.work`。
+  - **验收方式与命令：** 先运行固定回归。按 T0 的数据库创建方式另建名称含 `c010_browser_<timestamp>` 的全新库，记录名称，显式设置该 DSN 与绝对 DATA_DIR `D:\ai_drama_studio\.work\c010\T10A-data`；确认 8000 未被非本 task 进程占用后，从任意当前目录使用 `Start-Process -FilePath python -ArgumentList '-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8000' -PassThru -WindowStyle Hidden -WorkingDirectory 'D:\ai_drama_studio\backend'` 启动本 task Uvicorn并记录 PID。设置 `$env:PYTHONPATH='D:\ai_drama_studio\backend'`，执行 `python 'D:\ai_drama_studio\.work\c010\director-fixture.py' --base-url http://127.0.0.1:8000 --output 'D:\ai_drama_studio\.work\c010\director-fixture.json'`；再通过正式 `GET assets/shots/clips/slots` 逐项核对：至少两个 scene、一个 unbound、一个绑定两个 scene、一个 changed、一个非连续可选组合、11 个候选、一个已占用 Shot和一个可删除资产槽位；脚本 SQL 日志只能出现 `shots`/`shot_assets` INSERT。执行 `rg -n 'Task|ClipVideo|clip_videos|tasks|frontend' 'D:\ai_drama_studio\.work\c010\director-fixture.py'` 并人工确认无写入这些对象的代码。结束仅停止本 task PID并证明 8000 释放。报告必须明确：装置与生产共享 PostgreSQL/schema/ORM，唯一区别是绕过 `gen_shots` 建 Shot；它不能证明 M2 或直写夹具校验。通过后只提交 tasks checkbox，不提交 `.work`。
 
 - [ ] **T11 — 真实浏览器非 GPU 合同走查**
 
@@ -264,4 +269,4 @@
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，C009 文档未移动或改写，后端/migration/既有测试零 diff。
+  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在，后端/migration/既有测试零 diff。
