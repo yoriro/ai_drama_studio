@@ -214,7 +214,7 @@
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
   - **验收方式与命令：** `npm --prefix frontend install --save-dev --save-exact vitest@3.2.4`；将 script 精确设为 `"test": "vitest run"`；执行 `npm --prefix frontend run test -- --passWithNoTests`、`npm --prefix frontend run build` 与固定回归中的完整 pytest 部分。执行 `npm --prefix frontend ls vitest --depth=0`，期望只显示锁定版本且所有命令 exit 0；`git diff --name-status` 只含 package/lock/tasks，不含测试或生产页面。
 
-- [ ] **T2 — 新增 Director clip/slot/video 前端 API 合同**
+- [x] **T2 — 新增 Director clip/slot/video 前端 API 合同**
 
   - **交付：** 新建 `frontend/src/api/clips.ts`，声明 spec §2.1 的公开类型与全部既有 endpoint 函数；新建 `frontend/src/api/clips.test.ts`，通过替换 `globalThis.fetch` 精确断言 URL、method、JSON body、204 helper、FormData part 和 multipart header 不被手写，并覆盖结构化 409/422、非 JSON 与 204 漂移。不得加入后端字段、内部路径、API base URL 或 runtime fallback。
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R12；PRD §5 片段 API、§9、§11 M4。
