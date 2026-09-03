@@ -278,7 +278,7 @@
   - **追溯行：** `C010 take 与生成交互：多任务提交、完整失败原因、take 画廊/current/delete/media/DEBUG 与两维状态刷新`；`C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功`。
   - **验收方式与命令：** 执行 `npm --prefix frontend run test -- src/features/director/directorModel.test.ts src/api/clips.test.ts`，精确断言 0/1/多 take 原序、seed不转 number、actual null/value、current/non-current action、DEBUG字段有/无、PUT/DELETE/422；再运行固定回归。真实播放器、current 切换、删除与 DEBUG DOM 证据由 T11/T12完成，不能伪造 take fixture或直接写 ClipVideo。
 
-- [ ] **T10 — 交付生成按钮、Task 反馈与多任务语义**
+- [x] **T10 — 交付生成按钮、Task 反馈与多任务语义**
 
   - **交付：** 接入 generate-video：requested duration dirty/详情未就绪/HTTP 在途时禁用；note 未变 POST `{}`，note 草稿实际变化时精确提交 `{user_note}`（保留 string/null/空串，不 trim），且始终无 request_id。202 记录 task_id、显示“任务已提交”并刷新；failed 显示完整 error_msg，done 在最新 take 落地后提示，canceled 只刷新；首个 202 返回后允许再次有意生成。
   - **R：** R4、R5、R5a、R9、R10；PRD §3.1、§3.2、§5 生成动作、§6.1、§9、§11 M4；DECISIONS D-008。

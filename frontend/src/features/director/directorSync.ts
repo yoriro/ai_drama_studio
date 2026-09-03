@@ -1,8 +1,11 @@
 import type { Asset } from "../../api/assets";
+import { generateClipVideo } from "../../api/clips";
 import type {
   Clip,
   ClipSlotsResponse,
   ClipVideo,
+  GenerateClipVideoRequest,
+  GenerateClipVideoResponse,
 } from "../../api/clips";
 import { getTask } from "../../api/tasks";
 import type { Task, TaskEvent } from "../../api/tasks";
@@ -57,6 +60,8 @@ export interface DirectorSyncState {
   pageError: unknown | null;
   detailError: unknown | null;
   taskError: unknown | null;
+  taskDetails: Task[];
+  taskEvents: TaskEvent[];
   socketError: unknown | null;
   error: unknown | null;
   notices: DirectorSyncNotice[];
@@ -72,6 +77,7 @@ export interface DirectorSyncOptions {
 export interface DirectorRefreshOptions {
   notice?: DirectorSyncNotice;
   refreshSelectedClip?: boolean;
+  resetSelectedClipDraft?: boolean;
 }
 
 export interface DirectorSyncController {
@@ -80,12 +86,21 @@ export interface DirectorSyncController {
   subscribe(listener: (state: DirectorSyncState) => void): () => void;
   getState(): DirectorSyncState;
   selectClip(clipId: number | null): void;
+  trackTask(taskId: number): void;
   updateClipDraft(patch: {
     userNote?: string | null;
     requestedDuration?: string;
   }): void;
   refreshPage(options?: DirectorRefreshOptions): void;
-  refreshSelectedClip(): void;
+  refreshSelectedClip(options?: { resetDraft?: boolean }): void;
+}
+
+export interface DirectorGenerationRequester {
+  isInFlight(): boolean;
+  submit(
+    clipId: number,
+    input: GenerateClipVideoRequest,
+  ): Promise<GenerateClipVideoResponse> | null;
 }
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 5000] as const;
@@ -105,6 +120,16 @@ interface TaskEventRecord {
   consumed: boolean;
 }
 
+interface PendingTaskNotice {
+  taskId: number;
+  targetClipId: number;
+  message: string;
+  requiresDetail: boolean;
+  baselineVideoIds: Set<number>;
+  pageApplied: boolean;
+  detailApplied: boolean;
+}
+
 function isTerminalTask(task: Task): boolean {
   return (
     task.status === "done" ||
@@ -115,6 +140,40 @@ function isTerminalTask(task: Task): boolean {
 
 function defaultSocket(): DirectorTaskSocket {
   return openTaskWebSocket();
+}
+
+export function createDirectorGenerationRequester(
+  request: (
+    clipId: number,
+    input: GenerateClipVideoRequest,
+  ) => Promise<GenerateClipVideoResponse> = generateClipVideo,
+): DirectorGenerationRequester {
+  let inFlight = false;
+
+  return {
+    isInFlight(): boolean {
+      return inFlight;
+    },
+    submit(
+      clipId: number,
+      input: GenerateClipVideoRequest,
+    ): Promise<GenerateClipVideoResponse> | null {
+      if (inFlight) {
+        return null;
+      }
+      inFlight = true;
+      let pending: Promise<GenerateClipVideoResponse>;
+      try {
+        pending = request(clipId, input);
+      } catch (error: unknown) {
+        inFlight = false;
+        throw error;
+      }
+      return pending.finally(() => {
+        inFlight = false;
+      });
+    },
+  };
 }
 
 function errorForFailedTask(task: Task): Error {
@@ -148,8 +207,12 @@ class DirectorSync implements DirectorSyncController {
   >();
   private readonly taskDetails = new Map<number, Task>();
   private readonly taskDetailRequests = new Map<number, Promise<Task>>();
+  private readonly trackedTaskIds = new Set<number>();
+  private readonly taskEvents = new Map<number, TaskEvent>();
   private readonly eventRecords: TaskEventRecord[] = [];
   private readonly pendingNotices: DirectorSyncNotice[] = [];
+  private readonly pendingTaskNotices: PendingTaskNotice[] = [];
+  private readonly resetDraftOnNextDetail = new Set<number>();
 
   private state: DirectorSyncState = {
     pagePhase: "connecting",
@@ -161,6 +224,8 @@ class DirectorSync implements DirectorSyncController {
     pageError: null,
     detailError: null,
     taskError: null,
+    taskDetails: [],
+    taskEvents: [],
     socketError: null,
     error: null,
     notices: [],
@@ -224,6 +289,12 @@ class DirectorSync implements DirectorSyncController {
   getState(): DirectorSyncState {
     return {
       ...this.state,
+      taskDetails: [...this.taskDetails.values()].filter((task) =>
+        this.trackedTaskIds.has(task.id),
+      ),
+      taskEvents: [...this.taskEvents.values()].filter((event) =>
+        this.trackedTaskIds.has(event.task_id),
+      ),
       notices: [...this.state.notices],
     };
   }
@@ -233,6 +304,7 @@ class DirectorSync implements DirectorSyncController {
       return;
     }
 
+    this.resetDraftOnNextDetail.clear();
     this.detailGeneration += 1;
     this.state.selectedClipId = clipId;
     this.state.clipDetail = null;
@@ -245,6 +317,19 @@ class DirectorSync implements DirectorSyncController {
     if (clipId !== null && this.readClipDetail !== undefined) {
       this.startDetailRequest(clipId, this.detailGeneration);
     }
+  }
+
+  trackTask(taskId: number): void {
+    if (this.trackedTaskIds.has(taskId)) {
+      return;
+    }
+    this.trackedTaskIds.add(taskId);
+    for (const record of this.eventRecords) {
+      if (record.event.task_id === taskId) {
+        this.taskEvents.set(taskId, record.event);
+      }
+    }
+    this.emit();
   }
 
   updateClipDraft(patch: {
@@ -280,7 +365,9 @@ class DirectorSync implements DirectorSyncController {
       this.pendingNotices.push(options.notice);
     }
     if (options.refreshSelectedClip) {
-      this.refreshSelectedClip();
+      this.refreshSelectedClip({
+        resetDraft: options.resetSelectedClipDraft === true,
+      });
     }
 
     if (this.pageRequest !== null) {
@@ -296,18 +383,24 @@ class DirectorSync implements DirectorSyncController {
     }
   }
 
-  refreshSelectedClip(): void {
+  refreshSelectedClip(options: { resetDraft?: boolean } = {}): void {
     if (
       this.state.selectedClipId === null ||
       this.readClipDetail === undefined
     ) {
       return;
     }
+    if (options.resetDraft === true) {
+      this.resetDraftOnNextDetail.add(this.state.selectedClipId);
+    }
     this.detailGeneration += 1;
     this.state.detailPhase = "loading";
     this.state.detailError = null;
     this.emit();
-    this.startDetailRequest(this.state.selectedClipId, this.detailGeneration);
+    this.startDetailRequest(
+      this.state.selectedClipId,
+      this.detailGeneration,
+    );
   }
 
   private connect(): void {
@@ -383,6 +476,10 @@ class DirectorSync implements DirectorSyncController {
     if (event.type !== "gen_clip_video") {
       return;
     }
+    if (this.trackedTaskIds.has(event.task_id)) {
+      this.taskEvents.set(event.task_id, event);
+      this.emit();
+    }
 
     const record: TaskEventRecord = {
       sequence: ++this.eventSequence,
@@ -448,7 +545,7 @@ class DirectorSync implements DirectorSyncController {
 
   private getTaskOnce(taskId: number): Promise<Task> {
     const cached = this.taskDetails.get(taskId);
-    if (cached !== undefined) {
+    if (cached !== undefined && isTerminalTask(cached)) {
       return Promise.resolve(cached);
     }
     const pending = this.taskDetailRequests.get(taskId);
@@ -557,6 +654,8 @@ class DirectorSync implements DirectorSyncController {
     this.synchronized = true;
     this.reconnectAttempt = 0;
 
+    this.markTaskNoticesPageApplied(snapshot);
+
     if (
       this.state.selectedClipId !== null &&
       !snapshot.clips.some((clip) => clip.id === this.state.selectedClipId)
@@ -570,6 +669,7 @@ class DirectorSync implements DirectorSyncController {
         ...this.pendingNotices.splice(0),
       ];
     }
+    this.publishReadyTaskNotices();
     this.emit();
   }
 
@@ -650,20 +750,87 @@ class DirectorSync implements DirectorSyncController {
       this.state.taskError = null;
     }
     if (task.status === "done") {
-      this.pendingNotices.push({
-        kind: "task-terminal",
+      const selectedDetail =
+        this.state.selectedClipId === task.target_id
+          ? this.state.clipDetail
+          : null;
+      const requiresDetail = selectedDetail !== null;
+      this.pendingTaskNotices.push({
         taskId: task.id,
+        targetClipId: task.target_id,
         message:
           record.event.message.length > 0
             ? record.event.message
             : `Task #${task.id} 已完成`,
+        requiresDetail,
+        baselineVideoIds: new Set(
+          selectedDetail?.videos.map((video) => video.id) ?? [],
+        ),
+        pageApplied: false,
+        detailApplied: !requiresDetail,
       });
     }
     this.invalidatePageRequest();
     if (this.state.selectedClipId === task.target_id) {
       this.refreshSelectedClip();
     }
+    this.publishReadyTaskNotices();
     this.emit();
+  }
+
+  private markTaskNoticesPageApplied(snapshot: DirectorPageSnapshot): void {
+    for (const notice of this.pendingTaskNotices) {
+      if (notice.pageApplied) {
+        continue;
+      }
+      const clip = snapshot.clips.find(
+        (candidate) => candidate.id === notice.targetClipId,
+      );
+      if (clip !== undefined && clip.generation_state === "ready") {
+        notice.pageApplied = true;
+      }
+    }
+  }
+
+  private markTaskNoticesDetailApplied(
+    detail: DirectorClipDetailSnapshot,
+  ): void {
+    for (const notice of this.pendingTaskNotices) {
+      if (
+        !notice.requiresDetail ||
+        notice.detailApplied ||
+        notice.targetClipId !== detail.clip.id
+      ) {
+        continue;
+      }
+      const hasNewTake = detail.videos.some(
+        (video) => !notice.baselineVideoIds.has(video.id),
+      );
+      if (detail.clip.generation_state === "ready" && hasNewTake) {
+        notice.detailApplied = true;
+      }
+    }
+  }
+
+  private publishReadyTaskNotices(): void {
+    const ready = this.pendingTaskNotices.filter(
+      (notice) => notice.pageApplied && notice.detailApplied,
+    );
+    if (ready.length === 0) {
+      return;
+    }
+    this.state.notices = [
+      ...this.state.notices,
+      ...ready.map((notice) => ({
+        kind: "task-terminal" as const,
+        taskId: notice.taskId,
+        message: notice.message,
+      })),
+    ];
+    for (const notice of ready) {
+      const index = this.pendingTaskNotices.indexOf(notice);
+      this.pendingTaskNotices.splice(index, 1);
+    }
   }
 
   private isRelevantTask(
@@ -703,16 +870,23 @@ class DirectorSync implements DirectorSyncController {
             return;
           }
           this.state.clipDetail = detail;
-          this.state.clipDraft = this.mergeDraft(
-            this.state.clipDraft,
-            detail.clip,
-          );
+          if (this.resetDraftOnNextDetail.has(clipId)) {
+            this.state.clipDraft = initializeDraft(detail.clip);
+            this.resetDraftOnNextDetail.delete(clipId);
+          } else {
+            this.state.clipDraft = this.mergeDraft(
+              this.state.clipDraft,
+              detail.clip,
+            );
+          }
           const previousDetailError = this.state.detailError;
           this.state.detailError = null;
           if (this.state.error === previousDetailError) {
             this.state.error = this.state.taskError ?? this.state.pageError;
           }
           this.state.detailPhase = "ready";
+          this.markTaskNoticesDetailApplied(detail);
+          this.publishReadyTaskNotices();
           this.emit();
         },
         (error: unknown) => {
@@ -755,6 +929,7 @@ class DirectorSync implements DirectorSyncController {
 
   private clearSelectedClip(): void {
     this.detailGeneration += 1;
+    this.resetDraftOnNextDetail.clear();
     this.state.selectedClipId = null;
     this.state.clipDetail = null;
     this.state.clipDraft = null;

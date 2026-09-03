@@ -205,6 +205,51 @@ describe("Director clip API requests", () => {
     expect(requestBody(requestInit())).toEqual({ user_note: null });
   });
 
+  it("submits sequential generation tasks with exact note presence and no request_id", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ task_id: 51 }, 202))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 52 }, 202))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 53 }, 202))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 54 }, 202));
+
+    await generateClipVideo(33);
+    await generateClipVideo(33, { user_note: "  exact  " });
+    await generateClipVideo(33, { user_note: "" });
+    await generateClipVideo(33, { user_note: null });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.map((call) => requestBody(call[1] ?? {}))).toEqual([
+      {},
+      { user_note: "  exact  " },
+      { user_note: "" },
+      { user_note: null },
+    ]);
+    for (const call of fetchMock.mock.calls) {
+      expect(requestBody(call[1] ?? {})).not.toHaveProperty("request_id");
+    }
+  });
+
+  it("does not turn generate HTTP or transport failures into a fake task", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { detail: { code: "conflict", message: "片段已有生成任务" } },
+          409,
+        ),
+      )
+      .mockRejectedValueOnce(new TypeError("network unavailable"));
+
+    await expect(generateClipVideo(33)).rejects.toEqual(
+      expect.objectContaining({
+        status: 409,
+        code: "conflict",
+        message: "片段已有生成任务",
+      }),
+    );
+    await expect(generateClipVideo(33)).rejects.toThrow("network unavailable");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps video seed as a string and preserves optional debug fields", async () => {
     const video = {
       id: 7,

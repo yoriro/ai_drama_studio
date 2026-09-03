@@ -7,6 +7,7 @@ import type {
 } from "../../api/clips";
 import type { Task, TaskEvent } from "../../api/tasks";
 import {
+  createDirectorGenerationRequester,
   createDirectorSync,
   type DirectorClipDetailSnapshot,
   type DirectorPageSnapshot,
@@ -161,6 +162,36 @@ afterEach(() => {
 });
 
 describe("Director sync", () => {
+  it("allows sequential generation submissions but suppresses a second in-flight request", async () => {
+    const first = deferred<{ task_id: number }>();
+    const second = deferred<{ task_id: number }>();
+    const request = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const requester = createDirectorGenerationRequester(request);
+
+    const firstSubmission = requester.submit(7, {});
+    expect(firstSubmission).not.toBeNull();
+    expect(requester.isInFlight()).toBe(true);
+    expect(requester.submit(7, { user_note: null })).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
+
+    first.resolve({ task_id: 81 });
+    await expect(firstSubmission).resolves.toEqual({ task_id: 81 });
+    expect(requester.isInFlight()).toBe(false);
+
+    const secondSubmission = requester.submit(7, { user_note: "  exact  " });
+    expect(secondSubmission).not.toBeNull();
+    expect(request).toHaveBeenCalledTimes(2);
+    second.resolve({ task_id: 82 });
+    await expect(secondSubmission).resolves.toEqual({ task_id: 82 });
+    expect(requester.isInFlight()).toBe(false);
+    expect(request.mock.calls).toEqual([
+      [7, {}],
+      [7, { user_note: "  exact  " }],
+    ]);
+  });
+
   it("opens the socket before REST and drops the initial snapshot invalidated by buffered events", async () => {
     const first = deferred<DirectorPageSnapshot>();
     const replacement = deferred<DirectorPageSnapshot>();
@@ -419,6 +450,161 @@ describe("Director sync", () => {
     await flushPromises();
     expect(harness.sockets[0].closed).toBe(true);
     expect(harness.states.at(-1)?.error).toBeInstanceOf(SyntaxError);
+
+    harness.controller.dispose();
+  });
+
+  it("keeps an immediate failed reason and server note visible after task refresh", async () => {
+    const initial = deferred<DirectorPageSnapshot>();
+    const firstDetail = deferred<DirectorClipDetailSnapshot>();
+    const refreshedDetail = deferred<DirectorClipDetailSnapshot>();
+    const failedTask = makeTask(81, 7, {
+      status: "failed",
+      progress: 1,
+      error_msg: "参考槽位 3 缺少可用图片，任务已终止",
+    });
+    const readPageSnapshot = vi.fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockResolvedValue(makeSnapshot(2));
+    const readClipDetail = vi.fn()
+      .mockReturnValueOnce(firstDetail.promise)
+      .mockReturnValueOnce(refreshedDetail.promise);
+    const readTask = vi.fn(async () => failedTask);
+    const harness = createHarness({
+      readPageSnapshot,
+      readClipDetail,
+      readTask,
+    });
+
+    harness.controller.start();
+    harness.sockets[0].open();
+    await flushPromises();
+    initial.resolve(makeSnapshot(1));
+    await flushPromises();
+    harness.controller.selectClip(7);
+    await flushPromises();
+    firstDetail.resolve(
+      makeDetail(makeClip(7, { user_note: "客户端旧意见" })),
+    );
+    await flushPromises();
+    harness.controller.trackTask(81);
+
+    harness.sockets[0].message(JSON.stringify(makeEvent(81, "failed")));
+    await flushPromises();
+    expect(readTask).toHaveBeenCalledTimes(1);
+    expect(readClipDetail).toHaveBeenCalledTimes(2);
+    expect(harness.states.at(-1)?.taskDetails).toEqual([failedTask]);
+    expect(harness.states.at(-1)?.taskEvents).toEqual([
+      makeEvent(81, "failed"),
+    ]);
+    expect(harness.states.at(-1)?.taskError).toMatchObject({
+      message: failedTask.error_msg,
+    });
+
+    refreshedDetail.resolve(
+      makeDetail(makeClip(7, { user_note: "服务端刷新意见" })),
+    );
+    await flushPromises();
+    expect(harness.states.at(-1)?.clipDraft?.userNote).toBe("服务端刷新意见");
+    expect(harness.states.at(-1)?.notices).not.toContainEqual(
+      expect.objectContaining({ taskId: 81 }),
+    );
+
+    harness.controller.dispose();
+  });
+
+  it("resets a dirty generation note only when the generation refresh requests it", async () => {
+    const initial = deferred<DirectorPageSnapshot>();
+    const firstDetail = deferred<DirectorClipDetailSnapshot>();
+    const refreshedDetail = deferred<DirectorClipDetailSnapshot>();
+    const readPageSnapshot = vi.fn(() => initial.promise);
+    const readClipDetail = vi.fn()
+      .mockReturnValueOnce(firstDetail.promise)
+      .mockReturnValueOnce(refreshedDetail.promise);
+    const harness = createHarness({ readPageSnapshot, readClipDetail });
+
+    harness.controller.start();
+    harness.sockets[0].open();
+    await flushPromises();
+    initial.resolve(makeSnapshot(1));
+    await flushPromises();
+    harness.controller.selectClip(7);
+    await flushPromises();
+    firstDetail.resolve(makeDetail(makeClip(7, { user_note: "旧" })));
+    await flushPromises();
+    harness.controller.updateClipDraft({ userNote: "生成时提交的意见" });
+    harness.controller.refreshSelectedClip({ resetDraft: true });
+    await flushPromises();
+    refreshedDetail.resolve(
+      makeDetail(makeClip(7, { user_note: "服务端已保存的意见" })),
+    );
+    await flushPromises();
+
+    expect(harness.states.at(-1)?.clipDraft).toEqual({
+      baseUserNote: "服务端已保存的意见",
+      baseRequestedDuration: 5,
+      userNote: "服务端已保存的意见",
+      requestedDuration: "5",
+      dirtyUserNote: false,
+      dirtyRequestedDuration: false,
+    });
+
+    harness.controller.dispose();
+  });
+
+  it("publishes a done notice only after the replacement detail contains a new take", async () => {
+    const initial = deferred<DirectorPageSnapshot>();
+    const firstDetail = deferred<DirectorClipDetailSnapshot>();
+    const refreshedDetail = deferred<DirectorClipDetailSnapshot>();
+    const readPageSnapshot = vi.fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockResolvedValue(makeSnapshot(2));
+    const readClipDetail = vi.fn()
+      .mockReturnValueOnce(firstDetail.promise)
+      .mockReturnValueOnce(refreshedDetail.promise);
+    const readTask = vi.fn(async () => makeTask(82, 7));
+    const harness = createHarness({
+      readPageSnapshot,
+      readClipDetail,
+      readTask,
+    });
+
+    harness.controller.start();
+    harness.sockets[0].open();
+    await flushPromises();
+    initial.resolve(makeSnapshot(1));
+    await flushPromises();
+    harness.controller.selectClip(7);
+    await flushPromises();
+    firstDetail.resolve(makeDetail(makeClip(7)));
+    await flushPromises();
+    harness.sockets[0].message(JSON.stringify(makeEvent(82, "done")));
+    await flushPromises();
+    expect(harness.states.at(-1)?.notices).toEqual([]);
+
+    refreshedDetail.resolve({
+      ...makeDetail(makeClip(7)),
+      clip: makeClip(7, { generation_state: "ready" }),
+      videos: [
+        {
+          id: 900,
+          clip_id: 7,
+          sha256: "hash",
+          seed: "9007199254740993",
+          requested_duration: 5,
+          actual_duration: 5,
+          is_current: true,
+          media_url: "/media/clip-videos/900",
+          created_at: "2026-09-03T00:00:03Z",
+        },
+      ],
+    });
+    await flushPromises();
+    expect(harness.states.at(-1)?.notices).toContainEqual({
+      kind: "task-terminal",
+      taskId: 82,
+      message: "最新任务已完成",
+    });
 
     harness.controller.dispose();
   });

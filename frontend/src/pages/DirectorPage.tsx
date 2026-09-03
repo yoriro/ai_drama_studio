@@ -41,8 +41,10 @@ import {
 } from "../features/director/directorModel";
 import {
   createDirectorSync,
+  createDirectorGenerationRequester,
   type DirectorSyncState,
 } from "../features/director/directorSync";
+import type { Task, TaskEvent } from "../api/tasks";
 
 interface DirectorPageProps {
   projectId: number;
@@ -73,6 +75,10 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       }),
     [episodeId, projectId],
   );
+  const generationRequester = useMemo(
+    () => createDirectorGenerationRequester(),
+    [],
+  );
   const [syncState, setSyncState] = useState<DirectorSyncState>(() =>
     sync.getState(),
   );
@@ -102,6 +108,11 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     null,
   );
   const [mediaErrors, setMediaErrors] = useState<Record<number, string>>({});
+  const [generationRequestInFlight, setGenerationRequestInFlight] =
+    useState(false);
+  const [generationTaskIds, setGenerationTaskIds] = useState<number[]>([]);
+  const [generationActionError, setGenerationActionError] =
+    useState<unknown | null>(null);
   const previewGeneration = useRef(0);
   const previousSelectedClipId = useRef<number | null>(null);
 
@@ -158,6 +169,8 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSlotMutationError(null);
     setTakeMutationError(null);
     setMediaErrors({});
+    setGenerationTaskIds([]);
+    setGenerationActionError(null);
   }, [syncState.selectedClipId]);
 
   useEffect(() => {
@@ -518,6 +531,48 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     handleTakeMutation(`delete:${videoId}`, () => deleteClipVideo(videoId));
   }
 
+  function handleGenerateVideo(): void {
+    const clipId = syncState.selectedClipId;
+    const draft = syncState.clipDraft;
+    if (
+      clipId === null ||
+      draft === null ||
+      syncState.detailPhase !== "ready" ||
+      generationGate === null ||
+      !generationGate.allowed ||
+      generationRequestInFlight
+    ) {
+      return;
+    }
+    const input = draft.dirtyUserNote
+      ? { user_note: draft.userNote }
+      : {};
+    const pending = generationRequester.submit(clipId, input);
+    if (pending === null) {
+      return;
+    }
+    setGenerationActionError(null);
+    setGenerationRequestInFlight(true);
+    void pending
+      .then(({ task_id }) => {
+        sync.trackTask(task_id);
+        if (sync.getState().selectedClipId === clipId) {
+          setGenerationTaskIds((current) => [...current, task_id]);
+        }
+        sync.refreshPage({
+          resetSelectedClipDraft: true,
+          refreshSelectedClip:
+            sync.getState().selectedClipId === clipId,
+        });
+      })
+      .catch((error: unknown) => {
+        setGenerationActionError(error);
+      })
+      .finally(() => {
+        setGenerationRequestInFlight(false);
+      });
+  }
+
   function startPreview(): void {
     const requestedShotIds = [...selectedShotIds];
     const generation = ++previewGeneration.current;
@@ -734,6 +789,13 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         detailPhase={syncState.detailPhase}
         detailError={syncState.detailError}
         generationGate={generationGate}
+        generationActionError={generationActionError}
+        generationRequestInFlight={generationRequestInFlight}
+        generationTaskIds={generationTaskIds}
+        taskDetails={syncState.taskDetails}
+        taskEvents={syncState.taskEvents}
+        taskError={syncState.taskError}
+        onGenerate={handleGenerateVideo}
         onClearNote={() => updateSelectedClipDraft({ userNote: null })}
         onDelete={handleDeleteClip}
         onSave={handleSaveSettings}
@@ -908,6 +970,82 @@ function DirectorPreviewPanel({
           </button>
         </>
       )}
+    </section>
+  );
+}
+
+interface DirectorGenerationPanelProps {
+  actionError: unknown | null;
+  detailPhase: DirectorSyncState["detailPhase"];
+  generationGate: ReturnType<typeof projectDirectorGenerationGate> | null;
+  inFlight: boolean;
+  onGenerate: () => void;
+  taskDetails: Task[];
+  taskEvents: TaskEvent[];
+  taskIds: number[];
+  taskError: unknown | null;
+}
+
+function DirectorGenerationPanel({
+  actionError,
+  detailPhase,
+  generationGate,
+  inFlight,
+  onGenerate,
+  taskDetails,
+  taskEvents,
+  taskIds,
+  taskError,
+}: DirectorGenerationPanelProps) {
+  const canGenerate =
+    detailPhase === "ready" &&
+    generationGate !== null &&
+    generationGate.allowed &&
+    !inFlight;
+
+  return (
+    <section aria-label="视频生成" className="director-generation-panel">
+      <h4>视频生成</h4>
+      {actionError !== null && <ApiErrorMessage error={actionError} />}
+      {detailPhase !== "ready" && (
+        <p className="director-preview-hint">详情加载完成后才可生成</p>
+      )}
+      <button disabled={!canGenerate} onClick={onGenerate} type="button">
+        {inFlight ? "提交生成任务…" : "生成视频"}
+      </button>
+      {taskIds.map((taskId) => {
+        const task = taskDetails.find((candidate) => candidate.id === taskId);
+        const event = taskEvents.find(
+          (candidate) => candidate.task_id === taskId,
+        );
+        const status = task?.status ?? event?.status ?? null;
+        const progress = task?.progress ?? event?.progress ?? null;
+        const failed = status === "failed";
+        return (
+          <article className="director-generation-task" key={taskId}>
+            <p className="director-generation-submitted" role="status">
+              任务已提交：#{taskId}
+            </p>
+            {status !== null && (
+              <p className="director-generation-status">
+                状态：{status}
+                {progress !== null ? ` · 进度：${progress}` : ""}
+              </p>
+            )}
+            {event?.message !== undefined && event.message.length > 0 && (
+              <p className="director-generation-message">{event.message}</p>
+            )}
+            {task?.error_msg !== null && task?.error_msg !== undefined && (
+              <p className="error-message" role="alert">
+                {task.error_msg}
+              </p>
+            )}
+            {failed && task === undefined && taskError !== null && (
+              <ApiErrorMessage error={taskError} />
+            )}
+          </article>
+        );
+      })}
     </section>
   );
 }
@@ -1143,9 +1281,13 @@ interface DirectorSelectionPanelProps {
   deleting: boolean;
   detailError: unknown | null;
   detailPhase: DirectorSyncState["detailPhase"];
+  generationActionError: unknown | null;
   generationGate: ReturnType<typeof projectDirectorGenerationGate> | null;
+  generationRequestInFlight: boolean;
+  generationTaskIds: number[];
   onClearNote: () => void;
   onDelete: () => void;
+  onGenerate: () => void;
   onRequestedDurationChange: (requestedDuration: string) => void;
   onSlotClear: (slotNo: number) => void;
   onSlotEnabledChange: (slotNo: number, enabled: boolean) => void;
@@ -1167,6 +1309,9 @@ interface DirectorSelectionPanelProps {
   takeMutationError: unknown | null;
   takeMutationKey: string | null;
   takesProjection: ReturnType<typeof projectDirectorTakes> | null;
+  taskDetails: Task[];
+  taskEvents: TaskEvent[];
+  taskError: unknown | null;
   mediaErrors: Record<number, string>;
 }
 
@@ -1186,9 +1331,13 @@ function DirectorSelectionPanel({
   deleting,
   detailError,
   detailPhase,
+  generationActionError,
   generationGate,
+  generationRequestInFlight,
+  generationTaskIds,
   onClearNote,
   onDelete,
+  onGenerate,
   onRequestedDurationChange,
   onSlotClear,
   onSlotEnabledChange,
@@ -1210,6 +1359,9 @@ function DirectorSelectionPanel({
   takeMutationError,
   takeMutationKey,
   takesProjection,
+  taskDetails,
+  taskEvents,
+  taskError,
   mediaErrors,
 }: DirectorSelectionPanelProps) {
   if (selectedClipId !== null) {
@@ -1298,6 +1450,17 @@ function DirectorSelectionPanel({
             </div>
           </div>
         )}
+        <DirectorGenerationPanel
+          actionError={generationActionError}
+          detailPhase={detailPhase}
+          generationGate={generationGate}
+          inFlight={generationRequestInFlight}
+          onGenerate={onGenerate}
+          taskDetails={taskDetails}
+          taskEvents={taskEvents}
+          taskIds={generationTaskIds}
+          taskError={taskError}
+        />
         {detailPhase === "ready" && slotsProjection !== null && (
           <DirectorSlotsPanel
             mutationError={slotMutationError}
