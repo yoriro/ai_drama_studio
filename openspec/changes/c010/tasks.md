@@ -238,7 +238,7 @@
   - **追溯行：** `C010 导演台轨道投影与选择：场景带、duration 比例分镜轨、片段轨、空洞、changed 与两维状态，零场景可加入任意单场景、双场景不可选`；`C010 Director API/媒体/错误边界：只用同源路径，404/409/422/500/协议/网络/媒体错误可见且无 retry/fallback/伪成功`。
   - **验收方式与命令：** 执行 `npm --prefix frontend run test -- src/features/director/directorModel.test.ts` 与固定回归；用 `rg -n '暂未交付' frontend/src/pages/EpisodeWorkspacePage.tsx frontend/src/pages/DirectorPage.tsx` 期望 Director 不再走旧空态，检查 route 仍只有既有 director path。T3 精确投影测试、TypeScript build 和 JSX/CSS diff 必须共同证明三轨使用同一 model 输出；真实 DOM/截图追溯保持待填，直到 T11 使用 T10A 装置完成，不能在本 task 冒充浏览器已验收。
 
-- [ ] **T5 — 接入 D-008 Director WS/REST 同步协调器**
+- [x] **T5 — 接入 D-008 Director WS/REST 同步协调器**
 
   - **交付：** 新建 Director 专用同步模块及测试并接入页面；实现 socket-first 缓冲、页面/详情 request generation、未知 gen_clip_video task 单 in-flight detail GET、initial/reconnect、事件使 refresh 失效并补发、success/terminal notice 后置、同 Clip dirty 草稿合并和选中 Clip 切换隔离。不得改 AssetPage/TasksPage，不得加 interval polling、mutation retry、全局 store 或通用注册表。
   - **R：** 无；PRD §3.2、§6.1、§9、§11 M4；DECISIONS D-008。

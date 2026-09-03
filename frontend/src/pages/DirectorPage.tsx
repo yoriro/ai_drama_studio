@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { listAssets } from "../api/assets";
 import { listClips } from "../api/clips";
@@ -9,76 +9,53 @@ import { EmptyState } from "../components/EmptyState";
 import {
   buildDirectorProjection,
   projectShotSelection,
-  type DirectorProjection,
   type ShotSelectionProjection,
 } from "../features/director/directorModel";
+import {
+  createDirectorSync,
+  type DirectorSyncState,
+} from "../features/director/directorSync";
 
 interface DirectorPageProps {
   projectId: number;
   episodeId: number;
 }
 
-interface DirectorData {
-  projection: DirectorProjection;
-  clips: Clip[];
-}
-
-type LoadState = "loading" | "error" | "ready";
-
 export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
-  const [data, setData] = useState<DirectorData | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [loadError, setLoadError] = useState<unknown>(null);
+  const sync = useMemo(
+    () =>
+      createDirectorSync({
+        readPageSnapshot: async () => {
+          const [assets, shots, clips] = await Promise.all([
+            listAssets(projectId),
+            listShots(episodeId),
+            listClips(episodeId),
+          ]);
+          buildDirectorProjection({ assets, shots, clips });
+          return { assets, shots, clips };
+        },
+      }),
+    [episodeId, projectId],
+  );
+  const [syncState, setSyncState] = useState<DirectorSyncState>(() =>
+    sync.getState(),
+  );
   const [selectedShotIds, setSelectedShotIds] = useState<number[]>([]);
-  const [selectedClipId, setSelectedClipId] = useState<number | null>(null);
 
   useEffect(() => {
-    let disposed = false;
-    setData(null);
-    setLoadState("loading");
-    setLoadError(null);
     setSelectedShotIds([]);
-    setSelectedClipId(null);
-
-    async function loadDirectorData(): Promise<DirectorData> {
-      const [assets, shots, clips] = await Promise.all([
-        listAssets(projectId),
-        listShots(episodeId),
-        listClips(episodeId),
-      ]);
-      return {
-        projection: buildDirectorProjection({
-          assets,
-          shots,
-          clips,
-        }),
-        clips,
-      };
-    }
-
-    void loadDirectorData().then(
-      (loaded) => {
-        if (disposed) {
-          return;
-        }
-        setData(loaded);
-        setLoadState("ready");
-      },
-      (error: unknown) => {
-        if (disposed) {
-          return;
-        }
-        setLoadError(error);
-        setLoadState("error");
-      },
-    );
-
+    const unsubscribe = sync.subscribe(setSyncState);
+    sync.start();
     return () => {
-      disposed = true;
+      unsubscribe();
+      sync.dispose();
     };
-  }, [episodeId, projectId]);
+  }, [sync]);
 
-  if (loadState === "loading") {
+  if (
+    syncState.pagePhase === "connecting" ||
+    syncState.pagePhase === "snapshot-loading"
+  ) {
     return (
       <section aria-label="导演台" className="director-page">
         <h2>导演台</h2>
@@ -87,16 +64,20 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     );
   }
 
-  if (loadState === "error" || data === null) {
+  if (syncState.pagePhase === "error" || syncState.pageSnapshot === null) {
     return (
       <section aria-label="导演台" className="director-page">
         <h2>导演台</h2>
-        <ApiErrorMessage error={loadError ?? new Error("导演台数据不存在")} />
+        <ApiErrorMessage
+          error={syncState.error ?? new Error("导演台数据不存在")}
+        />
       </section>
     );
   }
 
-  if (data.projection.shots.length === 0) {
+  const projection = buildDirectorProjection(syncState.pageSnapshot);
+
+  if (projection.shots.length === 0) {
     return (
       <section aria-label="导演台" className="director-page">
         <h2>导演台</h2>
@@ -106,11 +87,8 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   }
 
   const selection = projectShotSelection(
-    data.projection,
+    projection,
     selectedShotIds,
-  );
-  const selectedClip = data.projection.clipSpans.find(
-    ({ clip }) => clip.id === selectedClipId,
   );
 
   function toggleShot(shotId: number): void {
@@ -118,7 +96,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     if (item === undefined || item.disabled) {
       return;
     }
-    setSelectedClipId(null);
+    sync.selectClip(null);
     setSelectedShotIds((current) =>
       current.includes(shotId)
         ? current.filter((currentShotId) => currentShotId !== shotId)
@@ -128,7 +106,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
 
   function selectClip(clipId: number): void {
     setSelectedShotIds([]);
-    setSelectedClipId(clipId);
+    sync.selectClip(clipId);
   }
 
   return (
@@ -140,7 +118,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
             场景带、分镜轨与片段轨使用同一组分镜列；分镜勾选只用于新片段选择。
           </p>
         </div>
-        <p className="director-count">{data.projection.shots.length} 个分镜</p>
+        <p className="director-count">{projection.shots.length} 个分镜</p>
       </div>
 
       <section aria-label="导演台轨道" className="director-tracks panel">
@@ -148,9 +126,9 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
           <h3>场景带</h3>
           <div
             className="director-track director-scene-track"
-            style={{ gridTemplateColumns: data.projection.gridTemplateColumns }}
+            style={{ gridTemplateColumns: projection.gridTemplateColumns }}
           >
-            {data.projection.sceneBands.map((band) => (
+            {projection.sceneBands.map((band) => (
               <div
                 className={[
                   "director-scene-band",
@@ -176,9 +154,9 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
           <h3>分镜轨</h3>
           <div
             className="director-track director-shot-track"
-            style={{ gridTemplateColumns: data.projection.gridTemplateColumns }}
+            style={{ gridTemplateColumns: projection.gridTemplateColumns }}
           >
-            {data.projection.shots.map((projectedShot) => {
+            {projection.shots.map((projectedShot) => {
               const eligibility = selection.eligibility.find(
                 (item) => item.shotId === projectedShot.shot.id,
               )!;
@@ -212,9 +190,9 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
           <h3>片段轨</h3>
           <div
             className="director-track director-clip-track"
-            style={{ gridTemplateColumns: data.projection.gridTemplateColumns }}
+            style={{ gridTemplateColumns: projection.gridTemplateColumns }}
           >
-            {data.projection.gaps.map((gap) => (
+            {projection.gaps.map((gap) => (
               <div
                 aria-label={`未覆盖分镜：${gap.shotIds.join(", ")}`}
                 className="director-gap"
@@ -224,14 +202,14 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
                 空洞
               </div>
             ))}
-            {data.projection.clipSpans.map((span) => (
+            {projection.clipSpans.map((span) => (
               <button
-                aria-pressed={selectedClipId === span.clip.id}
+                aria-pressed={syncState.selectedClipId === span.clip.id}
                 className={[
                   "director-clip-bar",
                   span.status.generationClassName,
                   span.status.freshnessClassName,
-                  selectedClipId === span.clip.id
+                  syncState.selectedClipId === span.clip.id
                     ? "director-clip-bar-selected"
                     : "",
                 ].filter(Boolean).join(" ")}
@@ -250,9 +228,9 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       </section>
 
       <DirectorSelectionPanel
-        clips={data.clips}
+        clips={syncState.pageSnapshot.clips}
         selection={selection}
-        selectedClipId={selectedClip?.clip.id ?? null}
+        selectedClipId={syncState.selectedClipId}
         selectedShotIds={selectedShotIds}
       />
     </section>
