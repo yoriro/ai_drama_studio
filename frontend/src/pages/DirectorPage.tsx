@@ -1,14 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { listAssets } from "../api/assets";
-import { listClips } from "../api/clips";
+import { createClip, listClips, previewClips } from "../api/clips";
 import type { Clip } from "../api/clips";
 import { listShots } from "../api/shots";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 import {
+  applyDirectorPreview,
   buildDirectorProjection,
+  clearDirectorPreview,
+  createDirectorPreviewState,
+  failDirectorPreview,
+  invalidateDirectorPreview,
+  preserveDirectorPreviewAfterCreateError,
+  projectClipCreateRequest,
+  projectReferenceSelection,
   projectShotSelection,
+  startDirectorPreview,
+  type DirectorPreviewState,
   type ShotSelectionProjection,
 } from "../features/director/directorModel";
 import {
@@ -41,6 +51,11 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     sync.getState(),
   );
   const [selectedShotIds, setSelectedShotIds] = useState<number[]>([]);
+  const [previewState, setPreviewState] = useState<DirectorPreviewState>(() =>
+    createDirectorPreviewState(),
+  );
+  const [createdClipId, setCreatedClipId] = useState<number | null>(null);
+  const previewGeneration = useRef(0);
 
   useEffect(() => {
     setSelectedShotIds([]);
@@ -51,6 +66,21 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       sync.dispose();
     };
   }, [sync]);
+
+  useEffect(() => {
+    if (
+      createdClipId === null ||
+      syncState.pagePhase !== "ready" ||
+      syncState.pageSnapshot === null ||
+      !syncState.pageSnapshot.clips.some((clip) => clip.id === createdClipId)
+    ) {
+      return;
+    }
+    sync.selectClip(createdClipId);
+    setSelectedShotIds([]);
+    setPreviewState(clearDirectorPreview());
+    setCreatedClipId(null);
+  }, [createdClipId, sync, syncState.pagePhase, syncState.pageSnapshot]);
 
   if (
     syncState.pagePhase === "connecting" ||
@@ -91,22 +121,110 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     selectedShotIds,
   );
 
+  const createProjection = projectClipCreateRequest(previewState);
+
   function toggleShot(shotId: number): void {
     const item = selection.eligibility.find((entry) => entry.shotId === shotId);
     if (item === undefined || item.disabled) {
       return;
     }
+    previewGeneration.current += 1;
     sync.selectClip(null);
     setSelectedShotIds((current) =>
       current.includes(shotId)
         ? current.filter((currentShotId) => currentShotId !== shotId)
         : [...current, shotId],
     );
+    setPreviewState((current) =>
+      invalidateDirectorPreview(
+        current.selectedShotIds.includes(shotId)
+          ? current.selectedShotIds.filter(
+              (currentShotId) => currentShotId !== shotId,
+            )
+          : [...current.selectedShotIds, shotId],
+      ),
+    );
   }
 
   function selectClip(clipId: number): void {
+    previewGeneration.current += 1;
     setSelectedShotIds([]);
+    setPreviewState(invalidateDirectorPreview([]));
     sync.selectClip(clipId);
+  }
+
+  function startPreview(): void {
+    const requestedShotIds = [...selectedShotIds];
+    const generation = ++previewGeneration.current;
+    setPreviewState(startDirectorPreview(requestedShotIds));
+    void previewClips(episodeId, { shot_ids: requestedShotIds }).then(
+      (response) => {
+        if (generation !== previewGeneration.current) {
+          return;
+        }
+        setPreviewState((current) => applyDirectorPreview(current, response));
+      },
+      (error: unknown) => {
+        if (generation !== previewGeneration.current) {
+          return;
+        }
+        setPreviewState((current) => failDirectorPreview(current, error));
+      },
+    );
+  }
+
+  function toggleReference(assetId: number): void {
+    setPreviewState((current) => {
+      if (current.response === null || current.phase === "creating") {
+        return current;
+      }
+      const selected = new Set(current.selectedReferenceAssetIds);
+      if (selected.has(assetId)) {
+        selected.delete(assetId);
+      } else {
+        selected.add(assetId);
+      }
+      const projected = projectReferenceSelection(
+        current.response,
+        [...selected],
+      );
+      return {
+        ...current,
+        selectedReferenceAssetIds: projected.selectedReferenceAssetIds,
+        error: null,
+      };
+    });
+  }
+
+  function handleRequestedDurationChange(requestedDuration: string): void {
+    setPreviewState((current) => ({
+      ...current,
+      requestedDuration,
+      error: null,
+    }));
+  }
+
+  function handleCreate(): void {
+    if (createProjection.input === null || previewState.phase !== "ready") {
+      return;
+    }
+    setPreviewState((current) => ({ ...current, phase: "creating", error: null }));
+    void createClip(episodeId, createProjection.input).then(
+      (created) => {
+        setCreatedClipId(created.id);
+        sync.refreshPage({
+          notice: {
+            kind: "mutation-success",
+            message: `Clip #${created.id} 已创建`,
+          },
+        });
+      },
+      (error: unknown) => {
+        setPreviewState((current) =>
+          preserveDirectorPreviewAfterCreateError(current, error),
+        );
+      },
+    );
   }
 
   return (
@@ -120,6 +238,11 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         </div>
         <p className="director-count">{projection.shots.length} 个分镜</p>
       </div>
+      {syncState.notices.length > 0 && (
+        <p className="director-success" role="status">
+          {syncState.notices[syncState.notices.length - 1].message}
+        </p>
+      )}
 
       <section aria-label="导演台轨道" className="director-tracks panel">
         <div className="director-track-group">
@@ -227,12 +350,161 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         </div>
       </section>
 
+      <DirectorPreviewPanel
+        createProjection={createProjection}
+        onCreate={handleCreate}
+        onPreview={startPreview}
+        onReferenceToggle={toggleReference}
+        onRequestedDurationChange={handleRequestedDurationChange}
+        state={previewState}
+      />
+
       <DirectorSelectionPanel
         clips={syncState.pageSnapshot.clips}
         selection={selection}
         selectedClipId={syncState.selectedClipId}
         selectedShotIds={selectedShotIds}
       />
+    </section>
+  );
+}
+
+interface DirectorPreviewPanelProps {
+  createProjection: ReturnType<typeof projectClipCreateRequest>;
+  onCreate: () => void;
+  onPreview: () => void;
+  onReferenceToggle: (assetId: number) => void;
+  onRequestedDurationChange: (requestedDuration: string) => void;
+  state: DirectorPreviewState;
+}
+
+function DirectorPreviewPanel({
+  createProjection,
+  onCreate,
+  onPreview,
+  onReferenceToggle,
+  onRequestedDurationChange,
+  state,
+}: DirectorPreviewPanelProps) {
+  const response = state.response;
+  const referenceSelection =
+    response === null
+      ? null
+      : projectReferenceSelection(response, state.selectedReferenceAssetIds);
+  const previewInFlight =
+    state.phase === "previewing" || state.phase === "creating";
+  const canCreate =
+    state.phase === "ready" && createProjection.input !== null;
+
+  return (
+    <section aria-label="预检与创建" className="director-preview-panel panel">
+      <h3>预检与创建</h3>
+      <button
+        disabled={state.selectedShotIds.length === 0 || previewInFlight}
+        onClick={onPreview}
+        type="button"
+      >
+        {state.phase === "previewing" ? "预检中…" : "预检当前分镜"}
+      </button>
+      {state.selectedShotIds.length === 0 && (
+        <p className="director-preview-hint">请先选择分镜</p>
+      )}
+      {state.error !== null && <ApiErrorMessage error={state.error} />}
+      {response !== null && referenceSelection !== null && (
+        <>
+          <dl className="director-preview-summary">
+            <div>
+              <dt>分镜</dt>
+              <dd>{response.shot_ids.join("、")}</dd>
+            </div>
+            <div>
+              <dt>估算总时长</dt>
+              <dd>{response.duration_est_total} 秒</dd>
+            </div>
+            <div>
+              <dt>建议请求时长</dt>
+              <dd>{response.suggested_requested_duration} 秒</dd>
+            </div>
+          </dl>
+
+          {response.violations.length > 0 && (
+            <div className="director-preview-messages director-preview-violations">
+              <strong>违规</strong>
+              <ul>
+                {response.violations.map((violation, index) => (
+                  <li key={`${violation.code}-${index}`}>{violation.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {response.warnings.length > 0 && (
+            <div className="director-preview-messages director-preview-warnings">
+              <strong>提示</strong>
+              <ul>
+                {response.warnings.map((warning, index) => (
+                  <li key={`${warning.code}-${index}`}>{warning.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <fieldset
+            className="director-reference-candidates"
+            disabled={state.phase === "creating"}
+          >
+            <legend>
+              参考资产（最多 {referenceSelection.maxSelectableReferenceAssets} 个）
+            </legend>
+            {response.reference_candidates.map((candidate) => {
+              const checked = state.selectedReferenceAssetIds.includes(
+                candidate.asset_id,
+              );
+              const atLimit =
+                !checked &&
+                state.selectedReferenceAssetIds.length >=
+                  referenceSelection.maxSelectableReferenceAssets;
+              return (
+                <label
+                  className="director-reference-candidate"
+                  key={candidate.asset_id}
+                >
+                  <input
+                    checked={checked}
+                    disabled={atLimit}
+                    onChange={() => onReferenceToggle(candidate.asset_id)}
+                    type="checkbox"
+                  />
+                  <span>
+                    {candidate.asset_name} · {candidate.asset_type} · 首次镜头 {candidate.first_shot_id}（顺序 {candidate.first_order_index}）
+                  </span>
+                  {candidate.selected_by_default && (
+                    <small>默认</small>
+                  )}
+                </label>
+              );
+            })}
+          </fieldset>
+
+          <label className="director-requested-duration">
+            请求时长（秒）
+            <input
+              onChange={(event) =>
+                onRequestedDurationChange(event.target.value)
+              }
+              value={state.requestedDuration}
+            />
+          </label>
+          {createProjection.validationMessage !== null &&
+            state.phase === "ready" && (
+              <p className="director-preview-hint">
+                {createProjection.validationMessage}
+              </p>
+            )}
+          <button disabled={!canCreate} onClick={onCreate} type="button">
+            {state.phase === "creating" ? "创建中…" : "创建 Clip"}
+          </button>
+        </>
+      )}
     </section>
   );
 }

@@ -2,11 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import type { ClipPreviewResponse } from "../../api/clips";
 import {
+  applyDirectorPreview,
   buildDirectorProjection,
+  clearDirectorPreview,
+  createDirectorPreviewState,
   DirectorProjectionError,
+  failDirectorPreview,
   getClipStatusToken,
+  invalidateDirectorPreview,
+  preserveDirectorPreviewAfterCreateError,
+  projectClipCreateRequest,
   projectReferenceSelection,
   projectShotSelection,
+  parseDirectorRequestedDuration,
+  startDirectorPreview,
   type DirectorAsset,
   type DirectorClip,
   type DirectorShot,
@@ -316,6 +325,112 @@ describe("Director projection", () => {
       reference_candidates: overflowPreview.reference_candidates.slice(0, 2),
     };
     expect(projectReferenceSelection(equalPreview).maxSelectableReferenceAssets).toBe(2);
+  });
+
+  it("keeps preview state authoritative, preserves warnings, and builds the exact create body", () => {
+    const response: ClipPreviewResponse = {
+      episode_id: 1,
+      shot_ids: [3, 1],
+      duration_est_total: 7,
+      suggested_requested_duration: 9,
+      reference_candidates: [10, 11, 12, 13].map((asset_id) => ({
+        asset_id,
+        asset_type: "character",
+        asset_name: `角色${asset_id}`,
+        first_shot_id: asset_id === 10 ? 3 : 1,
+        first_order_index: asset_id === 10 ? 3 : 1,
+        selected_by_default: asset_id < 12,
+      })),
+      default_reference_asset_ids: [10, 11],
+      violations: [],
+      warnings: [{ code: "soft_limit", message: "参考资产超过软提示" }],
+    };
+
+    let state = createDirectorPreviewState([3, 1]);
+    state = startDirectorPreview(state.selectedShotIds);
+    expect(state).toMatchObject({
+      phase: "previewing",
+      selectedShotIds: [3, 1],
+      response: null,
+      selectedReferenceAssetIds: [],
+      requestedDuration: "",
+      error: null,
+    });
+
+    state = applyDirectorPreview(state, response);
+    expect(state.phase).toBe("ready");
+    expect(state.selectedShotIds).toEqual([3, 1]);
+    expect(state.requestedDuration).toBe("9");
+    expect(state.selectedReferenceAssetIds).toEqual([10, 11]);
+    expect(state.response?.warnings).toEqual([
+      { code: "soft_limit", message: "参考资产超过软提示" },
+    ]);
+
+    const replacementState = {
+      ...state,
+      selectedReferenceAssetIds: [12, 10],
+      requestedDuration: "7",
+    };
+    expect(projectClipCreateRequest(replacementState, "保留空串语义")).toEqual({
+      input: {
+        shot_ids: [3, 1],
+        reference_asset_ids: [10, 12],
+        requested_duration: 7,
+        user_note: "保留空串语义",
+      },
+      validationMessage: null,
+    });
+    expect(projectReferenceSelection(response, []).validationMessage).toBe(
+      "至少选择 1 个参考资产",
+    );
+    expect(
+      projectReferenceSelection(response, [10, 11, 12]).validationMessage,
+    ).toBe("参考资产最多选择 2 个");
+    expect(projectReferenceSelection(response, [10, 11, 12, 13]).candidateIds).toEqual([
+      10,
+      11,
+      12,
+      13,
+    ]);
+    expect(parseDirectorRequestedDuration("7")).toBe(7);
+    expect(parseDirectorRequestedDuration("7.5")).toBeNull();
+    expect(projectClipCreateRequest({ ...state, requestedDuration: "7.5" }).input).toBeNull();
+
+    const violationState = applyDirectorPreview(state, {
+      ...response,
+      violations: [{ code: "R5", message: "分镜不连续" }],
+    });
+    expect(projectClipCreateRequest(violationState).validationMessage).toBe(
+      "存在服务端违规，暂不能创建",
+    );
+    expect(violationState.response?.violations).toEqual([
+      { code: "R5", message: "分镜不连续" },
+    ]);
+
+    const createError = new Error("服务端重新裁决失败");
+    const preserved = preserveDirectorPreviewAfterCreateError(state, createError);
+    expect(preserved.phase).toBe("ready");
+    expect(preserved.response).toBe(response);
+    expect(preserved.selectedShotIds).toEqual([3, 1]);
+    expect(preserved.error).toBe(createError);
+
+    expect(failDirectorPreview(state, createError)).toMatchObject({
+      phase: "error",
+      selectedShotIds: [3, 1],
+      response: null,
+      selectedReferenceAssetIds: [],
+      requestedDuration: "",
+      error: createError,
+    });
+    expect(invalidateDirectorPreview([1])).toEqual({
+      phase: "idle",
+      selectedShotIds: [1],
+      response: null,
+      selectedReferenceAssetIds: [],
+      requestedDuration: "",
+      error: null,
+    });
+    expect(clearDirectorPreview()).toEqual(createDirectorPreviewState());
   });
 
   it("throws a clear visible error for every invalid clip or shot projection fact", () => {

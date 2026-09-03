@@ -1,6 +1,7 @@
 import type { Asset } from "../../api/assets";
 import type {
   Clip,
+  ClipCreateRequest,
   ClipFreshness,
   ClipGenerationState,
   ClipPreviewResponse,
@@ -507,5 +508,157 @@ export function projectReferenceSelection(
     selectedReferenceAssetIds: selected,
     maxSelectableReferenceAssets,
     validationMessage,
+  };
+}
+
+export type DirectorPreviewPhase =
+  | "idle"
+  | "previewing"
+  | "ready"
+  | "error"
+  | "creating";
+
+export interface DirectorPreviewState {
+  phase: DirectorPreviewPhase;
+  selectedShotIds: number[];
+  response: ClipPreviewResponse | null;
+  selectedReferenceAssetIds: number[];
+  requestedDuration: string;
+  error: unknown | null;
+}
+
+export function createDirectorPreviewState(
+  selectedShotIds: readonly number[] = [],
+): DirectorPreviewState {
+  return {
+    phase: "idle",
+    selectedShotIds: [...selectedShotIds],
+    response: null,
+    selectedReferenceAssetIds: [],
+    requestedDuration: "",
+    error: null,
+  };
+}
+
+export function invalidateDirectorPreview(
+  selectedShotIds: readonly number[],
+): DirectorPreviewState {
+  return createDirectorPreviewState(selectedShotIds);
+}
+
+export function startDirectorPreview(
+  selectedShotIds: readonly number[],
+): DirectorPreviewState {
+  return {
+    ...createDirectorPreviewState(selectedShotIds),
+    phase: "previewing",
+  };
+}
+
+export function applyDirectorPreview(
+  state: DirectorPreviewState,
+  response: ClipPreviewResponse,
+): DirectorPreviewState {
+  const referenceSelection = projectReferenceSelection(response);
+  return {
+    ...state,
+    phase: "ready",
+    response,
+    selectedReferenceAssetIds: referenceSelection.selectedReferenceAssetIds,
+    requestedDuration: String(response.suggested_requested_duration),
+    error: null,
+  };
+}
+
+export function failDirectorPreview(
+  state: DirectorPreviewState,
+  error: unknown,
+): DirectorPreviewState {
+  return {
+    ...state,
+    phase: "error",
+    response: null,
+    selectedReferenceAssetIds: [],
+    requestedDuration: "",
+    error,
+  };
+}
+
+export function preserveDirectorPreviewAfterCreateError(
+  state: DirectorPreviewState,
+  error: unknown,
+): DirectorPreviewState {
+  return {
+    ...state,
+    phase: "ready",
+    error,
+  };
+}
+
+export function clearDirectorPreview(): DirectorPreviewState {
+  return createDirectorPreviewState();
+}
+
+export function parseDirectorRequestedDuration(
+  requestedDuration: string,
+): number | null {
+  if (!/^-?\d+$/.test(requestedDuration)) {
+    return null;
+  }
+  const parsed = Number(requestedDuration);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+export interface DirectorClipCreateProjection {
+  input: ClipCreateRequest | null;
+  validationMessage: string | null;
+}
+
+export function projectClipCreateRequest(
+  state: DirectorPreviewState,
+  userNote: string | null = null,
+): DirectorClipCreateProjection {
+  if (state.response === null) {
+    return {
+      input: null,
+      validationMessage: "请先完成预检",
+    };
+  }
+  if (state.response.violations.length > 0) {
+    return {
+      input: null,
+      validationMessage: "存在服务端违规，暂不能创建",
+    };
+  }
+
+  const referenceSelection = projectReferenceSelection(
+    state.response,
+    state.selectedReferenceAssetIds,
+  );
+  if (referenceSelection.validationMessage !== null) {
+    return {
+      input: null,
+      validationMessage: referenceSelection.validationMessage,
+    };
+  }
+
+  const requestedDuration = parseDirectorRequestedDuration(
+    state.requestedDuration,
+  );
+  if (requestedDuration === null) {
+    return {
+      input: null,
+      validationMessage: "请求时长必须是十进制整数",
+    };
+  }
+
+  return {
+    input: {
+      shot_ids: [...state.response.shot_ids],
+      reference_asset_ids: referenceSelection.selectedReferenceAssetIds,
+      requested_duration: requestedDuration,
+      user_note: userNote,
+    },
+    validationMessage: null,
   };
 }

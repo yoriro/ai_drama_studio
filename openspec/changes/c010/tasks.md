@@ -246,7 +246,7 @@
   - **追溯行：** `C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`。
   - **验收方式与命令：** `npm --prefix frontend run test -- src/features/director/directorSync.test.ts`；使用可控 deferred Promise/EventTarget，逐项断言 spec AC-13/14：open 在 snapshot 前、旧 response 应用次数 0、replacement refresh 次数精确、同 task detail 最大并发 1、同 Clip refresh 保留 dirty 且更新 base、切 Clip 后旧详情零应用并废弃旧草稿、initial failure close/reconnect、最新错误可见、notice 在最新 apply 后，且 fake clock 中无 polling timer。随后运行固定回归并回填真实 node 名。
 
-- [ ] **T6 — 交付预检、候选精简与创建面板**
+- [x] **T6 — 交付预检、候选精简与创建面板**
 
   - **交付：** 在 Director 页面完成 Shot 选择→preview→面板→create；逐项显示 API violations/warnings/时长映射，候选严格保序/default 勾选，最大选择数从响应推导；selection 变化清空旧 preview/draft。创建成功须经 T5 最新 refresh 才选中新 Clip/提示成功，失败保留输入并直显 message。扩充 T3 测试覆盖 preview state/cap，不新增 DOM runner。
   - **R：** R5、R5a、R6、R7、R8；PRD §3.1、§5 片段、§9、§11 M4。
