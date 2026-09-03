@@ -230,7 +230,7 @@
   - **追溯行：** `C010 导演台轨道投影与选择：场景带、duration 比例分镜轨、片段轨、空洞、changed 与两维状态，零场景可加入任意单场景、双场景不可选`；`C010 预检与创建交互：服务端 violations/warnings、候选原序/default、响应推导硬上限、软提示与创建后权威刷新`。
   - **验收方式与命令：** `npm --prefix frontend run test -- src/features/director/directorModel.test.ts`；断言至少覆盖 spec AC-03/04/05 的精确段数、`1fr 2fr 5fr`、跨 scene/zero/multiple/occupied/noncontiguous、五生成态×两 freshness、gap 合并、候选 overflow/等量替换及每个非法投影错误；不得只判数组非空。随后运行固定回归，回填真实 node 名后提交。
 
-- [ ] **T4 — 用真实 Director 页面替换空态并交付三轨浏览**
+- [x] **T4 — 用真实 Director 页面替换空态并交付三轨浏览**
 
   - **交付：** 新建 `frontend/src/pages/DirectorPage.tsx`，由 `EpisodeWorkspacePage` 在 director tab 传入已验证的 project/episode id；加载 assets/shots/clips，使用 T3 的单一投影渲染场景带、分镜轨、片段轨/空洞，支持 Shot checkbox 与 Clip bar selection，并在 `frontend/src/styles.css` 只增加 `director-*` 局部样式。交付 loading、空 shots、ready、错误和 no-selection 面板；不得加入后续 mutation 的假按钮或假数据。
   - **R：** R5、R5a；PRD §2.1(7)、§3.2、§9、§11 M4。
