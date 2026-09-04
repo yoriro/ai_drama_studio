@@ -487,7 +487,7 @@
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R12；PRD §0、§3、§9、§11 M4、§12。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；`C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback`；`C010 自洽 Director 夹具参考图：无需用户素材或旧库，driver 经正式 API 生成/上传/回读 13 张生产可加载图片`；`C010 Comfy execution_error 真实协议：node_id 完整原因、跨 prompt 隔离、failed/no-take/no-retry 与 free-once`，并审计全部 C010 行。
-  - **验收方式与命令：** 创建名为 `ai_drama_studio_c010_final_<timestamp>` 且现场证明不存在的数据库，显式导出其 `DATABASE_URL` 和新的 `.work/c010/T13-data`，依次运行并保留原生 stdout/stderr：
+  - **验收方式与命令：** 创建名为 `ai_drama_studio_c010_final_<timestamp>` 且现场证明不存在的数据库，显式导出其 `DATABASE_URL` 和新的 `.work/c010/T13-data`，依次运行并保留原生 stdout/stderr。若此前已在同一实现/测试 commit 上完成 Alembic、完整后端、完整前端测试与 build，仅因下述源码文本检查误把 Python 相邻字符串拼接判为失败，则保留首次失败的 `T13-workflow-scope.log`，允许从修正后的 scope 检查继续，输出另存为 `T13-workflow-scope-rerun.log`；复跑前若实现、迁移、前端或测试发生 tracked 改动，必须从头重跑全部门槛：
 
     ```powershell
     Set-Location D:\ai_drama_studio\backend
@@ -570,11 +570,12 @@
     handler = Path("backend/app/tasks/gen_clip_video.py").read_text(encoding="utf-8")
     assert 'data.get("node_id")' in handler
     assert 'data.get("node")' not in handler
-    assert 'Comfy execution_error node_id=' in handler
+    assert '"Comfy execution_error "' in handler
+    assert 'f"node_id={node} type={node_type} exception={exception_message}"' in handler
     print(f"C010_WORKFLOW_EXACT_DIFF=PASS HASH={digest}")
     print("C010_HASH_TEST_BASELINE_EXACT_DIFF=PASS")
     print("C010_COMFY_NODE_ID_EXACT_DIFF=PASS")
-    '@ | python - 2>&1 | Tee-Object -FilePath '.work\c010\T13-workflow-scope.log'
+    '@ | python - 2>&1 | Tee-Object -FilePath '.work\c010\T13-workflow-scope-rerun.log'
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $pending = rg -n 'C010 .*\|.*待填' openspec/TRACEABILITY.md
     if ($LASTEXITCODE -eq 0) { $pending; exit 1 }
