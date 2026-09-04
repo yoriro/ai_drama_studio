@@ -585,7 +585,7 @@
 
     期望：Alembic 唯一 current head且 `No new upgrade operations detected.`；所有测试/build exit 0；forbidden diff 为空；workflow scope 检查精确 PASS，raw hash 与 T11A 现场记录、生产 loader/health 逐字一致且不同于修正前值；四个既有测试文件各自只含旧→新 hash 单常量替换，worker failure 测试只含四个 `node_id` key与一个错误标签替换，其他既有测试零 diff；视频 handler 不再读取 `node`；T11B driver/图片保持未跟踪且不入 commit；每个新增/修正测试真实 node ID/人工证据已回填；scope 每项对应 task。完成报告至少含：baseline/commit 映射、checkbox/追溯、实际命令与原始结果、外部依赖/资源终态、逐条“操作 → 观测值”浏览器走查、未验证项与沉淀。缺一项不得勾选或提交。该 task 的原结论已被 Sol 复审重新打开；其历史日志保留，但不能替代 T14-T21 修复后的最终一致性。
 
-- [ ] **T14 — 封闭 Director REST 成功体的 ID、seed 与媒体 URL 边界**
+- [x] **T14 — 封闭 Director REST 成功体的 ID、seed 与媒体 URL 边界**
 
   - **交付：** 在 C010 Director 消费成功响应、投影和媒体值的边界增加运行时校验，不以 TypeScript `as` 代替。所有会进入后续 API 路径的 Project/Episode/Asset/Shot/Clip/Slot/Video id 与 `slot_no` 必须是正的 JavaScript safe integer且不强转；ClipVideo seed 必须是 `0..2^63-1` 的十进制 string并保持逐字值；Slot 图片只接受 null、`image_source=asset_current` 对应的 `/media/asset-images/{正整数}`，或 `image_source=override` 对应的 `/media/slot-overrides/{当前 slot.id}`；take 只接受 `/media/clip-videos/{当前 video.id}`。拒绝 ID/source 不匹配、绝对/协议相对/`file:`、反斜杠、`.`/`..`、query、fragment与错类型；ClipVideo 可选 DEBUG 键只允许 `built_prompt/input_snapshot`，出现 `input_hash` 必须报 protocol error。畸形值必须在任何基于该值的 fetch、站外/媒体 DOM 请求或业务 state mutation 前产生可见 `ApiProtocolError`。只修改 C010 实际消费边界所需的前端 API/model/page文件；不得修改后端、schema、已有测试、引入兼容强转、默认值、fallback 或新依赖。新增且只新增独立回归文件 `frontend/src/features/director/directorReviewRestBoundary.test.ts`。
   - **R：** R9、R11；PRD §3.4、§3.5、§9；D-012 公共 seed string 约定。

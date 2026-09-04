@@ -9,6 +9,8 @@ import {
   readGenerateShotsImpact,
   updateEpisode,
 } from "../api";
+import { parseEpisodeResponse } from "../api/episodes";
+import { parseProjectResponse } from "../api/projects";
 import { getTask } from "../api/tasks";
 import {
   closeWebSocket,
@@ -65,11 +67,13 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
       return;
     }
     let disposed = false;
-    void Promise.all([getProject(numericProjectId), getEpisode(numericEpisodeId)]).then(
-      ([project, episode]) => {
+    void Promise.all([getProject(numericProjectId), getEpisode(numericEpisodeId)])
+      .then(([rawProject, rawEpisode]) => {
         if (disposed) {
           return;
         }
+        const project = parseProjectResponse(rawProject);
+        const episode = parseEpisodeResponse(rawEpisode);
         if (episode.project_id !== project.id) {
           setLoadError(new Error("该集不属于当前项目，已禁止编辑"));
           setLoadState("error");
@@ -77,14 +81,13 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
         }
         setContext({ project, episode });
         setLoadState("ready");
-      },
-      (error: unknown) => {
+      })
+      .catch((error: unknown) => {
         if (!disposed) {
           setLoadError(error);
           setLoadState("error");
         }
-      },
-    );
+      });
     return () => {
       disposed = true;
     };

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { listAssets } from "../api/assets";
+import {
+  listAssets,
+  parseAssetListResponse,
+} from "../api/assets";
 import {
   createClip,
   clearClipSlotOverride,
@@ -10,6 +13,11 @@ import {
   listClipSlots,
   listClipVideos,
   listClips,
+  parseClipResponse,
+  parseClipPreviewResponse,
+  parseClipSlotMutationResponse,
+  parseClipSlotsResponse,
+  parseClipVideosResponse,
   previewClips,
   setCurrentClipVideo,
   updateClipSlotEnabled,
@@ -17,7 +25,8 @@ import {
   uploadClipSlotOverride,
 } from "../api/clips";
 import type { Clip } from "../api/clips";
-import { listShots } from "../api/shots";
+import { listShots, parseShotListResponse } from "../api/shots";
+import { protocolError } from "../api/client";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 import {
@@ -56,20 +65,68 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     () =>
       createDirectorSync({
         readPageSnapshot: async () => {
-          const [assets, shots, clips] = await Promise.all([
+          const [rawAssets, rawShots, rawClips] = await Promise.all([
             listAssets(projectId),
             listShots(episodeId),
             listClips(episodeId),
           ]);
+          const assets = parseAssetListResponse(rawAssets);
+          const shots = parseShotListResponse(rawShots);
+          const clips = rawClips.map((clip) => parseClipResponse(clip));
+          if (assets.some((asset) => asset.project_id !== projectId)) {
+            return protocolError(
+              200,
+              "Director assets response contains an asset from another project",
+            );
+          }
+          if (shots.some((shot) => shot.episode_id !== episodeId)) {
+            return protocolError(
+              200,
+              "Director shots response contains a shot from another episode",
+            );
+          }
+          if (clips.some((clip) => clip.episode_id !== episodeId)) {
+            return protocolError(
+              200,
+              "Director clips response contains a clip from another episode",
+            );
+          }
           buildDirectorProjection({ assets, shots, clips });
           return { assets, shots, clips };
         },
         readClipDetail: async (clipId) => {
-          const [clip, slots, videos] = await Promise.all([
+          const [rawClip, rawSlots, rawVideos] = await Promise.all([
             getClip(clipId),
             listClipSlots(clipId),
             listClipVideos(clipId),
           ]);
+          const clip = parseClipResponse(rawClip);
+          const slots = parseClipSlotsResponse(rawSlots);
+          const videos = parseClipVideosResponse(rawVideos);
+          if (clip.id !== clipId) {
+            return protocolError(
+              200,
+              `Director Clip detail targeted Clip ${clip.id}, expected ${clipId}`,
+            );
+          }
+          if (slots.clip_id !== clipId) {
+            return protocolError(
+              200,
+              `Director slot response targeted Clip ${slots.clip_id}, expected ${clipId}`,
+            );
+          }
+          if (slots.items.some((slot) => slot.clip_id !== clipId)) {
+            return protocolError(
+              200,
+              "Director slot response contains a slot from another clip",
+            );
+          }
+          if (videos.some((video) => video.clip_id !== clipId)) {
+            return protocolError(
+              200,
+              "Director video response contains a video from another clip",
+            );
+          }
           return { clip, slots, videos };
         },
       }),
@@ -387,15 +444,15 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSettingsActionError(null);
     setSettingsNotice(null);
     setSettingsSavingClipId(clipId);
-    void updateClip(clipId, projected.input).then(
-      () => {
+    void updateClip(clipId, projected.input)
+      .then((updated) => {
+        parseClipResponse(updated);
         sync.refreshPage({ refreshSelectedClip: true });
-      },
-      (error: unknown) => {
+      })
+      .catch((error: unknown) => {
         setSettingsSavingClipId(null);
         setSettingsActionError(error);
-      },
-    );
+      });
   }
 
   function handleDeleteClip(): void {
@@ -441,17 +498,17 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSlotMutationError(null);
     setSlotMutationKey(key);
     setSlotMutationRefreshing(false);
-    void mutation().then(
-      () => {
+    void mutation()
+      .then((response) => {
+        parseClipSlotMutationResponse(response);
         setSlotMutationRefreshing(true);
         sync.refreshPage({ refreshSelectedClip: true });
-      },
-      (error: unknown) => {
+      })
+      .catch((error: unknown) => {
         setSlotMutationKey(null);
         setSlotMutationRefreshing(false);
         setSlotMutationError(error);
-      },
-    );
+      });
   }
 
   function handleSlotEnabledChange(slotNo: number, enabled: boolean): void {
@@ -501,17 +558,19 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setTakeMutationError(null);
     setTakeMutationKey(key);
     setTakeMutationRefreshing(false);
-    void mutation().then(
-      () => {
+    void mutation()
+      .then((response) => {
+        if (response !== undefined) {
+          parseClipVideosResponse([response]);
+        }
         setTakeMutationRefreshing(true);
         sync.refreshSelectedClip();
-      },
-      (error: unknown) => {
+      })
+      .catch((error: unknown) => {
         setTakeMutationKey(null);
         setTakeMutationRefreshing(false);
         setTakeMutationError(error);
-      },
-    );
+      });
   }
 
   function handleSetCurrentTake(videoId: number): void {
@@ -577,20 +636,26 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     const requestedShotIds = [...selectedShotIds];
     const generation = ++previewGeneration.current;
     setPreviewState(startDirectorPreview(requestedShotIds));
-    void previewClips(episodeId, { shot_ids: requestedShotIds }).then(
-      (response) => {
+    void previewClips(episodeId, { shot_ids: requestedShotIds })
+      .then((response) => {
         if (generation !== previewGeneration.current) {
           return;
         }
-        setPreviewState((current) => applyDirectorPreview(current, response));
-      },
-      (error: unknown) => {
+        const validated = parseClipPreviewResponse(response);
+        if (validated.episode_id !== episodeId) {
+          return protocolError(
+            200,
+            `Director preview targeted Episode ${validated.episode_id}, expected ${episodeId}`,
+          );
+        }
+        setPreviewState((current) => applyDirectorPreview(current, validated));
+      })
+      .catch((error: unknown) => {
         if (generation !== previewGeneration.current) {
           return;
         }
         setPreviewState((current) => failDirectorPreview(current, error));
-      },
-    );
+      });
   }
 
   function toggleReference(assetId: number): void {
@@ -629,22 +694,28 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       return;
     }
     setPreviewState((current) => ({ ...current, phase: "creating", error: null }));
-    void createClip(episodeId, createProjection.input).then(
-      (created) => {
-        setCreatedClipId(created.id);
+    void createClip(episodeId, createProjection.input)
+      .then((created) => {
+        const validated = parseClipResponse(created);
+        if (validated.episode_id !== episodeId) {
+          return protocolError(
+            200,
+            `Director created Clip targeted Episode ${validated.episode_id}, expected ${episodeId}`,
+          );
+        }
+        setCreatedClipId(validated.id);
         sync.refreshPage({
           notice: {
             kind: "mutation-success",
             message: `Clip #${created.id} 已创建`,
           },
         });
-      },
-      (error: unknown) => {
+      })
+      .catch((error: unknown) => {
         setPreviewState((current) =>
           preserveDirectorPreviewAfterCreateError(current, error),
         );
-      },
-    );
+      });
   }
 
   return (

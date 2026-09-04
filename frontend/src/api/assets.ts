@@ -1,4 +1,13 @@
-import { ApiProtocolError, requestJson, requestNoContent } from "./client";
+import {
+  ApiProtocolError,
+  protocolError,
+  requestJson,
+  requestNoContent,
+  requireEnum,
+  requireObjectWithKeys,
+  requirePositiveSafeInteger,
+  requireString,
+} from "./client";
 
 export type AssetType = "character" | "scene";
 export type AssetSource = "generated" | "manual";
@@ -54,6 +63,46 @@ interface CurrentImagePatch {
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
+export function parseAssetResponse(value: unknown, status = 200): Asset {
+  const record = requireObjectWithKeys(
+    value,
+    [
+      "id",
+      "project_id",
+      "type",
+      "name",
+      "description",
+      "source",
+      "revision",
+      "created_at",
+      "updated_at",
+    ],
+    [],
+    status,
+    "Asset response",
+  );
+  requirePositiveSafeInteger(record.id, "Asset.id", status);
+  requirePositiveSafeInteger(record.project_id, "Asset.project_id", status);
+  requireEnum(record.type, ["character", "scene"] as const, "Asset.type", status);
+  requireString(record.name, status, "Asset.name");
+  requireString(record.description, status, "Asset.description");
+  requireEnum(record.source, ["generated", "manual"] as const, "Asset.source", status);
+  requirePositiveSafeInteger(record.revision, "Asset.revision", status);
+  requireString(record.created_at, status, "Asset.created_at");
+  requireString(record.updated_at, status, "Asset.updated_at");
+  return record as unknown as Asset;
+}
+
+export function parseAssetListResponse(
+  value: unknown,
+  status = 200,
+): Asset[] {
+  if (!Array.isArray(value)) {
+    return protocolError(status, "Asset list response must be an array");
+  }
+  return value.map((item) => parseAssetResponse(item, status));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -82,7 +131,12 @@ function isGenerateAssetImageResponse(
 }
 
 export function listAssets(projectId: number): Promise<Asset[]> {
-  return requestJson<Asset[]>(`/projects/${projectId}/assets`);
+  const id = requirePositiveSafeInteger(projectId, "projectId");
+  return requestJson<Asset[]>(
+    `/projects/${id}/assets`,
+    undefined,
+    parseAssetListResponse,
+  );
 }
 
 export function createAsset(
@@ -166,8 +220,6 @@ export function deleteAssetImage(imageId: number): Promise<void> {
 }
 
 export function getAssetImageMediaUrl(imageId: number): string {
-  if (!Number.isInteger(imageId) || imageId <= 0) {
-    throw new Error("imageId must be a positive integer");
-  }
-  return `/media/asset-images/${imageId}`;
+  const id = requirePositiveSafeInteger(imageId, "imageId");
+  return `/media/asset-images/${id}`;
 }
