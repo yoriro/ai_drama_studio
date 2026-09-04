@@ -601,7 +601,7 @@
   - **追溯行：** `C010 复审 Task REST/WS 边界：事件与详情字段运行时校验，非法 task_id 不发请求`。
   - **验收方式与命令：** 用生产 parser/controller 注入 `task_id="../../system/health"`、`Number.MAX_SAFE_INTEGER+1`、null/array、错 type/status/progress/message 和畸形 Task detail；断言零详情请求或请求路径严格未发生、原始 protocol error 可观察、socket按现有协议错误路径关闭且无 polling/retry。合法事件仍断言唯一 detail GET。执行 `npm --prefix frontend run test -- src/features/director/directorReviewTaskBoundary.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`，并按 T14 方式在 `ai_drama_studio_c010_t15_<timestamp>` 新库运行 `python -m alembic upgrade head` 与 `python -m pytest -q`；通过后回填、勾选、单独提交，既有测试零 diff。
 
-- [ ] **T16 — 修复 terminal detail 与页面 refresh 交错时的事件丢失**
+- [x] **T16 — 修复 terminal detail 与页面 refresh 交错时的事件丢失**
 
   - **交付：** 修正 DirectorSync：terminal event 已记录、其唯一 Task detail 尚在途，而另一次页面 refresh 随后开始或已经在途时，不得因 `pageRequest !== null` 直接遗弃记录。事件必须精确消费一次；若当前 refresh 开始于事件提交之后，可绑定该提交后快照，否则使旧响应失效并补发 replacement。最终必须应用事件提交后的页面事实或显示最新错误，相关 selected Clip 详情按需刷新，done/failed语义不变；不得 polling、重复 detail GET、自动重放 mutation或重复通知。新增独立回归文件 `frontend/src/features/director/directorReviewTerminalRace.test.ts`，不得修改既有测试。
   - **R：** 无；PRD §6.4、§9；DECISIONS D-008。

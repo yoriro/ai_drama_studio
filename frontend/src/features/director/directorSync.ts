@@ -111,6 +111,7 @@ interface PageRequest {
   socketEpoch: number;
   initial: boolean;
   startEventSequence: number;
+  pendingEventSequences: Set<number>;
   invalidated: boolean;
 }
 
@@ -582,6 +583,11 @@ class DirectorSync implements DirectorSyncController {
       socketEpoch: this.socketEpoch,
       initial,
       startEventSequence: this.eventSequence,
+      pendingEventSequences: new Set(
+        this.eventRecords
+          .filter((record) => !record.consumed)
+          .map((record) => record.sequence),
+      ),
       invalidated: false,
     };
     this.pageRequest = request;
@@ -615,14 +621,14 @@ class DirectorSync implements DirectorSyncController {
       return;
     }
 
-    await this.waitForEventsAfter(request.startEventSequence);
+    await this.waitForPageRequestEvents(request);
     if (!this.isCurrentPageRequest(request)) {
       return;
     }
 
     const records = this.eventRecords.filter(
       (record) =>
-        record.sequence > request.startEventSequence && !record.consumed,
+        this.isPageRequestEventIncluded(request, record) && !record.consumed,
     );
     for (const record of records) {
       const task = await record.detail;
@@ -630,7 +636,11 @@ class DirectorSync implements DirectorSyncController {
         return;
       }
       if (this.isRelevantTask(task, snapshot)) {
-        this.consumeRelevantEvent(record, task);
+        this.consumeRelevantEvent(
+          record,
+          task,
+          this.isPageRequestEventBound(request, record),
+        );
       } else {
         record.consumed = true;
       }
@@ -674,11 +684,12 @@ class DirectorSync implements DirectorSyncController {
     this.emit();
   }
 
-  private async waitForEventsAfter(sequence: number): Promise<void> {
+  private async waitForPageRequestEvents(request: PageRequest): Promise<void> {
     while (true) {
       const observedSequence = this.eventSequence;
       const records = this.eventRecords.filter(
-        (record) => record.sequence > sequence && !record.consumed,
+        (record) =>
+          this.isPageRequestEventIncluded(request, record) && !record.consumed,
       );
       if (records.length > 0) {
         await Promise.all(records.map((record) => record.detail));
@@ -687,6 +698,23 @@ class DirectorSync implements DirectorSyncController {
         return;
       }
     }
+  }
+
+  private isPageRequestEventIncluded(
+    request: PageRequest,
+    record: TaskEventRecord,
+  ): boolean {
+    return (
+      record.sequence > request.startEventSequence ||
+      request.pendingEventSequences.has(record.sequence)
+    );
+  }
+
+  private isPageRequestEventBound(
+    request: PageRequest,
+    record: TaskEventRecord,
+  ): boolean {
+    return request.pendingEventSequences.has(record.sequence);
   }
 
   private failPageRequest(request: PageRequest, error: unknown): void {
@@ -742,7 +770,11 @@ class DirectorSync implements DirectorSyncController {
     }
   }
 
-  private consumeRelevantEvent(record: TaskEventRecord, task: Task): void {
+  private consumeRelevantEvent(
+    record: TaskEventRecord,
+    task: Task,
+    boundToPageRequest = false,
+  ): void {
     record.consumed = true;
     if (task.status === "failed") {
       this.state.taskError = errorForFailedTask(task);
@@ -771,7 +803,9 @@ class DirectorSync implements DirectorSyncController {
         detailApplied: !requiresDetail,
       });
     }
-    this.invalidatePageRequest();
+    if (!boundToPageRequest) {
+      this.invalidatePageRequest();
+    }
     if (this.state.selectedClipId === task.target_id) {
       this.refreshSelectedClip();
     }
