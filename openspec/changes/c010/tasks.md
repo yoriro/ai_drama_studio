@@ -599,7 +599,7 @@
   - **追溯行：** `C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`。
   - **验收方式与人工检查：** 完成报告逐项判断“零场景在单场景选择中仍可选、preview 动态硬上限推导、requested duration 保存门槛与 note 随生成提交、Director D-008 实现形态”是否只是 PRD/spec 的局部落实或需要长期跨 change 决策。不得自行修改 DECISIONS；无新跨 change 约定时精确写“DECISIONS.md 候选项：无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
