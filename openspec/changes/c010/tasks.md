@@ -633,7 +633,7 @@
   - **追溯行：** `C010 复审 mutation 通知：save/slot 成功提示等待页面与详情最新快照`。
   - **验收方式与命令：** deferred Promise 覆盖 save/slot 各两种顺序：detail先完成但page pending；期间 WS event 使page generation失效并产生replacement。断言旧/单边快照阶段 notice=0，最新页面+详情落地后notice=1且内容准确；刷新 error 时notice=0且错误可见。执行 `npm --prefix frontend run test -- src/features/director/directorReviewNoticeOrdering.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`，并在 `ai_drama_studio_c010_t19_<timestamp>` 新库运行 `python -m alembic upgrade head`、`python -m pytest -q`；通过后回填、勾选、单独提交。
 
-- [ ] **T20A — 交付浏览器错误路径的一次性故障装置**
+- [x] **T20A — 交付浏览器错误路径的一次性故障装置**
 
   - **交付：** 在 `.work/c010/director-review-fault-server.py` 创建不提交的一次性本机 HTTP 装置，使用标准库或项目已有依赖，提供加载 Director 所需的最小公开 Project/Episode/assets/shots/clips/clip-detail/slots/videos/Task JSON，并按命令行 mode 只让一个指定请求返回结构化404/409/422/500、非JSON或连接中断；所有 mutation请求写入只追加 ledger且不得伪造已成功的数据库/Task/take。不得导入/修改 frontend production模块、写PostgreSQL/媒体、监听非127.0.0.1、创建隐藏fallback或长期endpoint。输出 mode、监听PID/端口、请求方法/path/body/次数及终止证据。
   - **R：** 无；PRD §9；spec §9 验收装置差异。
