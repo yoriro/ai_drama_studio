@@ -473,7 +473,7 @@
   - **追溯行：** `C010 Comfy execution_error 真实协议：node_id 完整原因、跨 prompt 隔离、failed/no-take/no-retry 与 free-once`。
   - **验收方式与命令：** 先以只读命令保存当前 `F:\ComfyUI\execution.py` 中 `execution_error` 的 `node_id/node_type/exception_message` 发送片段和 T12 prompt `33bc1ebd-1af5-47db-bff5-2e68a8b5203f` history（若当前 Comfy history 仍存在；不存在只记录漂移，不以伪造响应替代）到 `.work/c010/T11C-*`。修改后执行 `git diff --check` 与精确 diff 审计：生产文件只允许 `node`→`node_id` 的读取/标签变化；获授权测试只允许 `_worker_failure_websocket` 及精确 body 断言的四处 key、`_assert_failure_error` 的一处标签变化，且 `rg -n 'data.get\("node"\)' backend/app/tasks/gen_clip_video.py` 无匹配；其他既有测试零 diff。用名称含 `ai_drama_studio_c010_t11c_<timestamp>` 的全新已迁移 PostgreSQL和隔离 DATA_DIR，执行 `python -m pytest -q tests/task_system/test_c009_review_worker_failures.py`，必须保留 `[wake]`/`[sleep]`/`[ws]` 全部通过并由 `[ws]` 精确证明：无关 prompt 的畸形 node 字段被忽略、当前事件只含 `node_id`、错误末行为 `RuntimeError: Comfy execution_error node_id=168 type=T25StubNode exception=T25 WS stage failure`、Task/Clip failed、ClipVideo=0、调用顺序/次数不变、无 retry且 `/free` 一次。随后同一无 lock DSN运行 `python -m pytest -q`。全部 exit 0 后回填真实用例/日志、勾选并单独提交；任一失败立即停止，不进入 T12。
 
-- [ ] **T12 — 真实 MiniMax 浏览器生成、take 与 stale 竞态验收**
+- [x] **T12 — 真实 MiniMax 浏览器生成、take 与 stale 竞态验收**
 
   - **交付：** T11A/T11B/T11C 均通过并提交后，保留两轮既有 T12 失败数据库、failed Task、DATA_DIR 与日志不动，另建全新 PostgreSQL、隔离 DATA_DIR、全新实体与新 Task；由修正后的同一个 driver 自动生成/正式上传图片，不接受用户素材或旧库输入。以生产浏览器→Vite→FastAPI→Task/WS→vLLM/Comfy→MP4 全通路完成两次视频生成、播放/current 切换，并在另一条实际 running 任务期间通过正式 Shot PATCH 制造 source revision 漂移；记录全部服务、queue/history、Task、DB、媒体与最终资源态。不得 mock、直接写 DB/文件、手工换图、切旧库、重试旧 failed Task、复用旧 request_id 或沿用 C009/既有 T12 日志冒充。
   - **R：** R4、R5、R5a、R6、R7、R8、R9、R10；PRD §3.1-§3.3、§6.1-§6.3、§7、§9、§11 M4、§12.1-§12.4。
