@@ -625,7 +625,7 @@
   - **追溯行：** `C010 复审 mutation 重建：404/409 后刷新权威状态且无自动重放`。
   - **验收方式与命令：** 对五类 action 分别跑 404/409 矩阵；每格精确断言 mutation count=1、错误 message、权威 GET 数与路径、无成功 notice；至少一格让最新列表确认 Clip 消失并断言 selection/detail 清空。另覆盖422与transport确保无假 mutation结果。执行 `npm --prefix frontend run test -- src/features/director/directorReviewMutationRefresh.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`，并在 `ai_drama_studio_c010_t18_<timestamp>` 新库运行 `python -m alembic upgrade head`、`python -m pytest -q`；通过后回填、勾选、单独提交。
 
-- [ ] **T19 — 将 save/slot 成功提示绑定到页面与详情的共同最新快照**
+- [x] **T19 — 将 save/slot 成功提示绑定到页面与详情的共同最新快照**
 
   - **交付：** save 和 slot 成功后，局部详情及页面 clips/shots/assets 快照都属于该 action 当前最新 generation且均已应用，才显示精确一次成功提示；详情先完成、页面仍 pending/error或被 WS 更新失效时不得提前提示。replacement 完成后才提示，旧 action/旧 Clip 的响应不得触发提示。take只依赖其正式详情/videos刷新，create/delete/terminal沿用各自已有正确绑定。新增独立回归文件 `frontend/src/features/director/directorReviewNoticeOrdering.test.ts`，不得修改既有测试。
   - **R：** 无；PRD §9；DECISIONS D-008。

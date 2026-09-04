@@ -100,6 +100,7 @@ export interface DirectorSyncOptions {
 
 export interface DirectorRefreshOptions {
   notice?: DirectorSyncNotice;
+  noticeAfterDetail?: boolean;
   refreshSelectedClip?: boolean;
   resetSelectedClipDraft?: boolean;
 }
@@ -194,6 +195,14 @@ interface PendingTaskNotice {
   detailApplied: boolean;
 }
 
+interface PendingDirectorNotice {
+  notice: DirectorSyncNotice;
+  targetClipId: number | null;
+  requiresDetail: boolean;
+  pageApplied: boolean;
+  detailApplied: boolean;
+}
+
 function isTerminalTask(task: Task): boolean {
   return (
     task.status === "done" ||
@@ -274,7 +283,7 @@ class DirectorSync implements DirectorSyncController {
   private readonly trackedTaskIds = new Set<number>();
   private readonly taskEvents = new Map<number, TaskEvent>();
   private readonly eventRecords: TaskEventRecord[] = [];
-  private readonly pendingNotices: DirectorSyncNotice[] = [];
+  private readonly pendingNotices: PendingDirectorNotice[] = [];
   private readonly pendingTaskNotices: PendingTaskNotice[] = [];
   private readonly resetDraftOnNextDetail = new Set<number>();
 
@@ -426,7 +435,14 @@ class DirectorSync implements DirectorSyncController {
 
   refreshPage(options: DirectorRefreshOptions = {}): void {
     if (options.notice !== undefined) {
-      this.pendingNotices.push(options.notice);
+      const requiresDetail = options.noticeAfterDetail === true;
+      this.pendingNotices.push({
+        notice: options.notice,
+        targetClipId: requiresDetail ? this.state.selectedClipId : null,
+        requiresDetail,
+        pageApplied: false,
+        detailApplied: !requiresDetail,
+      });
     }
     if (options.refreshSelectedClip) {
       this.refreshSelectedClip({
@@ -456,6 +472,14 @@ class DirectorSync implements DirectorSyncController {
     }
     if (options.resetDraft === true) {
       this.resetDraftOnNextDetail.add(this.state.selectedClipId);
+    }
+    for (const pending of this.pendingNotices) {
+      if (
+        pending.requiresDetail &&
+        pending.targetClipId === this.state.selectedClipId
+      ) {
+        pending.detailApplied = false;
+      }
     }
     this.detailGeneration += 1;
     this.state.detailPhase = "loading";
@@ -735,12 +759,8 @@ class DirectorSync implements DirectorSyncController {
       this.clearSelectedClip();
     }
 
-    if (this.pendingNotices.length > 0) {
-      this.state.notices = [
-        ...this.state.notices,
-        ...this.pendingNotices.splice(0),
-      ];
-    }
+    this.markPendingDirectorNoticesPageApplied(snapshot);
+    this.publishPendingDirectorNotices();
     this.publishReadyTaskNotices();
     this.emit();
   }
@@ -908,6 +928,58 @@ class DirectorSync implements DirectorSyncController {
     }
   }
 
+  private markPendingDirectorNoticesPageApplied(
+    snapshot: DirectorPageSnapshot,
+  ): void {
+    for (let index = this.pendingNotices.length - 1; index >= 0; index -= 1) {
+      const pending = this.pendingNotices[index];
+      if (pending.requiresDetail) {
+        if (
+          pending.targetClipId === null ||
+          this.state.selectedClipId !== pending.targetClipId ||
+          !snapshot.clips.some((clip) => clip.id === pending.targetClipId)
+        ) {
+          this.pendingNotices.splice(index, 1);
+          continue;
+        }
+      }
+      pending.pageApplied = true;
+    }
+  }
+
+  private markPendingDirectorNoticesDetailApplied(
+    detail: DirectorClipDetailSnapshot,
+  ): void {
+    for (const pending of this.pendingNotices) {
+      if (
+        !pending.requiresDetail ||
+        pending.detailApplied ||
+        pending.targetClipId !== detail.clip.id ||
+        this.state.selectedClipId !== detail.clip.id
+      ) {
+        continue;
+      }
+      pending.detailApplied = true;
+    }
+  }
+
+  private publishPendingDirectorNotices(): void {
+    const ready = this.pendingNotices.filter(
+      (pending) => pending.pageApplied && pending.detailApplied,
+    );
+    if (ready.length === 0) {
+      return;
+    }
+    this.state.notices = [
+      ...this.state.notices,
+      ...ready.map((pending) => pending.notice),
+    ];
+    for (const pending of ready) {
+      const index = this.pendingNotices.indexOf(pending);
+      this.pendingNotices.splice(index, 1);
+    }
+  }
+
   private publishReadyTaskNotices(): void {
     const ready = this.pendingTaskNotices.filter(
       (notice) => notice.pageApplied && notice.detailApplied,
@@ -982,6 +1054,8 @@ class DirectorSync implements DirectorSyncController {
           }
           this.state.detailPhase = "ready";
           this.markTaskNoticesDetailApplied(detail);
+          this.markPendingDirectorNoticesDetailApplied(detail);
+          this.publishPendingDirectorNotices();
           this.publishReadyTaskNotices();
           this.emit();
         },

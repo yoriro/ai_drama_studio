@@ -175,6 +175,10 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     useState<unknown | null>(null);
   const previewGeneration = useRef(0);
   const previousSelectedClipId = useRef<number | null>(null);
+  const pendingMutationNotice = useRef<{
+    message: string;
+    baselineNoticeCount: number;
+  } | null>(null);
 
   function recoverMutationError(
     error: unknown,
@@ -235,6 +239,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       return;
     }
     previousSelectedClipId.current = syncState.selectedClipId;
+    pendingMutationNotice.current = null;
     setSettingsActionError(null);
     setSettingsNotice(null);
     setSettingsSavingClipId(null);
@@ -246,6 +251,34 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   }, [syncState.selectedClipId]);
 
   useEffect(() => {
+    const pending = pendingMutationNotice.current;
+    if (
+      pending === null ||
+      syncState.notices.length <= pending.baselineNoticeCount
+    ) {
+      return;
+    }
+    const notice = syncState.notices
+      .slice(pending.baselineNoticeCount)
+      .find(
+        (candidate) =>
+          candidate.kind === "mutation-success" &&
+          candidate.message === pending.message,
+      );
+    if (notice === undefined) {
+      return;
+    }
+    pendingMutationNotice.current = null;
+    if (settingsSavingClipId !== null) {
+      setSettingsSavingClipId(null);
+    }
+    if (slotMutationKey !== null || slotMutationRefreshing) {
+      setSlotMutationKey(null);
+      setSlotMutationRefreshing(false);
+    }
+  }, [settingsSavingClipId, slotMutationKey, slotMutationRefreshing, syncState.notices]);
+
+  useEffect(() => {
     if (settingsSavingClipId === null) {
       return;
     }
@@ -254,21 +287,12 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       syncState.detailPhase === "error" ||
       syncState.pagePhase === "error"
     ) {
+      pendingMutationNotice.current = null;
       setSettingsSavingClipId(null);
       return;
     }
-    if (
-      syncState.detailPhase === "ready" &&
-      syncState.clipDraft !== null &&
-      !syncState.clipDraft.dirtyUserNote &&
-      !syncState.clipDraft.dirtyRequestedDuration
-    ) {
-      setSettingsSavingClipId(null);
-      setSettingsNotice(`Clip #${settingsSavingClipId} 设置已保存`);
-    }
   }, [
     settingsSavingClipId,
-    syncState.clipDraft,
     syncState.detailPhase,
     syncState.pagePhase,
     syncState.selectedClipId,
@@ -283,22 +307,17 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       syncState.detailPhase === "error" ||
       syncState.pagePhase === "error"
     ) {
+      pendingMutationNotice.current = null;
       setSlotMutationKey(null);
       setSlotMutationRefreshing(false);
       return;
     }
-    if (syncState.detailPhase === "ready" && syncState.clipDetail !== null) {
-      setSlotMutationKey(null);
-      setSlotMutationRefreshing(false);
-      setSettingsNotice("槽位已按最新快照更新");
-    }
   }, [
-    slotMutationKey,
-    slotMutationRefreshing,
-    syncState.clipDetail,
     syncState.detailPhase,
     syncState.pagePhase,
     syncState.selectedClipId,
+    slotMutationKey,
+    slotMutationRefreshing,
   ]);
 
   useEffect(() => {
@@ -463,7 +482,16 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     void updateClip(clipId, projected.input)
       .then((updated) => {
         parseClipResponse(updated);
-        sync.refreshPage({ refreshSelectedClip: true });
+        const message = `Clip #${clipId} 设置已保存`;
+        pendingMutationNotice.current = {
+          message,
+          baselineNoticeCount: sync.getState().notices.length,
+        };
+        sync.refreshPage({
+          notice: { kind: "mutation-success", message },
+          noticeAfterDetail: true,
+          refreshSelectedClip: true,
+        });
       })
       .catch((error: unknown) => {
         setSettingsSavingClipId(null);
@@ -518,7 +546,16 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       .then((response) => {
         parseClipSlotMutationResponse(response);
         setSlotMutationRefreshing(true);
-        sync.refreshPage({ refreshSelectedClip: true });
+        const message = "槽位已按最新快照更新";
+        pendingMutationNotice.current = {
+          message,
+          baselineNoticeCount: sync.getState().notices.length,
+        };
+        sync.refreshPage({
+          notice: { kind: "mutation-success", message },
+          noticeAfterDetail: true,
+          refreshSelectedClip: true,
+        });
       })
       .catch((error: unknown) => {
         setSlotMutationKey(null);
