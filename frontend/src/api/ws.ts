@@ -1,3 +1,4 @@
+import { parseTaskEventResponse } from "./tasks";
 import type { TaskEvent } from "./tasks";
 
 export function buildWebSocketUrl(
@@ -23,7 +24,8 @@ export function openTaskWebSocket(
 }
 
 export function parseTaskEvent(data: string): TaskEvent {
-  return JSON.parse(data) as TaskEvent;
+  const value: unknown = JSON.parse(data);
+  return parseTaskEventResponse(value, 0);
 }
 
 export function closeWebSocket(socket: WebSocket): void {

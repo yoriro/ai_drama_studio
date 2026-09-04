@@ -1,4 +1,5 @@
 import type { Asset } from "../../api/assets";
+import { ApiProtocolError } from "../../api/client";
 import { generateClipVideo } from "../../api/clips";
 import type {
   Clip,
@@ -467,7 +468,7 @@ class DirectorSync implements DirectorSyncController {
     try {
       event = parseTaskEvent(message.data);
     } catch (error: unknown) {
-      if (error instanceof SyntaxError) {
+      if (error instanceof SyntaxError || error instanceof ApiProtocolError) {
         this.handleSocketProtocolError(socket, error);
         return;
       }

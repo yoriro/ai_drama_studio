@@ -593,7 +593,7 @@
   - **追溯行：** `C010 复审 REST 成功体边界：Director ID、seed 与媒体 URL 运行时校验，敌意值在查询/DOM 前失败`。
   - **验收方式与命令：** 新用例必须逐项注入 review 探针中的 `https://attacker.invalid/reference.png`、`file:///C:/Windows/win.ini`、`9223372036854775807` number，以及 unsafe/string/bool/float ID、协议相对、穿越、query/fragment URL；精确断言错误类型/message、零后续 fetch 与零媒体节点消费，并保留合法最大 seed string与合法媒体 URL。执行 `npm --prefix frontend run test -- src/features/director/directorReviewRestBoundary.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；另建 `ai_drama_studio_c010_t14_<timestamp>` 全新库，显式 `DATABASE_URL` 后在 `backend` 执行 `python -m alembic upgrade head`、`python -m pytest -q`。全部 exit 0 后回填真实用例 ID、勾选并单独提交；既有测试文件必须零 diff。
 
-- [ ] **T15 — 校验 Task REST/WS 成功体并阻止非法 task_id 改写请求路径**
+- [x] **T15 — 校验 Task REST/WS 成功体并阻止非法 task_id 改写请求路径**
 
   - **交付：** 为复用的 Task REST 与 `/ws/tasks` JSON 增加运行时合同：顶层必须是对象，task/target id 为正 safe integer，type/status 属于既有枚举，progress 为有限 0..1 number，message/error/timestamp 字段符合公开 nullable/string 类型；null、array、未知枚举、错类型、unsafe integer及路径型 string 均为 protocol error。非法 WS 事件必须在 `getTask` 前失败并形成 Director 可观察错误，不得产生 `/api/tasks/../../...`、URL 归一后的其他请求或未处理异常；合法未知 task 仍保持每个 id 至多一个 detail GET。只修改 `frontend/src/api/tasks.ts`、`frontend/src/api/ws.ts` 与必要的 Director 协调器错误接线；不得创建 Director 私有 Task 格式、修改后端/既有测试或吞异常。新增独立回归文件 `frontend/src/features/director/directorReviewTaskBoundary.test.ts`。
   - **R：** 无；PRD §6.4、§9；DECISIONS D-008。
