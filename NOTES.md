@@ -138,3 +138,8 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-03 PowerShell 将 `(Get-Content .work/c009/<sha-file>)..HEAD` 解析为范围表达式，传给 Git 会输出 usage；跨 commit 范围审计应先执行 `$baseline = (Get-Content -Raw .work/c009/<sha-file>).Trim()`，再使用 `"$baseline..HEAD"` 作为单一参数，并立即检查 `$LASTEXITCODE`。
 - 2026-09-03 只读核对新库 `ai_drama_studio_c010_t12_rerun_20260903_170851`：`prompt_templates` 精确有 4 行；`script2assets/script2shots/zimage` 仍为 migration 占位，`minimaxh3` 为经设置 API 安装的正式正文（PostgreSQL `length=7340`）。当前 `GET http://127.0.0.1:8000/api/prompt-templates` 返回同样四项，故“正式内容未随新库出现”是运行配置未部署，不是缺表或缺 seed 行。
 - 2026-09-03 四份正式模板均已有前序 change 来源：`script2assets` 以 C005 spec §5.1 冻结正文为准，不能采用旧验收库后来被改为仅三个占位符的 40 字符值；`script2shots` 的 C006 正式正文为 1181 字符；C007 单一 `zimage` 正文为 2770 字符；C009/C010 使用的流水线适配版 `minimaxh3` 正文为 7340 个 PostgreSQL 字符。需求方裁决 C012 在全新生产等价库通过设置 API 自动部署四份、安装后和后端重启后逐字回读，并由 M6 全链路实际消费；不修改 schema/migration。
+- 2026-09-04 C010 T12 使用全新库 `ai_drama_studio_c010_t12_rerun_20260904_140538` 与隔离 `DATA_DIR`；Task #2/#4 为 done，Task #3 的 Comfy 故障与重启后空 history 证据保留，未重试旧任务。
+- 2026-09-04 C010 T12 在确认 Task #4 running、payload `comfy_prompt_id` 与唯一 `queue_running` prompt 精确一致后，经正式 Shot PATCH 将 Shot #1 revision 1→2/status=changed；任务完成后新 take 保存且 Clip freshness=stale。
+- 2026-09-04 C010 T12 终态观测 Comfy `/queue` running/pending 均为空、vLLM `is_sleeping=true`、健康 binding valid；正式临时目录不存在且文件计数为 0。
+- 2026-09-04 C010 T13 最终库 `ai_drama_studio_c010_final_20260904_150611` 迁移到 `6b8e3f0a1d24 (head)`，backend `346 passed`、frontend `39 passed`、build 成功，`alembic check` 无新操作。
+- 2026-09-04 C010 T13 首次 workflow scope 检查因相邻 Python 字符串的源码字面量断言失败，原始 `.work/c010/T13-workflow-scope.log` 保留；修正验收脚本后 `T13-workflow-scope-rerun.log` 三项精确 PASS。
