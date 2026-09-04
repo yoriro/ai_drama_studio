@@ -51,7 +51,9 @@ import {
 import {
   createDirectorSync,
   createDirectorGenerationRequester,
+  handleDirectorMutationError,
   projectDirectorVisibleSyncErrors,
+  type DirectorMutationRefreshScope,
   type DirectorSyncState,
 } from "../features/director/directorSync";
 import type { Task, TaskEvent } from "../api/tasks";
@@ -173,6 +175,18 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     useState<unknown | null>(null);
   const previewGeneration = useRef(0);
   const previousSelectedClipId = useRef<number | null>(null);
+
+  function recoverMutationError(
+    error: unknown,
+    scope: DirectorMutationRefreshScope,
+    setError: (error: unknown) => void,
+  ): void {
+    handleDirectorMutationError(error, scope, {
+      setError,
+      refreshPage: (options) => sync.refreshPage(options),
+      refreshSelectedClip: () => sync.refreshSelectedClip(),
+    });
+  }
 
   useEffect(() => {
     setSelectedShotIds([]);
@@ -453,7 +467,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       })
       .catch((error: unknown) => {
         setSettingsSavingClipId(null);
-        setSettingsActionError(error);
+        recoverMutationError(error, "page-and-detail", setSettingsActionError);
       });
   }
 
@@ -479,7 +493,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       },
       (error: unknown) => {
         setPendingDeleteClipId(null);
-        setSettingsActionError(error);
+        recoverMutationError(error, "page", setSettingsActionError);
       },
     );
   }
@@ -509,7 +523,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       .catch((error: unknown) => {
         setSlotMutationKey(null);
         setSlotMutationRefreshing(false);
-        setSlotMutationError(error);
+        recoverMutationError(error, "page-and-detail", setSlotMutationError);
       });
   }
 
@@ -571,7 +585,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       .catch((error: unknown) => {
         setTakeMutationKey(null);
         setTakeMutationRefreshing(false);
-        setTakeMutationError(error);
+        recoverMutationError(error, "detail", setTakeMutationError);
       });
   }
 
@@ -627,7 +641,11 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         });
       })
       .catch((error: unknown) => {
-        setGenerationActionError(error);
+        recoverMutationError(
+          error,
+          "page-and-detail",
+          setGenerationActionError,
+        );
       })
       .finally(() => {
         setGenerationRequestInFlight(false);

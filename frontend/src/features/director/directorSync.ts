@@ -1,5 +1,5 @@
 import type { Asset } from "../../api/assets";
-import { ApiProtocolError } from "../../api/client";
+import { ApiError, ApiProtocolError } from "../../api/client";
 import { generateClipVideo } from "../../api/clips";
 import type {
   Clip,
@@ -102,6 +102,45 @@ export interface DirectorRefreshOptions {
   notice?: DirectorSyncNotice;
   refreshSelectedClip?: boolean;
   resetSelectedClipDraft?: boolean;
+}
+
+export type DirectorMutationRefreshScope =
+  | "page"
+  | "page-and-detail"
+  | "detail";
+
+export interface DirectorMutationErrorHandlers {
+  setError(error: unknown): void;
+  refreshPage(options?: DirectorRefreshOptions): void;
+  refreshSelectedClip(): void;
+}
+
+function isDirectorAuthorityRefreshError(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    !(error instanceof ApiProtocolError) &&
+    (error.status === 404 || error.status === 409)
+  );
+}
+
+export function handleDirectorMutationError(
+  error: unknown,
+  scope: DirectorMutationRefreshScope,
+  handlers: DirectorMutationErrorHandlers,
+): void {
+  handlers.setError(error);
+  if (!isDirectorAuthorityRefreshError(error)) {
+    return;
+  }
+  if (scope === "detail") {
+    handlers.refreshSelectedClip();
+    return;
+  }
+  if (scope === "page") {
+    handlers.refreshPage();
+    return;
+  }
+  handlers.refreshPage({ refreshSelectedClip: true });
 }
 
 export interface DirectorSyncController {

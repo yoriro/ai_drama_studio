@@ -617,7 +617,7 @@
   - **追溯行：** `C010 复审同步错误可见性：ready 页面仍展示 Task detail/socket 错误`。
   - **验收方式与命令：** 以 production sync/view projection 或实际组件可观察输出分别注入：ready+done event+Task detail transport failure、ready+socket error、合法 failed Task detail。精确断言前两者原始错误可见且无伪成功，第三者仍完整显示服务端 `error_msg`；恢复后的最新成功快照才可清除对应旧连接错误。执行 `npm --prefix frontend run test -- src/features/director/directorReviewErrorVisibility.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`，并在 `ai_drama_studio_c010_t17_<timestamp>` 新库运行 `python -m alembic upgrade head`、`python -m pytest -q`；通过后回填、勾选、单独提交。
 
-- [ ] **T18 — 让 mutation 的 404/409 进入权威刷新且绝不重放 mutation**
+- [x] **T18 — 让 mutation 的 404/409 进入权威刷新且绝不重放 mutation**
 
   - **交付：** save/delete/slot/take/generate 任一 mutation 返回结构化 404 或409时，先逐字保留 `detail.message`，再触发与该动作影响面相符的最新页面/详情刷新；原 mutation 始终精确一次。若刷新确认选中 Clip/Slot/take 已消失，清除幽灵选择/详情；刷新失败则显示最新刷新错误且不显示成功。422/500/transport继续可见且不得产生假 Task/take、乐观业务值或自动 mutation 重放。新增独立回归文件 `frontend/src/features/director/directorReviewMutationRefresh.test.ts`，不得修改既有测试。
   - **R：** R9、R10、R12（槽位/生成分支）；其余无直接 R；PRD §3.3、§3.4、§9。
