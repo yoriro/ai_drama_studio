@@ -51,6 +51,7 @@ import {
 import {
   createDirectorSync,
   createDirectorGenerationRequester,
+  projectDirectorVisibleSyncErrors,
   type DirectorSyncState,
 } from "../features/director/directorSync";
 import type { Task, TaskEvent } from "../api/tasks";
@@ -337,6 +338,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   }
 
   const projection = buildDirectorProjection(syncState.pageSnapshot);
+  const visibleSyncErrors = projectDirectorVisibleSyncErrors(syncState);
 
   if (projection.shots.length === 0) {
     return (
@@ -729,6 +731,13 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         </div>
         <p className="director-count">{projection.shots.length} 个分镜</p>
       </div>
+      {visibleSyncErrors.length > 0 && (
+        <div aria-label="导演台同步错误" className="director-sync-errors">
+          {visibleSyncErrors.map(({ kind, error }) => (
+            <ApiErrorMessage error={error} key={kind} />
+          ))}
+        </div>
+      )}
       {syncState.notices.length > 0 && (
         <p className="director-success" role="status">
           {syncState.notices[syncState.notices.length - 1].message}

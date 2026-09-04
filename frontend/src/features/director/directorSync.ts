@@ -68,6 +68,29 @@ export interface DirectorSyncState {
   notices: DirectorSyncNotice[];
 }
 
+export type DirectorSyncVisibleErrorKind = "page" | "task" | "socket";
+
+export interface DirectorSyncVisibleError {
+  kind: DirectorSyncVisibleErrorKind;
+  error: unknown;
+}
+
+export function projectDirectorVisibleSyncErrors(
+  state: Pick<DirectorSyncState, "pageError" | "taskError" | "socketError">,
+): DirectorSyncVisibleError[] {
+  const errors: DirectorSyncVisibleError[] = [];
+  if (state.pageError !== null) {
+    errors.push({ kind: "page", error: state.pageError });
+  }
+  if (state.taskError !== null) {
+    errors.push({ kind: "task", error: state.taskError });
+  }
+  if (state.socketError !== null) {
+    errors.push({ kind: "socket", error: state.socketError });
+  }
+  return errors;
+}
+
 export interface DirectorSyncOptions {
   readPageSnapshot: () => Promise<DirectorPageSnapshot>;
   readClipDetail?: (clipId: number) => Promise<DirectorClipDetailSnapshot>;
@@ -417,7 +440,6 @@ class DirectorSync implements DirectorSyncController {
     this.synchronizationFailed = false;
     this.invalidatePageRequest();
     this.state.pagePhase = "connecting";
-    this.state.socketError = null;
     this.emit();
 
     socket.onopen = () => {

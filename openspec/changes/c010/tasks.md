@@ -609,7 +609,7 @@
   - **追溯行：** `C010 复审 terminal 竞态：detail 与页面 refresh 交错时事件不丢失且通知后置`。
   - **验收方式与命令：** 用 deferred Promise 精确复现 `.work/c010/probe-director-sync-races.log` 的顺序：ready 后 terminal event 到达、detail pending、手工/ mutation page refresh 开始、detail 再完成。断言 record 精确一次 consumed、detail GET=1、页面请求使用提交后快照或精确一条 replacement、旧响应零应用、terminal notice 晚于所需页面/详情且精确一次、最终无永久 loading。再覆盖事件在 refresh 开始后到达的既有 D-008 顺序。执行 `npm --prefix frontend run test -- src/features/director/directorReviewTerminalRace.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`，并在 `ai_drama_studio_c010_t16_<timestamp>` 新库运行 `python -m alembic upgrade head`、`python -m pytest -q`；通过后回填、勾选、单独提交。
 
-- [ ] **T17 — 让 ready 页面中的 Task detail/socket 错误实际可见**
+- [x] **T17 — 让 ready 页面中的 Task detail/socket 错误实际可见**
 
   - **交付：** Director 页面必须渲染协调器在 ready 快照期间产生的 Task detail failure 与 socket error；可以保留最后一份已知页面数据，但必须同时显示原始 client/protocol message，不能只写入内部 `state.error`，不能要求 event 已经是 failed 才显示，也不能把错误替换为成功通知。socket协议错误的既有关闭/重连节奏、Task failed完整 `error_msg` 和普通 action error保持。新增独立回归文件 `frontend/src/features/director/directorReviewErrorVisibility.test.ts`，不得修改既有测试或为测试增加生产特判。
   - **R：** 无；PRD §6.4、§9；DECISIONS D-008。
