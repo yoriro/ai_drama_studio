@@ -89,7 +89,7 @@ C010 不需要用户再提供 MiniMax JSON 或 prompt 模板。唯一可能阻�
 9. 生成按钮调用现有 `POST /clips/{id}/generate-video`，不带自动生成的 request_id。一次请求在途时禁用；202 后可再次点击创建另一条视频任务。202 只提示任务已提交，不能提示视频已生成。
 10. 与所选 Clip 相关的 Task 进度/状态可见；failed 取 Task detail 的完整 `error_msg` 展示。Clip 轨和详情的 generation/freshness 永远来自刷新后的 Clip response，不由 WS message 在前端推导最终状态。
 11. take 按 API 顺序显示 current、requested/actual duration、string seed 和可播放视频；设 current 后刷新且至多一项标记 current。current take 的删除控件置为不可用并说明原因；non-current 删除需确认且 204 后消失。
-12. `DEBUG_PROMPTS=false` 时页面没有空的调试占位；响应实际带 `built_prompt`、`input_hash` 或 `input_snapshot` 时，所选 take 出现可展开调试区并逐字/结构化展示公开值，seed 仍按 string 处理。
+12. `DEBUG_PROMPTS=false` 时页面没有空的调试占位；响应实际带 `built_prompt` 或 `input_snapshot` 时，所选 take 出现可展开调试区并逐字/结构化展示公开值，seed 仍按 string 处理。`input_hash` 不属于公开 DEBUG 字段，不得由前端声明、读取或展示；成功响应若越权携带该字段，按协议漂移显示 client/protocol error，不得静默接受。
 13. 所有 API `ApiError` 的 `detail.message` 在 Director 页面可见；网络、非 JSON 或响应协议错误同样可见，但不得替换成旧数据成功态、自动重试 mutation 或吞异常。
 14. 当与当前视频任务 prompt 匹配的 Comfy `execution_error` 到达时，任务进入 failed，完整原因必须包含真实 `node_id`、`node_type` 与 `exception_message`；不得先因读取不存在的 `node` 字段产生第二个错误，也不得 retry、生成 take 或跳过 `/free`。
 
@@ -102,8 +102,8 @@ C010 新增前端 TypeScript 表示与调用，但不改变后端 OpenAPI：
 - `ClipPreviewResponse`：精确消费 C008 的 `shot_ids`、时长、`reference_candidates`、`default_reference_asset_ids`、`violations`、`warnings`。
 - `Clip`：消费 `id/episode_id/generation_mode/user_note/requested_duration/generation_state/freshness/revision/shot_ids/start_order_index/end_order_index/enabled_slot_count/warnings/timestamps`。
 - `ClipSlot`：消费公开快照字段、`asset_deleted/enabled/image_source/image_url`；不添加或读取 override 内部路径/hash。
-- `ClipVideo`：seed 类型固定为 string；基础字段按 C009 §9。DEBUG 字段只建为可选公开字段，不假定存在。
-- `Task`/`TaskEvent`：复用 `frontend/src/api/tasks.ts` 与 `frontend/src/api/ws.ts`；不得创建 Director 私有任务格式。
+- `ClipVideo`：seed 类型固定为 string；基础字段按 C009 §9。DEBUG 字段只允许可选的 `built_prompt` 与 `input_snapshot`，不声明或读取 `input_hash`。
+- `Task`/`TaskEvent`：复用 `frontend/src/api/tasks.ts` 与 `frontend/src/api/ws.ts`；不得创建 Director 私有任务格式。TypeScript 类型不能替代运行时校验；成功响应或 WS JSON 在进入查询路径、状态机或 DOM 前必须验证对象形状、ID、枚举、进度与文本类型。
 
 所有调用使用 `requestJson` 或 `requestNoContent`：
 
@@ -121,13 +121,13 @@ C010 新增前端 TypeScript 表示与调用，但不改变后端 OpenAPI：
 
 ### 2.2 同源、媒体与外部值
 
-- 浏览器 API 只用 `/api`，Task socket 只用既有 `/ws/tasks`，图片/视频只用响应中的同源 `/media/...`；不得硬编码 `127.0.0.1`、8000/8001/8188、磁盘路径或用户文件名。
+- 浏览器 API 只用 `/api`，Task socket 只用既有 `/ws/tasks`，图片/视频只用响应中的同源 `/media/...`；不得硬编码 `127.0.0.1`、8000/8001/8188、磁盘路径或用户文件名。所有将进入后续 API 路径的 ID 必须在成功体/事件边界验证为正的 JavaScript safe integer且不得从 string/bool/float 强转；Slot 图片 URL 只接受与 `image_source` 一致的 `/media/asset-images/{正整数}`、`/media/slot-overrides/{当前 slot.id}` 或 null，take URL 只接受 `/media/clip-videos/{当前 video.id}`，不得接受 ID 不匹配、绝对、协议相对、`file:`、反斜杠、`.`/`..` segment、query 或 fragment。
 - Shot/Asset/Clip 数组不得用前端点击顺序改写后端业务顺序。轨道按 Shot 响应的 canonical order 建 index；候选按 preview 数组顺序显示和提交；Slot/Video 按 API 顺序显示。
 - `requested_duration` 输入在本地保留为 string 草稿；只有可无损转为十进制整数时才能提交。前端不硬编码 MIN/MAX，API 的 422 是最终范围裁决。
 - `user_note` 草稿保留 `null` 与 string 的差异：未填写状态明确显示为 null；textarea 一经编辑即为 string（删除全部文字得到合法空串）；独立“清空为未填写”动作才把草稿设为 null。不得 trim 或把 null/空串/空白合并。
 - 本次最大参考数固定从 preview 得到：若候选多于默认 ID 数，则最大可选数等于 `default_reference_asset_ids.length`；否则等于候选数。不得把 9 写成可配置事实。选中数为 0 或超过该值时，创建按钮不可用且分别显示“至少选择 1 个参考资产”或“参考资产最多选择 N 个”。
 - API warnings 始终按返回顺序、黄色语义显示，message 原文不解析、不改写；用户减少候选后也不在前端伪造“warning 已消失”，正式创建后的 warning 以新 Clip response 为准。
-- 所有未知/畸形本地投影事实（例如 Shot duration 非有限、Clip 引用当前快照不存在的 Shot）必须进入可见 client/protocol error；不得用默认宽度、忽略 Clip 或假媒体兜底。
+- 所有未知/畸形本地投影事实或 API/WS 成功体（例如 Shot duration 非有限、Clip 引用当前快照不存在的 Shot、seed 不是 `0..2^63-1` 的十进制 string、媒体 URL 越界、TaskEvent 为 null/array/错枚举/unsafe id）必须进入可见 client/protocol error；错误必须发生在基于该值发起下一次 fetch、媒体 DOM 加载或状态 mutation 之前，不得强转、默认宽度、忽略 Clip 或假媒体兜底。
 
 ### 2.3 MiniMax workflow 外部枚举修正
 
@@ -185,14 +185,14 @@ C010 新增前端 TypeScript 表示与调用，但不改变后端 OpenAPI：
 
 - Slot 行固定按 `slot_no`，显示 `asset_name_snapshot`、`asset_type_snapshot`、enabled、来源文字与 `image_url` 媒体；前端不压实号、不跟随当前资产改名重命名快照。
 - enabled checkbox 每次只提交一个 Slot。上传 input 的 accept 只提示 png/jpg/webp，真实大小/MIME/内容仍由后端 422 裁决。清除 override 需确认，且只提交正式 `clear_override=true`。
-- 每次 Slot mutation 成功后刷新 Clip 与 slots，以服务端 revision/freshness/enabled count/warnings/image source 为准；失败不更改本地业务值。
+- 每次 Slot mutation 成功后刷新 Clip 与 slots，以服务端 revision/freshness/enabled count/warnings/image source 为准；失败不更改本地业务值。404/409 仍须按 §8 刷新权威页面与所选详情，但不得重放 mutation；422/500/transport 逐字显示最新错误且不得伪成功或自动重放。
 - R12 已删资产无 override 时同时显示快照名、“原资产已删除”、缺图、停用和上传 override；不得自动执行任何处置。用户仍点击生成时，由 C009 以 202 immediate-failed Task 表达 R10，不在前端改写为同步 422/409。
 
 ### 5.3 生成与任务反馈
 
 - 生成只在 Clip 已选、详情已加载、requested duration 无未保存草稿且该次 POST 不在途时可点击。note 未变时省略字段，note 草稿实际变化时原值显式提交；不得 trim、把空串/null混同或先乐观保存。不得因 `generation_state=queued|generating` 永久禁用；C009 允许多次抽取视频。
 - 202 后记录 task_id 并触发最新快照；显示“任务已提交”而非“视频已生成”。相关 Task status/progress/message 通过 WS 与 Task detail 显示。
-- 任何 terminal event 都先取 Task detail，再刷新 Clip/slots/videos；failed 显示完整 `error_msg`。done 只有在最新 REST 已含相应状态/take 后才能显示完成提示。
+- 任何 terminal event 都先取 Task detail，再刷新 Clip/slots/videos；failed 显示完整 `error_msg`。done 只有在最新 REST 已含相应状态/take 后才能显示完成提示。事件已到达而 Task detail 尚在途时，随后开始或已在途的页面 refresh 不得使该事件记录无人消费：若该 refresh 开始于事件提交之后，可将事件绑定到它；否则必须失效并补发 replacement。两种分支都必须精确消费一次事件、保持每个 task_id 至多一个 detail GET，并最终得到最新快照或可见错误。
 - C010 不增加 cancel 控件；任务取消与历史/过滤属于 C011 任务中心。若其他页面/客户端取消，Director 只消费 canceled event并刷新，不把 canceled 当 ready/failed。
 
 ### 5.4 take 画廊
@@ -210,8 +210,8 @@ C010 遵守 D-008，不新增 polling：
 3. 对每个未识别的 `gen_clip_video` task_id 至多存在一个 Task detail GET；detail 表明 target Clip 属于当前 episode 时，事件使页面 Clip 快照及当前选中 Clip 详情失效。其他 task type/episode 不触发 Director 数据 mutation。
 4. 每个页面快照和 Clip 详情快照都有单调 request generation；响应只有在 generation 仍是最新且 route/selected clip 未变化时可应用。丢弃旧响应后不得遗留永久 loading/refreshing。
 5. 若 WS 在 initial、mutation、terminal refresh 在途期间到达相关事件，当前 response generation 失效；在途结束后必须发起并绑定到最新 generation 的 REST，直到最新结果应用或最新错误可见。同一 Clip 的 refresh 按 §5.1 合并 dirty 草稿，不能借“权威刷新”静默丢用户未提交输入。
-6. mutation 成功通知与 terminal done 通知绑定到所触发的 refresh generation；更新事件导致 replacement refresh 时，旧 generation 的通知不能提前出现，且 terminal task 去重不能阻止 replacement refresh。
-7. socket message 解析失败、Task detail 失败或 refresh 失败均可见；不得吞掉、降级成旧状态、自动重放 mutation或启动定时轮询。
+6. mutation 成功通知与 terminal done 通知绑定到所触发的 refresh generation；更新事件导致 replacement refresh 时，旧 generation 的通知不能提前出现，且 terminal task 去重不能阻止 replacement refresh。save/slot 同时改变页面列表与所选详情时，成功提示必须等待二者各自最新 generation 都落地；只完成其中一个不得提示成功。
+7. socket message 解析失败、socket error、Task detail 失败或 refresh 失败均须在当前 Director DOM 可见，即使页面仍保留上一次 ready 快照；不得只把错误藏在协调器 state、吞掉、降级成旧状态、自动重放 mutation或启动定时轮询。
 
 ## 7. UI 状态转换
 
@@ -254,6 +254,7 @@ C010 不改变错误状态码，只完整消费：
 3. 真实视频验收继续使用 C009 的生产 worker、正式 vLLM/Comfy、经 T11A 单叶修正的正式 workflow、正式 template、PostgreSQL、Task REST/WS 和正式 MP4 媒体通路，没有 C010 专用代理或 fake。它能证明浏览器按钮到可播放 take 和 stale 竞态的完整链路；画面审美、长期一致性和模型确定性不适合自动断言，只人工记录“可播放、有视频流、actual_duration>0、画面非空”及现场截图/日志。
 4. CSS 视觉像素与响应式不新增稳定自动测试：当前仓库没有浏览器 E2E runner，且 C011/C012 分别负责全局响应式视觉与完整 E2E。替代验收为固定数据下的真实浏览器 DOM/截图、三个轨道共享列的 computed style/边界对齐、文本/按钮状态和生产 API transcript；纯投影仍由自动测试覆盖，不以“无追溯行”跳过。
 5. 除 T10A/T11B 维护的同一个一次性 fixture driver 外，本 change 不自建 demo、长期验收 endpoint、第二数据存储或仓库脚本。T11/T12 的页面读取、preview/create、PATCH/DELETE、Task/WS、vLLM/Comfy 与媒体仍走生产通路；T11A 的 `/object_info` 也读取 T12 使用的同一 Comfy 进程，生产 loader 读取生产 workflow 文件，二者没有替代存储或代理。T11C 的定向测试使用本机临时 HTTP/WS stub 注入与当前 Comfy 相同的 `execution_error.data.node_id` 结构，并运行生产 worker、PostgreSQL任务状态与正式 cleanup owner；它能确定性证明错误字段、无 retry/无 take和 `/free` 一次，不能证明 GPU 节点会失败或成功。T11A 预检不能证明 `/prompt` 接受、执行完成或 MP4 有效，后者必须由 T12 证明。依赖 fixture 的证据不得扩张为“上游生成也已验收”。审查阶段若按授权另建 `.work/c010/probe-*.py`，必须说明代理/延迟差异，且不能替代生产浏览器和真实视频证据。
+6. 复审补证中，真实后端无法稳定制造“成功加载 workspace 后，某个 Director REST 再返回非 JSON/指定 500/连接中断”的每一种浏览器时序。T20A 因此先在 `.work/c010/` 单列交付一次性 Director HTTP 故障装置：只提供加载该页面所需的最小公开 JSON，并可对一个指定请求返回结构化 404/409/422/500、非 JSON 或断开连接；不得导入或修改前端源码、写数据库/媒体/Task、伪造成功 mutation 或被提交。T20 使用真实 Vite、生产 React bundle、生产 Director API client/状态代码与浏览器 DOM，但该装置替代了 FastAPI/PostgreSQL这一段，只能证明前端在准确 HTTP/transport 输入下的请求次数、错误可见性、无自动 mutation 重放和刷新顺序，不能证明后端会产生这些响应。后端错误体/状态码仍由既有 API 集成测试与真实生产 404/409/422 单独证明；正常创建、槽位、Task/WS、take、DEBUG 和媒体补证仍须走全新 PostgreSQL与生产 FastAPI，不得由故障装置替代。
 
 ## 10. 验收标准
 
@@ -262,22 +263,22 @@ C010 不改变错误状态码，只完整消费：
 | ID | 风险 | 触发条件 | 观测点 | 期望值 |
 |---|---|---|---|---|
 | AC-01 | [常规] | 对 baseline..C010 HEAD 做文件、OpenAPI、migration、围栏与依赖审计 | git diff、`backend/`、Alembic、package lock、路由 | 业务 diff 只含 Director 前端、C010 新前端测试/runner、节点 310 单叶 workflow、四个既有 hash 常量、`gen_clip_video.py` 的 `node_id` 修正、获授权的一个既有 WS 测试精确同步、change/追溯/AGENTS/NOTES；binding TOML、migration、其他后端 Python/既有测试以及 `openspec/archive/C009/` 相对 baseline 均无改动；`.work` driver/证据未提交；无围栏能力、retry/fallback/polling/版本化；Director 空态被真实页面替换 |
-| AC-02 | [外部输入] | 分别让 assets/shots/clips 初始 REST 成功、结构化 404/422/500、非 JSON 和连接失败 | Director loading/ready/error DOM、请求 URL、控制台 | 只访问同源 `/api`；三源都成功才 ready；空 shots 显示明确空态；任一失败显示实际 message且不伪造空数据、不自动重试 mutation、不硬编码端口 |
+| AC-02 | [外部输入] | 分别让 assets/shots/clips 初始 REST 成功、结构化 404/422/500、非 JSON、连接失败及“HTTP 200 但 ID/枚举/数组字段畸形” | Director loading/ready/error DOM、请求 URL、后续请求、控制台 | 只访问同源 `/api`；三源均通过运行时合同才 ready；空 shots 显示明确空态；任一 HTTP/transport/成功体协议失败显示实际 message且不伪造空数据、不基于敌意 ID 发后续请求、不自动重试 mutation、不硬编码端口 |
 | AC-03 | [常规] | 用相邻同场景、零场景、不同场景、双场景与 duration 1/2/5 的 Shot fixture 加载页面 | 场景带段数/标签、三轨 grid columns、Shot 文本/changed 角标 | 相邻同 classification 合段；scene/灰/警示均有文字；三轨共享精确 `1fr 2fr 5fr...` 权重并对齐；Shot 显示 order/type/duration，changed 独立可见，颜色不是唯一信息 |
 | AC-04 | [外部输入] | 依次勾选未占用的单场景 S、零场景、不同场景 T、双场景、已占用与非连续 Shot，并再取消 | checkbox disabled/reason、selection IDs、preview 请求 | S 与零场景可同时选；T/双场景/已占用不可新选且原因可见；已选可取消；非连续选择不被自动补齐并原样发 preview；任一选择变化使旧 preview/candidates/draft 消失 |
 | AC-05 | [常规] | 加载含 empty/queued/generating/ready/failed、fresh/stale 的多个 Clip 和两段未覆盖 Shot | Clip 色条 DOM/跨度/文字、空洞 | 每个 Clip 精确横跨其 shot_ids；五种 generation state 有独立文字/状态 class，stale 同时以另一角标呈现；连续未覆盖区为虚线空洞且不阻断选择；无音频轨控件/占位 |
 | AC-06 | [外部输入] | 对合法、跳号、已占用、跨场景、双场景、超时长和无候选选择调用 preview | 请求 body、预检面板、API transcript、数据库计数 | body 精确只有当前 shot_ids；所有正常规则结果为 200面板且逐项原文显示 violations/warnings/时长/候选；有 violation 时 create disabled；预检零写入；非 2xx 保留选择且显示 message |
 | AC-07 | [外部输入] | preview 返回按出场排序的候选、overflow 默认子集和 soft warning；用户取消/等量替换/尝试多选后 create | 候选 DOM 顺序、checkbox、create body、创建后轨道/详情 | 顺序与响应逐项一致；默认 IDs 精确勾选；最多只能保持响应推导的 N 项，全部候选仍可见；API warning 黄色原文且不阻止；create body 保持候选顺序；201 后最新快照含新 Clip、选择清空并自动选中新 Clip；重裁决 422 不伪成功 |
-| AC-08 | [外部输入] | 对选中 Clip 修改 note、请求时长（合法整数/非整数/API 越界）、no-op 保存、只改 note 后生成、取消/确认删除，并让 WS/失败 refresh 发生在 dirty 期间 | PATCH/generate/DELETE 次数与 body、base/草稿、Clip revision/state、错误/成功提示 | no-op 零 PATCH；多个变化一个 PATCH且仅含变化字段；非整数不提交、API 越界 422 message 可见；仅 duration dirty 时 generate disabled；只改 note 可生成并原值进入 `user_note`；同 Clip refresh 更新 base但不丢 dirty值，失败不清草稿；取消删除零请求，204+最新列表确认后 Clip 消失/详情清空 |
-| AC-09 | [外部输入] | 对正常、无 current、override、disabled 的 Slot 切换 enabled，上传合法/非法图片，清除/取消清除 | Slot 顺序/媒体/source、multipart/JSON、Clip 两维/warnings、错误 | slot_no 不变；override > current > null 的 API结果原样显示；JSON/FormData 精确且不手写 multipart header；成功后以 REST 更新 enabled/revision/stale/warning，失败无乐观变化且 message 可见；不读取内部 path/hash |
+| AC-08 | [外部输入] | 对选中 Clip 修改 note、请求时长（合法整数/非整数/API 越界）、no-op 保存、只改 note 后生成、取消/确认删除，并让 WS/失败 refresh 发生在 dirty 期间；再让 save/delete/generate 分别返回 404/409 | PATCH/generate/DELETE 与后续 GET 次数/body、base/草稿、Clip revision/state、错误/成功提示 | no-op 零 PATCH；多个变化一个 PATCH且仅含变化字段；非整数不提交、API 越界 422 message 可见；仅 duration dirty 时 generate disabled；只改 note 可生成并原值进入 `user_note`；同 Clip refresh 更新 base但不丢 dirty值，失败不清草稿；取消删除零请求，204+最新列表确认后 Clip 消失/详情清空；404/409 message 可见且精确触发权威刷新、零 mutation 重放，资源确已消失时不留幽灵选中项 |
+| AC-09 | [外部输入] | 对正常、无 current、override、disabled 的 Slot 切换 enabled，上传合法/非法图片，清除/取消清除；再让成功体返回绝对/协议相对/`file:`/穿越/query/fragment、与 image_source/slot.id 不匹配或类型错误的 image_url，并让 mutation 返回 404/409 | Slot 顺序/媒体/source、multipart/JSON、后续 fetch/DOM、Clip 两维/warnings、错误 | slot_no 不变；`asset_current` 只接受 `/media/asset-images/{正整数}`，`override` 只接受 `/media/slot-overrides/{当前 slot.id}`，无图为 null；敌意 image_url 在媒体加载前产生可见 protocol error且零站外请求；JSON/FormData 精确且不手写 multipart header；成功后以 REST 更新 enabled/revision/stale/warning；404/409 message 可见并刷新但不重放，其他失败无乐观变化且 message 可见；不读取内部 path/hash |
 | AC-10 | [外部输入] | 创建后删除一个被 Slot 引用的资产，分别保留/不保留 override，再回到/刷新 Director并尝试生成 | Slot DOM、可用动作、Task detail、Clip | 快照名和“原资产已删除”精确可见；有 override 仍显示图；无图同时提供停用/上传且不自动处置；若仍 enabled 后生成，HTTP 202 对应 Task failed并显示含 R10/slot 的完整原因，不改写成同步 409/422 |
-| AC-11 | [外部输入] | 列出 0/1/多 take，播放媒体，切换 current/no-op/跨 Clip 失败，删除 non-current/current，分别在 DEBUG 开/关响应下查看 | video DOM、seed 类型、PUT/DELETE、current 数、调试区、错误 | 顺序 id ASC；seed 按 string 原文、duration/null 文案准确；媒体 URL 只取 `/media`; 切换后精确一 current；current 删除控件禁用且不请求，non-current 确认后 204消失；跨 Clip 422直显；DEBUG 字段有才展示、无则无空占位 |
-| AC-12 | [外部输入] | 分别在 note 未变/改为普通 string/空串/null 时生成并连续两次有意点击，再得到 queued→running→done、202 immediate failed、同步 409 和 transport error | POST 次数/body/task_id、Task/Clip/note/take/提示 | note 未变 body `{}`，实际草稿精确显式提交且不 trim/混同，均无 request_id；每次在途只一 POST，首个 202 后可再次创建独立 Task；只提示已提交，done 且最新 take 可见后才提示完成；immediate failed保留 note mutation并显示完整 error_msg；409/transport直显且无假 Task/take；Clip 两维只取 REST |
-| AC-13 | [并发] | 用 deferred REST 在 initial snapshot 期间送入相关 WS 事件；再制造 initial 失败、socket 关闭和重连 | 事件 buffer、request generations、应用次数、loading/error、REST calls | socket open 先于 snapshot；旧 snapshot 零应用；事件顺序保留并触发最新 snapshot；失败 socket 关闭且错误可见；重连重复 socket-first 流程；最终只应用最新数据且不遗留 refreshing、不启动 polling |
-| AC-14 | [并发] | 在 create/save/slot/current/delete/generate 或 terminal refresh 在途时送入更新事件，在 dirty 期间刷新，并在途中切换 selected Clip | 页面/详情 generation、base/草稿、replacement REST、成功通知、task detail GET | 每个未知 task 同时至多一条 detail GET；旧页面/旧 Clip 响应零应用；事件使在途 refresh 失效并精确补发最新 refresh；同 Clip dirty 精确保留且重算，切 Clip 才废弃；成功/terminal通知晚于最新快照；task去重不吞 replacement；最新失败可见 |
+| AC-11 | [外部输入] | 列出 0/1/多 take，播放媒体，切换 current/no-op/跨 Clip 失败，删除 non-current/current，分别在 DEBUG 开/关响应下查看；再返回 number/越界/非十进制 seed、敌意 media_url 与未授权 input_hash | video DOM、seed 类型、后续媒体请求、PUT/DELETE、current 数、调试区、错误 | 顺序 id ASC；seed 仅接受 `0..2^63-1` 十进制 string并逐字显示，不强转或舍入；媒体 URL 只接受 `/media/clip-videos/{当前 video.id}`，敌意值在 DOM 加载前报 protocol error；切换后精确一 current；current 删除控件禁用且不请求，non-current 确认后 204消失；跨 Clip 422直显；DEBUG 只展示响应中的 built_prompt/input_snapshot，无则无空占位；越权 input_hash 形成可见 protocol error且不得声明、读取或展示 |
+| AC-12 | [外部输入] | 分别在 note 未变/改为普通 string/空串/null 时生成并连续两次有意点击，再得到 queued→running→done、202 immediate failed、同步 409 和 transport error；另向 WS/Task detail 注入 null/array、错枚举、unsafe/string/路径型 task_id 与错类型字段 | POST 与后续 GET 次数/body/path、task_id、Task/Clip/note/take/提示 | note 未变 body `{}`，实际草稿精确显式提交且不 trim/混同，均无 request_id；每次在途只一 POST，首个 202 后可再次创建独立 Task；只提示已提交，done 且最新 take 可见后才提示完成；immediate failed保留 note mutation并显示完整 error_msg；409/transport直显且无假 Task/take；合法 Task/TaskEvent 字段运行时校验，敌意 task_id 在任何详情 GET 前报 protocol error且不得改变请求路径；Clip 两维只取 REST |
+| AC-13 | [并发] | 用 deferred REST 在 initial snapshot 期间送入相关 WS 事件；再制造 initial 失败、socket error、Task detail 失败、socket 关闭和重连 | 事件 buffer、request generations、应用次数、loading/error、Director DOM、REST calls | socket open 先于 snapshot；旧 snapshot 零应用；事件顺序保留并触发最新 snapshot；socket/Task detail/refresh 失败即使保留旧 ready 快照也有可见错误；重连重复 socket-first 流程；最终只应用最新数据且不遗留 refreshing、不启动 polling |
+| AC-14 | [并发] | 在 create/save/slot/current/delete/generate 或 terminal refresh 在途时送入更新事件；再让 terminal event 先到、其唯一 detail GET 在随后页面 refresh 期间完成；在 dirty 期间刷新并在途中切换 selected Clip | 页面/详情 generation、事件 consumed 次数、base/草稿、replacement REST、成功通知、task detail GET | 每个未知 task 同时至多一条 detail GET；旧页面/旧 Clip 响应零应用；事件在上述两种交错顺序中都精确消费一次并绑定到事件提交后的快照或补发 replacement，不得因已有 page request 直接丢弃；同 Clip dirty 精确保留且重算，切 Clip 才废弃；save/slot 成功提示等待页面与详情两份最新快照，terminal通知等待最新页面及所选详情；task去重不吞同步；最新失败在 DOM 可见 |
 | AC-15 | [跨进程] | 在 T10A/T11B 自给自足的确定性前置数据上，以全新 PostgreSQL、生产 FastAPI/Vite/WS 与正式 vLLM/Comfy，从浏览器勾 3 个连续同场景 Shot→preview→create→生成两次→播放/切 current | fixture 图片/API边界、浏览器 DOM、HTTP/WS、Task、DB、Comfy queue/history、MP4/media、截图/log | fixture 自动生成并经正式 API 上传可由 `/media` 回读的 13 张合格图片，不要求人工图片或旧库；只直写无公开创建入口的 Shot 前置且不伪造 Task/take；其后槽位按正式候选出场顺序；状态可观察 queued/generating/ready且 freshness 独立；两次生成形成两个不同 seed string 的 take，首个 current、切换后精确一 current；媒体可播放、有 video stream、actual_duration>0；driver 完成后的被验收操作无直接 DB/文件写入 |
 | AC-16 | [跨进程] | 在生产浏览器/API通路验证跨场景置灰、双场景不可选、>9 精简、建片后改绑定破坏同场景并生成、运行中编辑 Shot、删除引用资产 | UI/API/Task error、Clip/Shot/Slot终态、WS/REST顺序 | 跨场景/双场景在 UI 有确定原因且 API正式违规仍按既有合同；>9 所有候选可见但最多合法 N项；破坏绑定后任务202→failed并显示 R5a原因；运行中编辑后 take仍保存但 Clip保持 stale/Shot changed；删除资产显示快照并要求处置 |
-| AC-17 | [常规] | 执行 C010 定向测试、完整前端测试/build、完整 pytest、Alembic current/check、范围/追溯/完成报告审计 | 原始命令输出、TRACEABILITY、`.work/c010/completion-report.md`、git | 所有新增/修正测试先有追溯行与窄授权并回填真实 ID；完整 frontend/backend 通过，Alembic唯一 head且 no new operations；migration 零修改，workflow 只含 AC-18 单叶，后端 Python只含 AC-20 视频事件字段，既有测试只含 `AGENTS.md` 明列的四个 hash 常量与一个 WS 事件测试精确同步；完成报告逐项“操作 → 观测值”覆盖 AC-01..20 与异常分支，未验证项不宣称完成；NOTES/DECISIONS/checkbox/commit一致 |
+| AC-17 | [常规] | 执行 C010 原定与复审新增定向测试、完整前端测试/build、完整 pytest、Alembic current/check、范围/追溯/完成报告审计 | 原始命令输出、TRACEABILITY、`.work/c010/completion-report.md`、git | 所有新增测试先有追溯行并回填真实 ID；既有测试除已获窄授权内容外零修改；完整 frontend/backend 通过，Alembic唯一 head且 no new operations；migration 零修改，workflow 只含 AC-18 单叶，后端 Python只含 AC-20 视频事件字段；完成报告逐项“操作 → 观测值”覆盖 AC-01..20 与复审异常分支，T11/T12 缺失的实际控件/DOM、404/409 刷新、DEBUG、take 删除及真实 WS terminal 已补证，未验证项不宣称完成；NOTES/DECISIONS/checkbox/commit一致 |
 | AC-18 | [外部输入] | 当前 Comfy `/object_info` 将带目录前缀的 LoRA 名列为允许项后，完成 T11A 并以新数据库、新 DATA_DIR、新 Task 重跑 T12 | T11A 原始 `/object_info`、workflow 与四个测试常量的精确 diff/raw SHA256、生产 binding loader、定向/完整 pytest、重启后 health、T12 `/prompt`/queue/history/Task | 节点 `310.inputs.lora_name` 解析值精确为 `minimax_h3\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` 且存在于现场允许列表；相对 T11A 前 workflow 仅该叶变化；现场 raw hash 与四个获授权常量均精确为 `4f078c121b8ec0d9023e775e0b052036407a5f75bf626d13ea223ebf3d5b4772`，loader/health 均逐字等于该次记录值，七个原失败用例及完整 pytest 通过；旧 failed Task 保持原终态且未重试，新 Task 的 Comfy `/prompt` 返回 200并在 history 以其 prompt_id 可定位；无运行时猜测、别名、fallback、retry、为命中 hash 改换行、动态 expected 或其他测试修改 |
 | AC-19 | [跨进程] | 在无用户图片、无旧库/旧 DATA_DIR 输入的全新 fixture 验证库运行 T11B driver | driver 源码、13 次正式上传响应、资产图片列表、`/media/asset-images/{id}` bytes、Pillow 解码、数据库/文件计数 | driver 不含固定 1×1 PNG或外部文件读取；精确创建 13 个 current 图片，每个回读为 `512×512` RGB PNG、至少两种像素颜色，13 份 bytes 两两不同；正式 API/媒体通路均成功，driver 不写 Task/ClipVideo/正式视频且无需人工干预 |
 | AC-20 | [外部输入] | 本机 HTTP/WS stub 先发送一个其他 prompt 的畸形 `execution_error`，再为当前 prompt 发送只含真实 `node_id`（不含 `node`）的合法错误事件 | WS 原始事件、Task/Clip/ClipVideo、错误末行、外部调用次数与顺序、`/free` | 其他 prompt 事件在节点字段校验前被忽略；当前 Task/Clip 精确 failed且错误末行为 `RuntimeError: Comfy execution_error node_id=168 type=T25StubNode exception=T25 WS stage failure`；ClipVideo 为 0、无 retry、既有调用顺序不变、`/free` 精确一次；生产代码不读取/接受 `node` |
@@ -298,5 +299,11 @@ C010 不改变错误状态码，只完整消费：
 | AC-18 | `C010 MiniMax workflow 外部枚举绑定：节点 310 LoRA 注册名与当前 Comfy object_info 一致、hash 更新且无路径猜测或 fallback` |
 | AC-19 | `C010 自洽 Director 夹具参考图：无需用户素材或旧库，driver 经正式 API 生成/上传/回读 13 张生产可加载图片` |
 | AC-20 | `C010 Comfy execution_error 真实协议：node_id 完整原因、跨 prompt 隔离、failed/no-take/no-retry 与 free-once` |
+| AC-02、AC-09、AC-11 | `C010 复审 REST 成功体边界：Director ID、seed 与媒体 URL 运行时校验，敌意值在查询/DOM 前失败` |
+| AC-12、AC-13 | `C010 复审 Task REST/WS 边界：事件与详情字段运行时校验，非法 task_id 不发请求` |
+| AC-12、AC-14 | `C010 复审 terminal 竞态：detail 与页面 refresh 交错时事件不丢失且通知后置` |
+| AC-13、AC-14 | `C010 复审同步错误可见性：ready 页面仍展示 Task detail/socket 错误` |
+| AC-08、AC-09、AC-11、AC-12 | `C010 复审 mutation 重建：404/409 后刷新权威状态且无自动重放`；`C010 复审 mutation 通知：save/slot 成功提示等待页面与详情最新快照` |
+| AC-02、AC-04、AC-06、AC-08 至 AC-14、AC-17 | `C010 复审浏览器补证：Director AC-02..12 缺失路径、修复行为与真实 WS terminal` |
 
 AC-01/AC-17 的范围、文档、Alembic 与完成报告不适合新增单一运行时自动测试；替代验收固定为 git diff/range、OpenAPI 与围栏扫描、`alembic current/check`、完整 pytest、前端 test/build 和人工逐项核对。AC-18 的关键允许列表来自当前外部 Comfy 进程，固定 mock 会把会漂移的外部状态伪装成仓库事实；因此不新增测试，只按 `AGENTS.md` 窄例外同步四个既有精确 hash 常量，并以这些既有用例、同一生产 Comfy 的原始 `/object_info`、生产 binding loader/raw hash、重启后 health以及 T12 新 Task 的真实 `/prompt`/history/MP4 联合验收。AC-19 是一次性验收装置本身且 `.work` 不提交，不新增仓库自动测试；替代验收必须在全新库经正式 API/媒体通路运行 driver，并逐个回读和解码 13 张图片。AC-20 使用既有跨进程资源生命周期用例按窄授权改为真实 `node_id` 事件结构，直接运行生产 worker/状态机与 cleanup owner；它不能证明 GPU 成功，T12 仍须证明真实 MP4。AC-03/04/13/14 的可确定投影与竞态必须有前端自动测试；AC-02/05-12 的实际控件/DOM、AC-15/16 的生产链路按 §9 的理由采用真实浏览器证据，不以“追溯表无行”跳过。
