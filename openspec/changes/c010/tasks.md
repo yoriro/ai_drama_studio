@@ -751,7 +751,7 @@
   - **追溯行：** `C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`。
   - **验收方式与人工检查：** 完成报告在原候选审计基础上，判断“异步 action 是否必须绑定发起资源 identity”“生产浏览器验收库与干净回归库分工”“一次性 headless 装置的证据边界”是否只是本 spec 的局部落实或需要长期跨 change 决策。不得自行修改 DECISIONS；无新跨 change 约定时精确写“DECISIONS.md 候选项：无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
