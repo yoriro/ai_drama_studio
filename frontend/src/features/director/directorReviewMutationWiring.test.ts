@@ -21,10 +21,12 @@ import {
 import { listShots, parseShotListResponse, type Shot } from "../../api/shots";
 import {
   createDirectorMutationAdapter,
+  createDirectorSync,
   type DirectorMutationAction,
   type DirectorMutationRefreshScope,
   type DirectorPageSnapshot,
   type DirectorRefreshOptions,
+  type DirectorTaskSocket,
 } from "./directorSync";
 
 interface MutationCase {
@@ -310,4 +312,138 @@ describe("Director production mutation wiring", () => {
       }
     },
   );
+
+  it("clears selection and detail when a 404 refresh shows the Clip disappeared", async () => {
+    let pageClipReads = 0;
+    const lateDetail = {
+      resolve: null as ((response: Response) => void) | null,
+    };
+    const socket: DirectorTaskSocket = {
+      onopen: null,
+      onmessage: null,
+      onerror: null,
+      onclose: null,
+      close: vi.fn(),
+    };
+
+    fetchMock.mockImplementation((input, init) => {
+      const requestPath = new URL(String(input), "http://localhost").pathname;
+      const requestMethod = init?.method ?? "GET";
+      if (requestMethod === "DELETE" && requestPath === "/api/clips/7") {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              detail: {
+                code: "not_found",
+                message: "Clip disappeared",
+              },
+            },
+            404,
+          ),
+        );
+      }
+      if (requestMethod === "GET" && requestPath === "/api/projects/1/assets") {
+        return Promise.resolve(jsonResponse([asset()]));
+      }
+      if (requestMethod === "GET" && requestPath === "/api/episodes/1/shots") {
+        return Promise.resolve(jsonResponse([shot()]));
+      }
+      if (requestMethod === "GET" && requestPath === "/api/episodes/1/clips") {
+        pageClipReads += 1;
+        return Promise.resolve(
+          jsonResponse(pageClipReads === 1 ? [clip()] : []),
+        );
+      }
+      if (requestMethod === "GET" && requestPath === "/api/clips/7") {
+        return new Promise<Response>((resolve) => {
+          lateDetail.resolve = resolve;
+        });
+      }
+      if (requestMethod === "GET" && requestPath === "/api/clips/7/slots") {
+        return Promise.resolve(
+          jsonResponse({ clip_id: 7, items: [slot()], warnings: [] }),
+        );
+      }
+      if (requestMethod === "GET" && requestPath === "/api/clips/7/videos") {
+        return Promise.resolve(jsonResponse([video()]));
+      }
+      throw new Error(`unexpected request ${requestMethod} ${requestPath}`);
+    });
+
+    const sync = createDirectorSync({
+      readPageSnapshot,
+      readClipDetail,
+      openSocket: () => socket,
+    });
+    const setError = vi.fn();
+    const onSuccess = vi.fn();
+    const adapter = createDirectorMutationAdapter({
+      refreshPage: (options) => sync.refreshPage(options),
+      refreshSelectedClip: () => sync.refreshSelectedClip(),
+    });
+
+    const flush = async (): Promise<void> => {
+      for (let index = 0; index < 24; index += 1) {
+        await Promise.resolve();
+      }
+    };
+
+    try {
+      sync.start();
+      socket.onopen?.({} as Event);
+      await flush();
+      expect(sync.getState().pageSnapshot?.clips).toHaveLength(1);
+
+      sync.selectClip(7);
+      await flush();
+      expect(sync.getState().selectedClipId).toBe(7);
+      expect(lateDetail.resolve).not.toBeNull();
+
+      const pending = adapter.run(
+        { kind: "delete", clipId: 7 },
+        { setError, onSuccess },
+      );
+      expect(pending).not.toBeNull();
+      await pending;
+      await flush();
+
+      const error = setError.mock.calls[0]?.[0];
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toEqual(
+        expect.objectContaining({
+          status: 404,
+          message: "Clip disappeared",
+        }),
+      );
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(
+        fetchMock.mock.calls.filter(([input, requestInit]) => {
+          const requestPath = new URL(String(input), "http://localhost").pathname;
+          return (
+            requestPath === "/api/clips/7" &&
+            (requestInit?.method ?? "GET") === "DELETE"
+          );
+        }),
+      ).toHaveLength(1);
+      expect(
+        fetchMock.mock.calls.filter(([input, requestInit]) => {
+          const requestPath = new URL(String(input), "http://localhost").pathname;
+          return (
+            requestPath === "/api/episodes/1/clips" &&
+            (requestInit?.method ?? "GET") === "GET"
+          );
+        }),
+      ).toHaveLength(2);
+      expect(sync.getState().selectedClipId).toBeNull();
+      expect(sync.getState().clipDetail).toBeNull();
+
+      lateDetail.resolve?.(jsonResponse(clip()));
+      await flush();
+      expect(sync.getState().selectedClipId).toBeNull();
+      expect(sync.getState().clipDetail).toBeNull();
+    } finally {
+      lateDetail.resolve?.(jsonResponse(clip()));
+      sync.dispose();
+    }
+  });
 });

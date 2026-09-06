@@ -721,7 +721,7 @@
   - **追溯行：** `C010 二次复审最终一致性：分离验收库与干净回归库并关闭全部 BLOCK`；全部 C010 二次复审追溯行。
   - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_final_<timestamp>` 与隔离 DATA_DIR，先执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`，再用 durable wrapper 执行 `python -m pytest -q` 并要求真实 exit-code=0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts src/features/director/directorReviewOldClipIsolation.test.ts src/features/director/directorReviewMediaConsumption.test.ts src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`。执行 `git diff --check`、`git diff --name-status e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`git log --oneline e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）、围栏/versioning/retry/fallback/continuity 扫描及所有既有测试零 diff审计；逐项确认 T22–T28 checkbox/commit/证据一致，四个新测试均有真实用例 ID，完成报告第 5 段按“操作 → 观测值”覆盖正常路径和至少一条异常分支。全部通过后才勾选、回填并单独提交。
 
-- [ ] **T30 — 补齐 mutation 资源消失后的 selection/detail 清空回归**
+- [x] **T30 — 补齐 mutation 资源消失后的 selection/detail 清空回归**
 
   - **交付：** 严格依 `AGENTS.md` 的 C010 T30 一次性窄授权，只修改 `frontend/src/features/director/directorReviewMutationWiring.test.ts`：保留 T25 五类 action×404/409 既有矩阵逐字不变，追加一个独立测试及其直接必需的 import 与局部装置。测试须从生产 `createDirectorMutationAdapter` action seam 发起一条结构化 404 或 409，让生产 `createDirectorSync` 的 page reader 返回不含当前 Clip 的最新列表；不得修改生产代码、其他测试、spec 或旧追溯证据，不得自填 GET/notice 账本。
   - **R：** 无；PRD §9；DECISIONS D-008；spec AC-24。
