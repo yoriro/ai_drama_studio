@@ -729,7 +729,7 @@
   - **追溯行：** `C010 最终复审 mutation 资源消失：生产 adapter 与 page reader 清空 selection/detail`；并补充 `C010 二次复审 mutation 页面接线：五类 404/409 权威 GET、零重放与零伪成功`。
   - **验收方式与命令：** 先保存 `git diff 02f5eeab5a9cc910011ffcf6c53c81733c5a7603^..02f5eeab5a9cc910011ffcf6c53c81733c5a7603 -- frontend/src/features/director/directorReviewMutationWiring.test.ts` 作为 T25 文件基线；修改后逐段证明既有矩阵测试名、五个 case、404/409 循环、mutation/GET/error/no-success 全部断言未变。新用例必须精确断言：原 mutation=1，结构化 `detail.message` 原文可见，权威页面 reader 只发正式 GET 且不重放 mutation，success callback/notice=0，最新 clips 不含目标后 `selectedClipId === null`、`clipDetail === null`，旧详情响应不得重新挂回。执行 `npm --prefix frontend run test -- src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；另建仅迁移的 `ai_drama_studio_c010_t30_<timestamp>` 与隔离 DATA_DIR，从 `backend` 执行 `python -m alembic upgrade head`，再用 durable wrapper 执行完整 `python -m pytest -q` 并保存 stdout、stderr、PID 与真实 exit-code。执行 `git diff --check` 及精确 scope diff；全部 exit 0 后回填真实测试 ID/日志、勾选并单独提交，任一失败立即停止且不得进入 T31。
 
-- [ ] **T31 — 修正完成报告证据归属并完成最终一致性复审**
+- [x] **T31 — 修正完成报告证据归属并完成最终一致性复审**
 
   - **交付：** 不修改生产代码或测试。更新 `.work/c010/completion-report.md`：把 T23 新回归的证据边界准确写成“自动测试覆盖 production `resolveDirectorClipSave` + `createDirectorSync` seam，T28 浏览器重放覆盖实际 `DirectorPage` 调用链”，不得再声称 T23 测试本身穿过 adapter/page；新增 T30 修复前 Sol 探针、修复 commit、真实测试 ID、追溯与复跑结果。核对 AC-24、T30、两条 mutation 追溯行、checkbox 和 commits 一致。
   - **R：** 无；PRD §0、§9、§11 M4；DECISIONS D-008。
