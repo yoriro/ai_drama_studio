@@ -1,5 +1,4 @@
 import {
-  protocolError,
   requestJson,
   requestNoContent,
   requireObjectWithKeys,
@@ -44,16 +43,6 @@ export function parseProjectResponse(
   return record as unknown as Project;
 }
 
-export function parseProjectListResponse(
-  value: unknown,
-  status = 200,
-): Project[] {
-  if (!Array.isArray(value)) {
-    return protocolError(status, "Project list response must be an array");
-  }
-  return value.map((item) => parseProjectResponse(item, status));
-}
-
 export function listProjects(): Promise<Project[]> {
   return requestJson<Project[]>("/projects");
 }
@@ -84,6 +73,5 @@ export function updateProject(id: number, input: ProjectPatch): Promise<Project>
 }
 
 export function deleteProject(id: number): Promise<void> {
-  const projectId = requirePositiveSafeInteger(id, "projectId");
-  return requestNoContent(`/projects/${projectId}`, { method: "DELETE" });
+  return requestNoContent(`/projects/${id}`, { method: "DELETE" });
 }

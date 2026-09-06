@@ -1,5 +1,4 @@
 import {
-  protocolError,
   requestJson,
   requestNoContent,
   requireNonNegativeSafeInteger,
@@ -97,16 +96,6 @@ export function parseEpisodeResponse(
   return record as unknown as Episode;
 }
 
-export function parseEpisodeListResponse(
-  value: unknown,
-  status = 200,
-): Episode[] {
-  if (!Array.isArray(value)) {
-    return protocolError(status, "Episode list response must be an array");
-  }
-  return value.map((item) => parseEpisodeResponse(item, status));
-}
-
 export function listEpisodes(projectId: number): Promise<Episode[]> {
   return requestJson<Episode[]>(`/projects/${projectId}/episodes`);
 }
@@ -140,9 +129,8 @@ export function updateEpisode(id: number, input: EpisodePatch): Promise<Episode>
 }
 
 export function generateAssets(id: number): Promise<GenerateAssetsResponse> {
-  const episodeId = requirePositiveSafeInteger(id, "episodeId");
   return requestJson<GenerateAssetsResponse>(
-    `/episodes/${episodeId}/generate-assets`,
+    `/episodes/${id}/generate-assets`,
     { method: "POST" },
   );
 }
@@ -150,9 +138,8 @@ export function generateAssets(id: number): Promise<GenerateAssetsResponse> {
 export function readGenerateShotsImpact(
   id: number,
 ): Promise<GenerateShotsImpactResponse> {
-  const episodeId = requirePositiveSafeInteger(id, "episodeId");
   return requestJson<GenerateShotsImpactResponse>(
-    `/episodes/${episodeId}/generate-shots/impact`,
+    `/episodes/${id}/generate-shots/impact`,
     { method: "POST" },
   );
 }
@@ -161,10 +148,9 @@ export function generateShots(
   id: number,
   confirmToken?: string,
 ): Promise<GenerateShotsResponse> {
-  const episodeId = requirePositiveSafeInteger(id, "episodeId");
   const body = confirmToken === undefined ? {} : { confirm_token: confirmToken };
   return requestJson<GenerateShotsResponse>(
-    `/episodes/${episodeId}/generate-shots`,
+    `/episodes/${id}/generate-shots`,
     {
       method: "POST",
       headers: jsonHeaders,
@@ -174,6 +160,5 @@ export function generateShots(
 }
 
 export function deleteEpisode(id: number): Promise<void> {
-  const episodeId = requirePositiveSafeInteger(id, "episodeId");
-  return requestNoContent(`/episodes/${episodeId}`, { method: "DELETE" });
+  return requestNoContent(`/episodes/${id}`, { method: "DELETE" });
 }

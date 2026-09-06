@@ -220,6 +220,8 @@ export function deleteAssetImage(imageId: number): Promise<void> {
 }
 
 export function getAssetImageMediaUrl(imageId: number): string {
-  const id = requirePositiveSafeInteger(imageId, "imageId");
-  return `/media/asset-images/${id}`;
+  if (!Number.isInteger(imageId) || imageId <= 0) {
+    throw new Error("imageId must be a positive integer");
+  }
+  return `/media/asset-images/${imageId}`;
 }

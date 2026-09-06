@@ -689,7 +689,7 @@
   - **追溯行：** `C010 二次复审 mutation 页面接线：五类 404/409 权威 GET、零重放与零伪成功`。
   - **验收方式与命令：** 对实际 save/delete/slot/take/generate action 分别注入结构化 404、409 共 10 格；mutation、GET ledger 和 notices 只能由 production adapter/readers/notice publisher 产生。逐格断言 mutation=1、`detail.message` 精确可见、正式 page/detail GET 方法与路径/次数符合动作影响面、无 mutation 重放且 success notice=0；至少一格由 page reader 返回 Clip 消失并断言 selection/detail 清空。执行 `npm --prefix frontend run test -- src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；在仅迁移的新库 `ai_drama_studio_c010_t25_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q` 并保存真实 exit code。全部通过后回填、勾选、单独提交。
 
-- [ ] **T26 — 收回未消费导出与非 Director 顺手硬化**
+- [x] **T26 — 收回未消费导出与非 Director 顺手硬化**
 
   - **交付：** 以二次复审基线 `e158338dc89bebad5cd40781b50e6c11de3f989a` 为逐函数对照，删除 C010 新增但 Director 未消费的 `parseProjectListResponse`、`parseEpisodeListResponse` 导出；把 `deleteProject`、`generateAssets`、`readGenerateShotsImpact`、`generateShots`、`deleteEpisode`、`getAssetImageMediaUrl` 中仅由 C010 顺手加入且不服务 Director 的 safe-ID 行为恢复为该基线。必须保留 Director 实际使用的 Project/Episode 单体 parser、list 读取边界、T22 generate task_id 校验及 T23–T25 修复；不得使用 `git checkout/reset` 覆盖用户改动，不得删除调用中的代码或修改任何测试。
   - **R：** 无；PRD §0 范围围栏、§9；AGENTS Change 纪律。
