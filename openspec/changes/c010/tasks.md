@@ -665,7 +665,7 @@
   - **追溯行：** `C010 二次复审 generate-video 成功体：task_id safe integer 与零非法状态污染`。
   - **验收方式与命令：** 新测试通过 production `generateClipVideo` 与 Director 生成提交 seam，依次注入 `Number.MAX_SAFE_INTEGER`、`Number.MAX_SAFE_INTEGER + 1`、string、boolean、float、null、array；精确断言合法最大值只进入一次 `trackTask`，其余均为 `ApiProtocolError` 且 track/state/detail GET/refresh 次数均为 0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；另建仅迁移的 `ai_drama_studio_c010_t22_<timestamp>` 与隔离 DATA_DIR，从 `backend` 执行 `python -m alembic upgrade head`，再用 durable wrapper 执行 `python -m pytest -q` 并保存 stdout、stderr、PID 和真实 exit-code 文件。全部 exit 0 后回填真实用例 ID、勾选并单独提交。
 
-- [ ] **T23 — 隔离保存 Clip A 与切换到 Clip B 的迟到响应**
+- [x] **T23 — 隔离保存 Clip A 与切换到 Clip B 的迟到响应**
 
   - **交付：** 保存动作必须捕获发起时的 Clip ID/动作 generation。保存 Clip A 在途时允许切换到 Clip B；A 成功后至多发起一次页面列表权威刷新，不得以 A 的动作刷新 B 详情、重置 B 草稿或在 B 上显示 `Clip #A 设置已保存`。若响应返回时仍选中 A，则保持既有“页面+详情均为该动作最新快照后提示一次”的语义；重新选择 A 后通过正式详情 reader 取得保存结果。仅修改 `frontend/src/pages/DirectorPage.tsx` 和确有必要的 `frontend/src/features/director/directorSync.ts`，新增 `frontend/src/features/director/directorReviewOldClipIsolation.test.ts`；不得修改既有测试、禁止选择切换、取消请求或吞掉 A 的成功结果。
   - **R：** 无；PRD §9；DECISIONS D-008。

@@ -167,6 +167,42 @@ export interface DirectorGenerationRequester {
   ): Promise<GenerateClipVideoResponse> | null;
 }
 
+export interface DirectorClipSaveAction {
+  clipId: number;
+  actionGeneration: number;
+  selectionGeneration: number;
+}
+
+export interface DirectorClipSaveContext {
+  selectedClipId: number | null;
+  latestActionGeneration: number;
+  selectionGeneration: number;
+}
+
+export interface DirectorClipSaveResolution {
+  refreshSelectedClip: boolean;
+  notice: DirectorSyncNotice | null;
+}
+
+export function resolveDirectorClipSave(
+  action: DirectorClipSaveAction,
+  context: DirectorClipSaveContext,
+): DirectorClipSaveResolution {
+  const isCurrentAction =
+    action.clipId === context.selectedClipId &&
+    action.actionGeneration === context.latestActionGeneration &&
+    action.selectionGeneration === context.selectionGeneration;
+  return {
+    refreshSelectedClip: isCurrentAction,
+    notice: isCurrentAction
+      ? {
+          kind: "mutation-success",
+          message: `Clip #${action.clipId} 设置已保存`,
+        }
+      : null,
+  };
+}
+
 const RECONNECT_DELAYS_MS = [1000, 2000, 5000] as const;
 
 interface PageRequest {

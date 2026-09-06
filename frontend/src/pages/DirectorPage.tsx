@@ -53,6 +53,8 @@ import {
   createDirectorGenerationRequester,
   handleDirectorMutationError,
   projectDirectorVisibleSyncErrors,
+  resolveDirectorClipSave,
+  type DirectorClipSaveAction,
   type DirectorMutationRefreshScope,
   type DirectorSyncState,
 } from "../features/director/directorSync";
@@ -175,6 +177,8 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     useState<unknown | null>(null);
   const previewGeneration = useRef(0);
   const previousSelectedClipId = useRef<number | null>(null);
+  const saveActionGeneration = useRef(0);
+  const selectionGeneration = useRef(0);
   const pendingMutationNotice = useRef<{
     message: string;
     baselineNoticeCount: number;
@@ -239,6 +243,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       return;
     }
     previousSelectedClipId.current = syncState.selectedClipId;
+    selectionGeneration.current += 1;
     pendingMutationNotice.current = null;
     setSettingsActionError(null);
     setSettingsNotice(null);
@@ -479,19 +484,32 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSettingsActionError(null);
     setSettingsNotice(null);
     setSettingsSavingClipId(clipId);
+    const action: DirectorClipSaveAction = {
+      clipId,
+      actionGeneration: ++saveActionGeneration.current,
+      selectionGeneration: selectionGeneration.current,
+    };
     void updateClip(clipId, projected.input)
       .then((updated) => {
         parseClipResponse(updated);
-        const message = `Clip #${clipId} 设置已保存`;
-        pendingMutationNotice.current = {
-          message,
-          baselineNoticeCount: sync.getState().notices.length,
-        };
-        sync.refreshPage({
-          notice: { kind: "mutation-success", message },
-          noticeAfterDetail: true,
-          refreshSelectedClip: true,
+        const resolution = resolveDirectorClipSave(action, {
+          selectedClipId: sync.getState().selectedClipId,
+          latestActionGeneration: saveActionGeneration.current,
+          selectionGeneration: selectionGeneration.current,
         });
+        if (resolution.notice !== null) {
+          pendingMutationNotice.current = {
+            message: resolution.notice.message,
+            baselineNoticeCount: sync.getState().notices.length,
+          };
+          sync.refreshPage({
+            notice: resolution.notice,
+            noticeAfterDetail: true,
+            refreshSelectedClip: true,
+          });
+          return;
+        }
+        sync.refreshPage();
       })
       .catch((error: unknown) => {
         setSettingsSavingClipId(null);
