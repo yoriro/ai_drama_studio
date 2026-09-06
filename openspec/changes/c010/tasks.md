@@ -697,7 +697,7 @@
   - **追溯行：** `C010 二次复审范围收口：移除未使用导出与非 Director 顺手硬化`。
   - **验收方式与命令：** 执行 `rg -n 'parseProjectListResponse|parseEpisodeListResponse' frontend/src`，期望零匹配；以 `git diff e158338dc89bebad5cd40781b50e6c11de3f989a -- frontend/src/api/projects.ts frontend/src/api/episodes.ts frontend/src/api/assets.ts` 逐函数核对上述六个非 Director helper 无 C010 行为差异，同时证明 Director 所需 parser/reader 与 T22–T25 diff仍在。执行 `npm --prefix frontend run test`、`npm --prefix frontend run build`、`git diff --check`，并用 `git diff --name-status e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD -- 'frontend/src/**/*.test.ts'` 确认测试 diff 精确为 T14–T19 历史六个新增文件和 T22–T25 四个新增文件，均为 `A`，不存在 `M/D/R`；另在仅迁移的新库 `ai_drama_studio_c010_t26_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q`。全部通过后回填 diff/符号证据、勾选并单独提交。
 
-- [ ] **T27 — 审计隔离 headless Edge/CDP 浏览器验收装置**
+- [x] **T27 — 审计隔离 headless Edge/CDP 浏览器验收装置**
 
   - **交付：** 在 `.work/c010/` 审计并按需复用既有 `T20-edge-launch*.py`、`T20-cdp.py`，交付单一不提交的 `.work/c010/director-review-browser-driver.py` 与 `T27-apparatus-audit.log`。驱动必须只连 `127.0.0.1`、使用独立临时 profile、记录启动 PID/完整参数/CDP 目标/结束与端口释放，不得附着或控制用户浏览器；必须提供 `--self-check` 并逐项记录 headless、程序化 click/file selection、`--disable-gpu`、DOM/media 观测与人工浏览器之间的差异。它可以驱动真实 Vite/React/Director、同源 API/WS/media，也可以明确连接 T20A 故障装置，但不得导入生产源码、写数据库/Task/媒体、伪造 WS terminal 或成为仓库长期 E2E runner。
   - **R：** 无；PRD §9；spec §9 验收装置。
