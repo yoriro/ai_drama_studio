@@ -1,5 +1,4 @@
 import {
-  ApiProtocolError,
   protocolError,
   requestJson,
   requestNoContent,
@@ -542,31 +541,23 @@ export function parseClipVideosResponse(
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasExactKeys(
-  value: Record<string, unknown>,
-  keys: readonly string[],
-): boolean {
-  const actualKeys = Object.keys(value);
-  return (
-    actualKeys.length === keys.length &&
-    keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
-  );
-}
-
-function isGenerateClipVideoResponse(
+function parseGenerateClipVideoResponse(
   value: unknown,
-): value is GenerateClipVideoResponse {
-  return (
-    isRecord(value) &&
-    hasExactKeys(value, ["task_id"]) &&
-    typeof value.task_id === "number" &&
-    Number.isInteger(value.task_id) &&
-    value.task_id > 0
+  status: number,
+): GenerateClipVideoResponse {
+  const record = requireObjectWithKeys(
+    value,
+    ["task_id"],
+    [],
+    status,
+    "Generate-video response",
   );
+  const taskId = requirePositiveSafeInteger(
+    record.task_id,
+    "Generate-video response task_id",
+    status,
+  );
+  return { task_id: taskId };
 }
 
 export function listClips(episodeId: number): Promise<Clip[]> {
@@ -702,21 +693,15 @@ export async function generateClipVideo(
   input: GenerateClipVideoRequest = {},
 ): Promise<GenerateClipVideoResponse> {
   const id = requirePositiveSafeInteger(clipId, "clipId");
-  const payload = await requestJson<unknown>(
+  return requestJson<GenerateClipVideoResponse>(
     `/clips/${id}/generate-video`,
     {
       method: "POST",
       headers: jsonHeaders,
       body: JSON.stringify(input),
     },
+    parseGenerateClipVideoResponse,
   );
-  if (!isGenerateClipVideoResponse(payload)) {
-    throw new ApiProtocolError(
-      202,
-      "Generate-video response did not match its schema",
-    );
-  }
-  return payload;
 }
 
 export function listClipVideos(clipId: number): Promise<ClipVideo[]> {

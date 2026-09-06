@@ -657,7 +657,7 @@
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；全部 C010 复审追溯行。
   - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_final_<timestamp>` 且证明不存在，显式导出 DSN与隔离DATA_DIR；从 `backend` 执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；执行 `npm --prefix frontend run test -- src/features/director/directorReviewRestBoundary.test.ts src/features/director/directorReviewTaskBoundary.test.ts src/features/director/directorReviewTerminalRace.test.ts src/features/director/directorReviewErrorVisibility.test.ts src/features/director/directorReviewMutationRefresh.test.ts src/features/director/directorReviewNoticeOrdering.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`。执行 `git diff --check`、baseline..HEAD name/status/full scope、migration/binding/C009 archive零diff检查、禁止围栏/retry/fallback/continuity/versioning扫描、`rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）及既有测试差异精确审计。期望 T14-T20 checkbox/commit/证据相符，新增测试均回填准确ID，原39个前端测试未改弱，完成报告逐AC说明通过或未验证项；全部通过后才勾选并提交。
 
-- [ ] **T22 — 封闭 generate-video 成功体的 safe integer 边界**
+- [x] **T22 — 封闭 generate-video 成功体的 safe integer 边界**
 
   - **交付：** 仅在 `frontend/src/api/clips.ts` 的 `generate-video` 成功体 parser 把 `task_id` 从“正整数”提升为“正的 JavaScript safe integer”，复用项目现有 boundary helper；非法成功体必须抛出可见 `ApiProtocolError`，且在 `DirectorPage` 的 `sync.trackTask`、`generationTaskIds`、Task detail GET 或任何刷新前失败。新增独立回归文件 `frontend/src/features/director/directorReviewGenerateTaskIdBoundary.test.ts`；不得修改 `directorReviewRestBoundary.test.ts`、其他既有测试或后端合同，不得强转、截断、hash 或生成替代 ID。
   - **R：** 无；PRD §6.4、§9；DECISIONS D-008。
