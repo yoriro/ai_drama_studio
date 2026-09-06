@@ -713,7 +713,7 @@
   - **追溯行：** `C010 二次复审浏览器装置：隔离 headless CDP 差异、生产终态与修复路径`；`C010 二次复审 generate-video 成功体：task_id safe integer 与零非法状态污染`；`C010 二次复审保存切换竞态：旧 Clip 响应不污染当前 Clip 详情与通知`。
   - **验收方式与命令/人工检查：** 先读取生产 `/openapi.json` 核对本轮使用的 method/path；由 T20A 或同约束的 loopback fault mode 对一次 `generate-video` 返回 `task_id=9007199254740992`，浏览器必须显示 protocol error，ledger 精确记录零 Task detail GET/WS tracking/成功 notice。再以 deferred save mode 让 A PATCH pending，浏览器点击选择 B 后释放 A 响应；精确记录 selected=B、A PATCH=1、A 导致的 B detail GET=0、B draft不变、A success notice=0，重新选择 A 后正式详情 GET 读到保存值。以 `python`/`ffprobe` 或项目既有 PyAV 只读检查 T20 保存 MP4，使用正式 API/DB read-only 查询核对 Task/ClipVideo/current/seed；若当前 Comfy/vLLM 状态与 T20 记录不同只标记漂移，不重写历史通过。运行 `npm --prefix frontend run test`、`npm --prefix frontend run build`；另建 `ai_drama_studio_c010_t28_pytest_<timestamp>`、隔离 DATA_DIR，执行 `python -m alembic upgrade head` 后用 durable wrapper 运行 `python -m pytest -q` 并取得真实 exit-code=0。生产验收库执行 `python -m alembic current`、`python -m alembic check` 和只读终态核对；两侧均满足后回填、勾选并提交，`.work/` 不提交。
 
-- [ ] **T29 — C010 二次复审修复最终一致性审计**
+- [x] **T29 — C010 二次复审修复最终一致性审计**
 
   - **交付：** 更新 `.work/c010/completion-report.md`，把六个复审问题逐项映射到 T22–T28 的修复提交、独立测试 ID、浏览器/数据库证据与保留的修复前失败输出；明确 T20 历史正式库 pytest 的 `2 failed, 344 passed` 是数据库职责错误，另列干净库全绿结果，不把二者合并或删去失败。核对 spec AC-21..27、tasks、TRACEABILITY、代码和 commits 一致；不得修改生产代码或任何既有测试。
   - **R：** 无；PRD §0、§3、§9、§11 M4；DECISIONS D-008、D-012。
