@@ -721,7 +721,7 @@
   - **追溯行：** `C010 二次复审最终一致性：分离验收库与干净回归库并关闭全部 BLOCK`；全部 C010 二次复审追溯行。
   - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_final_<timestamp>` 与隔离 DATA_DIR，先执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`，再用 durable wrapper 执行 `python -m pytest -q` 并要求真实 exit-code=0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts src/features/director/directorReviewOldClipIsolation.test.ts src/features/director/directorReviewMediaConsumption.test.ts src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`。执行 `git diff --check`、`git diff --name-status e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`git log --oneline e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）、围栏/versioning/retry/fallback/continuity 扫描及所有既有测试零 diff审计；逐项确认 T22–T28 checkbox/commit/证据一致，四个新测试均有真实用例 ID，完成报告第 5 段按“操作 → 观测值”覆盖正常路径和至少一条异常分支。全部通过后才勾选、回填并单独提交。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
