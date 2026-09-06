@@ -6,9 +6,6 @@ import {
 } from "../api/assets";
 import {
   createClip,
-  clearClipSlotOverride,
-  deleteClip,
-  deleteClipVideo,
   getClip,
   listClipSlots,
   listClipVideos,
@@ -19,12 +16,8 @@ import {
   parseClipSlotsResponse,
   parseClipVideosResponse,
   previewClips,
-  setCurrentClipVideo,
-  updateClipSlotEnabled,
-  updateClip,
-  uploadClipSlotOverride,
 } from "../api/clips";
-import type { Clip } from "../api/clips";
+import type { Clip, GenerateClipVideoResponse } from "../api/clips";
 import { listShots, parseShotListResponse } from "../api/shots";
 import { protocolError } from "../api/client";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
@@ -51,11 +44,11 @@ import {
 import {
   createDirectorSync,
   createDirectorGenerationRequester,
-  handleDirectorMutationError,
+  createDirectorMutationAdapter,
   projectDirectorVisibleSyncErrors,
   resolveDirectorClipSave,
   type DirectorClipSaveAction,
-  type DirectorMutationRefreshScope,
+  type DirectorMutationAction,
   type DirectorSyncState,
 } from "../features/director/directorSync";
 import type { Task, TaskEvent } from "../api/tasks";
@@ -167,6 +160,16 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     () => createDirectorGenerationRequester(),
     [],
   );
+  const mutationAdapter = useMemo(
+    () =>
+      createDirectorMutationAdapter({
+        refreshPage: (options) => sync.refreshPage(options),
+        refreshSelectedClip: () => sync.refreshSelectedClip(),
+        submitGenerateVideo: (clipId, input) =>
+          generationRequester.submit(clipId, input),
+      }),
+    [generationRequester, sync],
+  );
   const [syncState, setSyncState] = useState<DirectorSyncState>(() =>
     sync.getState(),
   );
@@ -209,18 +212,6 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     message: string;
     baselineNoticeCount: number;
   } | null>(null);
-
-  function recoverMutationError(
-    error: unknown,
-    scope: DirectorMutationRefreshScope,
-    setError: (error: unknown) => void,
-  ): void {
-    handleDirectorMutationError(error, scope, {
-      setError,
-      refreshPage: (options) => sync.refreshPage(options),
-      refreshSelectedClip: () => sync.refreshSelectedClip(),
-    });
-  }
 
   useEffect(() => {
     setSelectedShotIds([]);
@@ -515,32 +506,36 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       actionGeneration: ++saveActionGeneration.current,
       selectionGeneration: selectionGeneration.current,
     };
-    void updateClip(clipId, projected.input)
-      .then((updated) => {
-        parseClipResponse(updated);
-        const resolution = resolveDirectorClipSave(action, {
-          selectedClipId: sync.getState().selectedClipId,
-          latestActionGeneration: saveActionGeneration.current,
-          selectionGeneration: selectionGeneration.current,
-        });
-        if (resolution.notice !== null) {
-          pendingMutationNotice.current = {
-            message: resolution.notice.message,
-            baselineNoticeCount: sync.getState().notices.length,
-          };
-          sync.refreshPage({
-            notice: resolution.notice,
-            noticeAfterDetail: true,
-            refreshSelectedClip: true,
+    void mutationAdapter.run<unknown>(
+      { kind: "save", clipId, input: projected.input },
+      {
+        setError: (error) => {
+          setSettingsSavingClipId(null);
+          setSettingsActionError(error);
+        },
+        onSuccess: (updated) => {
+          parseClipResponse(updated);
+          const resolution = resolveDirectorClipSave(action, {
+            selectedClipId: sync.getState().selectedClipId,
+            latestActionGeneration: saveActionGeneration.current,
+            selectionGeneration: selectionGeneration.current,
           });
-          return;
-        }
-        sync.refreshPage();
-      })
-      .catch((error: unknown) => {
-        setSettingsSavingClipId(null);
-        recoverMutationError(error, "page-and-detail", setSettingsActionError);
-      });
+          if (resolution.notice !== null) {
+            pendingMutationNotice.current = {
+              message: resolution.notice.message,
+              baselineNoticeCount: sync.getState().notices.length,
+            };
+            sync.refreshPage({
+              notice: resolution.notice,
+              noticeAfterDetail: true,
+              refreshSelectedClip: true,
+            });
+            return;
+          }
+          sync.refreshPage();
+        },
+      },
+    );
   }
 
   function handleDeleteClip(): void {
@@ -559,20 +554,23 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSettingsActionError(null);
     setSettingsNotice(null);
     setPendingDeleteClipId(clipId);
-    void deleteClip(clipId).then(
-      () => {
-        sync.refreshPage();
-      },
-      (error: unknown) => {
-        setPendingDeleteClipId(null);
-        recoverMutationError(error, "page", setSettingsActionError);
+    void mutationAdapter.run<void>(
+      { kind: "delete", clipId },
+      {
+        setError: (error) => {
+          setPendingDeleteClipId(null);
+          setSettingsActionError(error);
+        },
+        onSuccess: () => {
+          sync.refreshPage();
+        },
       },
     );
   }
 
   function handleSlotMutation(
     key: string,
-    mutation: () => Promise<unknown>,
+    action: DirectorMutationAction,
   ): void {
     const clipId = syncState.selectedClipId;
     if (
@@ -586,8 +584,13 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setSlotMutationError(null);
     setSlotMutationKey(key);
     setSlotMutationRefreshing(false);
-    void mutation()
-      .then((response) => {
+    void mutationAdapter.run<unknown>(action, {
+      setError: (error) => {
+        setSlotMutationKey(null);
+        setSlotMutationRefreshing(false);
+        setSlotMutationError(error);
+      },
+      onSuccess: (response) => {
         parseClipSlotMutationResponse(response);
         setSlotMutationRefreshing(true);
         const message = "槽位已按最新快照更新";
@@ -600,12 +603,8 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
           noticeAfterDetail: true,
           refreshSelectedClip: true,
         });
-      })
-      .catch((error: unknown) => {
-        setSlotMutationKey(null);
-        setSlotMutationRefreshing(false);
-        recoverMutationError(error, "page-and-detail", setSlotMutationError);
-      });
+      },
+    });
   }
 
   function handleSlotEnabledChange(slotNo: number, enabled: boolean): void {
@@ -613,9 +612,12 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     if (clipId === null) {
       return;
     }
-    handleSlotMutation(`enabled:${slotNo}`, () =>
-      updateClipSlotEnabled(clipId, slotNo, enabled),
-    );
+    handleSlotMutation(`enabled:${slotNo}`, {
+      kind: "slot-enabled",
+      clipId,
+      slotNo,
+      enabled,
+    });
   }
 
   function handleSlotUpload(slotNo: number, file: File): void {
@@ -623,9 +625,12 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     if (clipId === null) {
       return;
     }
-    handleSlotMutation(`upload:${slotNo}`, () =>
-      uploadClipSlotOverride(clipId, slotNo, file),
-    );
+    handleSlotMutation(`upload:${slotNo}`, {
+      kind: "slot-upload",
+      clipId,
+      slotNo,
+      file,
+    });
   }
 
   function handleSlotClear(slotNo: number): void {
@@ -633,14 +638,16 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     if (clipId === null || !window.confirm(`确定清除槽位 ${slotNo} 的 override？`)) {
       return;
     }
-    handleSlotMutation(`clear:${slotNo}`, () =>
-      clearClipSlotOverride(clipId, slotNo),
-    );
+    handleSlotMutation(`clear:${slotNo}`, {
+      kind: "slot-clear",
+      clipId,
+      slotNo,
+    });
   }
 
   function handleTakeMutation(
     key: string,
-    mutation: () => Promise<unknown>,
+    action: DirectorMutationAction,
   ): void {
     const clipId = syncState.selectedClipId;
     if (
@@ -655,19 +662,20 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     setTakeMutationError(null);
     setTakeMutationKey(key);
     setTakeMutationRefreshing(false);
-    void mutation()
-      .then((response) => {
+    void mutationAdapter.run<unknown>(action, {
+      setError: (error) => {
+        setTakeMutationKey(null);
+        setTakeMutationRefreshing(false);
+        setTakeMutationError(error);
+      },
+      onSuccess: (response) => {
         if (response !== undefined) {
           parseClipVideosResponse([response]);
         }
         setTakeMutationRefreshing(true);
         sync.refreshSelectedClip();
-      })
-      .catch((error: unknown) => {
-        setTakeMutationKey(null);
-        setTakeMutationRefreshing(false);
-        recoverMutationError(error, "detail", setTakeMutationError);
-      });
+      },
+    });
   }
 
   function handleSetCurrentTake(videoId: number): void {
@@ -675,16 +683,21 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     if (clipId === null) {
       return;
     }
-    handleTakeMutation(`current:${videoId}`, () =>
-      setCurrentClipVideo(clipId, videoId),
-    );
+    handleTakeMutation(`current:${videoId}`, {
+      kind: "take-current",
+      clipId,
+      videoId,
+    });
   }
 
   function handleDeleteTake(videoId: number, isCurrent: boolean): void {
     if (isCurrent || !window.confirm(`确定删除 take #${videoId}？`)) {
       return;
     }
-    handleTakeMutation(`delete:${videoId}`, () => deleteClipVideo(videoId));
+    handleTakeMutation(`delete:${videoId}`, {
+      kind: "take-delete",
+      videoId,
+    });
   }
 
   function handleGenerateVideo(): void {
@@ -703,34 +716,31 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     const input = draft.dirtyUserNote
       ? { user_note: draft.userNote }
       : {};
-    const pending = generationRequester.submit(clipId, input);
+    const pending = mutationAdapter.run<GenerateClipVideoResponse>(
+      { kind: "generate", clipId, input },
+      {
+        setError: setGenerationActionError,
+        onSuccess: ({ task_id }) => {
+          sync.trackTask(task_id);
+          if (sync.getState().selectedClipId === clipId) {
+            setGenerationTaskIds((current) => [...current, task_id]);
+          }
+          sync.refreshPage({
+            resetSelectedClipDraft: true,
+            refreshSelectedClip:
+              sync.getState().selectedClipId === clipId,
+          });
+        },
+      },
+    );
     if (pending === null) {
       return;
     }
     setGenerationActionError(null);
     setGenerationRequestInFlight(true);
-    void pending
-      .then(({ task_id }) => {
-        sync.trackTask(task_id);
-        if (sync.getState().selectedClipId === clipId) {
-          setGenerationTaskIds((current) => [...current, task_id]);
-        }
-        sync.refreshPage({
-          resetSelectedClipDraft: true,
-          refreshSelectedClip:
-            sync.getState().selectedClipId === clipId,
-        });
-      })
-      .catch((error: unknown) => {
-        recoverMutationError(
-          error,
-          "page-and-detail",
-          setGenerationActionError,
-        );
-      })
-      .finally(() => {
-        setGenerationRequestInFlight(false);
-      });
+    void pending.finally(() => {
+      setGenerationRequestInFlight(false);
+    });
   }
 
   function startPreview(): void {

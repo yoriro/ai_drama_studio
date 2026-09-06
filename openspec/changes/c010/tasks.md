@@ -681,7 +681,7 @@
   - **追溯行：** `C010 二次复审媒体消费证据：生产 parser 到媒体 sink 的敌意 URL 零消费`。
   - **验收方式与命令：** 新测试对合法 asset-current、override 与 clip-video URL 各验证 production consumer 精确设置/读取一次；再逐个注入站外 URL、`file:`、protocol-relative、UNC、`.`/`..`、query、fragment、资源 ID 不匹配和错类型，精确断言 parser 抛 `ApiProtocolError`，production media sink/element `src` 设置及站外 fetch 均为 0。计数只能由被测 consumer 调用改变，禁止测试在调用外手工递增。执行 `npm --prefix frontend run test -- src/features/director/directorReviewMediaConsumption.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；在仅迁移的新库 `ai_drama_studio_c010_t24_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q` 并保存真实 exit code。全部通过后回填、勾选、单独提交。
 
-- [ ] **T25 — 用 Director 实际 action 接线替换 mutation 的自填账本断言**
+- [x] **T25 — 用 Director 实际 action 接线替换 mutation 的自填账本断言**
 
   - **交付：** 新增 `frontend/src/features/director/directorReviewMutationWiring.test.ts`，测试必须从 `DirectorPage` 实际使用的 save/delete/slot/take/generate action seam 发起；若现有页面闭包不可调用，只允许提取一个由 `DirectorPage` 生产路径实际调用的最小 Director mutation adapter，不得复制 handler、加入测试 hook、改变 UI/HTTP 合同或引入全页状态框架。结构化 404/409 仍逐字显示 `detail.message`，按动作影响面调用正式 page/detail readers，原 mutation 精确一次且无成功 notice。不得修改旧 `directorReviewMutationRefresh.test.ts`；其测试自行填写的 `authorityGets`/`successNotices` 不作为 AC-24 的通过证据。
   - **R：** R9、R10、R12（slot/generate 分支）；其余 R：无；PRD §3.3、§3.4、§9。

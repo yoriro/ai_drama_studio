@@ -1,8 +1,18 @@
 import type { Asset } from "../../api/assets";
 import { ApiError, ApiProtocolError } from "../../api/client";
-import { generateClipVideo } from "../../api/clips";
+import {
+  clearClipSlotOverride,
+  deleteClip,
+  deleteClipVideo,
+  generateClipVideo,
+  setCurrentClipVideo,
+  updateClip,
+  updateClipSlotEnabled,
+  uploadClipSlotOverride,
+} from "../../api/clips";
 import type {
   Clip,
+  ClipPatchRequest,
   ClipSlotsResponse,
   ClipVideo,
   GenerateClipVideoRequest,
@@ -142,6 +152,114 @@ export function handleDirectorMutationError(
     return;
   }
   handlers.refreshPage({ refreshSelectedClip: true });
+}
+
+export type DirectorMutationAction =
+  | { kind: "save"; clipId: number; input: ClipPatchRequest }
+  | { kind: "delete"; clipId: number }
+  | { kind: "slot-enabled"; clipId: number; slotNo: number; enabled: boolean }
+  | { kind: "slot-upload"; clipId: number; slotNo: number; file: File }
+  | { kind: "slot-clear"; clipId: number; slotNo: number }
+  | { kind: "take-current"; clipId: number; videoId: number }
+  | { kind: "take-delete"; videoId: number }
+  | { kind: "generate"; clipId: number; input: GenerateClipVideoRequest };
+
+export interface DirectorMutationAdapterOptions {
+  refreshPage(options?: DirectorRefreshOptions): void;
+  refreshSelectedClip(): void;
+  submitGenerateVideo?: (
+    clipId: number,
+    input: GenerateClipVideoRequest,
+  ) => Promise<GenerateClipVideoResponse> | null;
+}
+
+export interface DirectorMutationRunHandlers<T = unknown> {
+  setError(error: unknown): void;
+  onSuccess?(response: T): void;
+}
+
+export interface DirectorMutationAdapter {
+  run<T>(
+    action: DirectorMutationAction,
+    handlers: DirectorMutationRunHandlers<T>,
+  ): Promise<void> | null;
+}
+
+function directorMutationScope(
+  action: DirectorMutationAction,
+): DirectorMutationRefreshScope {
+  switch (action.kind) {
+    case "delete":
+      return "page";
+    case "take-current":
+    case "take-delete":
+      return "detail";
+    case "save":
+    case "slot-enabled":
+    case "slot-upload":
+    case "slot-clear":
+    case "generate":
+      return "page-and-detail";
+  }
+}
+
+function startDirectorMutation(
+  action: DirectorMutationAction,
+  submitGenerateVideo: (
+    clipId: number,
+    input: GenerateClipVideoRequest,
+  ) => Promise<GenerateClipVideoResponse> | null,
+): Promise<unknown> | null {
+  switch (action.kind) {
+    case "save":
+      return updateClip(action.clipId, action.input);
+    case "delete":
+      return deleteClip(action.clipId);
+    case "slot-enabled":
+      return updateClipSlotEnabled(action.clipId, action.slotNo, action.enabled);
+    case "slot-upload":
+      return uploadClipSlotOverride(action.clipId, action.slotNo, action.file);
+    case "slot-clear":
+      return clearClipSlotOverride(action.clipId, action.slotNo);
+    case "take-current":
+      return setCurrentClipVideo(action.clipId, action.videoId);
+    case "take-delete":
+      return deleteClipVideo(action.videoId);
+    case "generate":
+      return submitGenerateVideo(action.clipId, action.input);
+  }
+}
+
+export function createDirectorMutationAdapter(
+  options: DirectorMutationAdapterOptions,
+): DirectorMutationAdapter {
+  const submitGenerateVideo =
+    options.submitGenerateVideo ??
+    ((clipId: number, input: GenerateClipVideoRequest) =>
+      generateClipVideo(clipId, input));
+
+  return {
+    run<T>(
+      action: DirectorMutationAction,
+      handlers: DirectorMutationRunHandlers<T>,
+    ): Promise<void> | null {
+      const pending = startDirectorMutation(action, submitGenerateVideo);
+      if (pending === null) {
+        return null;
+      }
+      return pending
+        .then((response) => {
+          handlers.onSuccess?.(response as T);
+        })
+        .catch((error: unknown) => {
+          handleDirectorMutationError(error, directorMutationScope(action), {
+            setError: handlers.setError,
+            refreshPage: options.refreshPage,
+            refreshSelectedClip: options.refreshSelectedClip,
+          });
+        });
+    },
+  };
 }
 
 export interface DirectorSyncController {
