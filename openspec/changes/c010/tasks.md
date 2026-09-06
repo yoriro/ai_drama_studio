@@ -641,7 +641,7 @@
   - **追溯行：** `C010 复审浏览器补证：Director AC-02..12 缺失路径、修复行为与真实 WS terminal`。
   - **验收方式与命令：** 先执行 `rg -n 'sqlalchemy|DATABASE_URL|asyncpg|clip_videos|INSERT|UPDATE|DELETE FROM|frontend/src' .work/c010/director-review-fault-server.py`，人工确认无 DB/file/media/Task 写入和 production import；执行 `python .work/c010/director-review-fault-server.py --self-check --output .work/c010/T20A-self-check.json`，要求逐项输出 `initial-404/initial-500/initial-non-json/initial-disconnect/mutation-404/mutation-409=PASS`。再以 `python .work/c010/director-review-fault-server.py --mode initial-500 --host 127.0.0.1 --port <已确认空闲端口> --ledger .work/c010/T20A-ledger.jsonl` 启动一轮真实进程，用 `Invoke-WebRequest` 核对HTTP 500和结构化错误体，只停止记录PID并以 `Get-NetTCPConnection` 证明端口释放。原始输出写 `.work/c010/T20A-*`。运行 `npm --prefix frontend run test`、`npm --prefix frontend run build`，并在 `ai_drama_studio_c010_t20a_<timestamp>` 新库运行 `python -m alembic upgrade head`、`python -m pytest -q`；通过后只提交 tasks checkbox与追溯中的装置说明，脚本/ledger不提交。报告必须逐字说明：该装置与生产共用真实 Vite/React/Director客户端及浏览器DOM，但替代FastAPI/PostgreSQL，只证明前端输入后的行为，不能证明后端响应语义或生产数据。
 
-- [ ] **T20 — 补齐复审缺失的真实浏览器路径与 WS terminal 证据**
+- [x] **T20 — 补齐复审缺失的真实浏览器路径与 WS terminal 证据**
 
   - **交付：** 先用 T20A 对不可稳定由生产服务制造的初始500/非JSON/network与指定404/409时序验证真实浏览器DOM；再以全新隔离PostgreSQL/DATA_DIR、T11B已验收的自给 fixture driver、生产FastAPI/Vite、正式模板API、真实vLLM/Comfy和生产Task WS完成其余补证。不得复用旧验收库冒充新现场、直接写Task/ClipVideo/媒体、重跑失败Task、伪造WS事件或让故障装置代替正常生产链路。
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R11、R12；PRD §3、§6.4、§9、§11 M4。
