@@ -737,7 +737,7 @@
   - **追溯行：** `C010 二次复审最终一致性：分离验收库与干净回归库并关闭全部 BLOCK`；`C010 最终复审 mutation 资源消失：生产 adapter 与 page reader 清空 selection/detail`。
   - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_t31_<timestamp>` 与隔离 DATA_DIR，执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`，再用 durable wrapper 运行完整 `python -m pytest -q` 并要求真实 exit-code=0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts src/features/director/directorReviewOldClipIsolation.test.ts src/features/director/directorReviewMediaConsumption.test.ts src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；执行 `git diff --check`、规划 commit..HEAD name-status/log、migration/workflow/binding/backend production 零新增 diff、既有测试精确差异审计、围栏/versioning/retry/fallback/continuity 扫描和 `rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）。确认 T30 只窄改获授权文件，T25 既有矩阵逐字保留，完成报告不再夸大 T23 测试通路且明确 T28 浏览器证据；全部通过后回填、勾选并单独提交。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
