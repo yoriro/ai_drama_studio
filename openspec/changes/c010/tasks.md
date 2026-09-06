@@ -705,7 +705,7 @@
   - **追溯行：** `C010 二次复审浏览器装置：隔离 headless CDP 差异、生产终态与修复路径`。
   - **验收方式与命令：** 执行 `rg -n '0\.0\.0\.0|--user-data-dir|--headless|--disable-gpu|127\.0\.0\.1|CDP|websocket|frontend/src|DATABASE_URL|sqlalchemy|asyncpg' .work/c010/director-review-browser-driver.py` 并人工逐项解释匹配；选择已确认空闲的 remote-debugging port，执行 `python .work/c010/director-review-browser-driver.py --self-check --debug-port <端口> --profile .work/c010/T27-edge-profile --output .work/c010/T27-self-check.json`，要求保存 Edge PID、profile 绝对路径、只连 loopback 的网络 ledger、DOM 读取结果和正常终止证据。随后用 `Get-Process -Id <记录PID> -ErrorAction SilentlyContinue` 与 `Get-NetTCPConnection -LocalPort <记录端口> -ErrorAction SilentlyContinue` 证明仅自建进程/监听已释放。原失败输出保留；装置、profile、截图和 ledger 均留在 `.work/`，本 task 只提交 checkbox 与追溯装置说明。
 
-- [ ] **T28 — 用审计后的浏览器装置重放修复路径并分离两类数据库**
+- [x] **T28 — 用审计后的浏览器装置重放修复路径并分离两类数据库**
 
   - **交付：** 使用 T27 的独立 profile 驱动、真实 Vite/React production modules 与本机 loopback 服务，重放 AC-21 的不安全 `task_id` 和 AC-22 的 A 保存/B 切换；保存“操作 → HTTP/WS → DOM/state 观测值”。同时只读复核 T20 生产浏览器验收库中 Task #1/#2、不同 seed、唯一 current video、MP4 可解码、最终空 queue 与已记录的 service 终态；不得在该库运行完整 pytest、清洗模板/Task、重跑失败 Task或把当前外部服务状态与 T20 终端时证据混写。完整 backend pytest 必须改在另一个全新、仅迁移的干净库与隔离 DATA_DIR。
   - **R：** 无；PRD §6.4、§9、§11 M4；DECISIONS D-008。
