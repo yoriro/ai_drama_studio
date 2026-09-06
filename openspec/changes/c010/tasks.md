@@ -2,8 +2,8 @@
 
 ## 执行纪律与固定回归命令
 
-- T0–T21 是已完成的历史阶段；二次复审修复严格按 T22→T23→T24→T25→T26→T27→T28→T29→三个收尾 task 执行。任一验收命令或人工门槛失败立即停止，不勾选、不回填“已通过”、不提交该 task，也不先做后续 task；命令包装、日志采集或临时端口等操作性故障可在同一 task 内自检、修正装置并重跑，但不得借此改变产品语义或放宽断言。
-- 每个 task 只提交其列出的生产/新测试/文档文件和当次 checkbox/追溯回填；不得提交 `.work/`、下载目录工件或无关用户改动。除 `AGENTS.md` 已记录且已在 T11A/T11C 用尽的一次性窄例外外，现有任何测试文件均不得修改、删除、skip、改名或弱化；T22–T25 只能新增各自明确列出的独立测试文件。
+- T0–T21 是已完成的历史阶段，T22–T29 是已提交的二次复审阶段；最终补修严格按 T30→T31→三个收尾 task 执行。任一验收命令或人工门槛失败立即停止，不勾选、不回填“已通过”、不提交该 task，也不先做后续 task；命令包装、日志采集或临时端口等操作性故障可在同一 task 内自检、修正装置并重跑，但不得借此改变产品语义或放宽断言。
+- 每个 task 只提交其列出的生产/测试/文档文件和当次 checkbox/追溯回填；不得提交 `.work/`、下载目录工件或无关用户改动。除 `AGENTS.md` 已记录的一次性窄例外外，现有任何测试文件均不得修改、删除、skip、改名或弱化；T30 只能按 `AGENTS.md` 对 `directorReviewMutationWiring.test.ts` 的窄授权追加一个验收分支及其直接必需装置，既有矩阵必须逐字保留。
 - T0 创建并记录同一个 C010 隔离数据库名。T1 之后每个实现 task 完成前，除本 task 的定向命令外，均执行下面的固定回归命令；`$task` 替换为当前 task 编号：
 
   ```powershell
@@ -28,7 +28,7 @@
   git diff --check
   ```
 
-  期望：frontend test、build、完整 pytest 与 `git diff --check` 均 exit 0；日志保留原生汇总。固定回归不能替代本 task 的定向断言或浏览器证据。T22–T29 不复用 T0 或 T20 已写入正式模板/Task/ClipVideo 的验收库：凡 task 要求完整 backend pytest，均新建“仅 Alembic 迁移、无业务验收数据”的独立干净数据库与隔离 DATA_DIR，并用 durable wrapper 保存真实 exit code；生产浏览器验收库只允许迁移状态、正式 API/数据库/媒体终态的只读核对。
+  期望：frontend test、build、完整 pytest 与 `git diff --check` 均 exit 0；日志保留原生汇总。固定回归不能替代本 task 的定向断言或浏览器证据。T22–T31 不复用 T0 或 T20 已写入正式模板/Task/ClipVideo 的验收库：凡 task 要求完整 backend pytest，均新建“仅 Alembic 迁移、无业务验收数据”的独立干净数据库与隔离 DATA_DIR，并用 durable wrapper 保存真实 exit code；生产浏览器验收库只允许迁移状态、正式 API/数据库/媒体终态的只读核对。
 
 ## Tasks
 
@@ -721,23 +721,39 @@
   - **追溯行：** `C010 二次复审最终一致性：分离验收库与干净回归库并关闭全部 BLOCK`；全部 C010 二次复审追溯行。
   - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_final_<timestamp>` 与隔离 DATA_DIR，先执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`，再用 durable wrapper 执行 `python -m pytest -q` 并要求真实 exit-code=0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts src/features/director/directorReviewOldClipIsolation.test.ts src/features/director/directorReviewMediaConsumption.test.ts src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`。执行 `git diff --check`、`git diff --name-status e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`git log --oneline e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）、围栏/versioning/retry/fallback/continuity 扫描及所有既有测试零 diff审计；逐项确认 T22–T28 checkbox/commit/证据一致，四个新测试均有真实用例 ID，完成报告第 5 段按“操作 → 观测值”覆盖正常路径和至少一条异常分支。全部通过后才勾选、回填并单独提交。
 
-- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [ ] **T30 — 补齐 mutation 资源消失后的 selection/detail 清空回归**
+
+  - **交付：** 严格依 `AGENTS.md` 的 C010 T30 一次性窄授权，只修改 `frontend/src/features/director/directorReviewMutationWiring.test.ts`：保留 T25 五类 action×404/409 既有矩阵逐字不变，追加一个独立测试及其直接必需的 import 与局部装置。测试须从生产 `createDirectorMutationAdapter` action seam 发起一条结构化 404 或 409，让生产 `createDirectorSync` 的 page reader 返回不含当前 Clip 的最新列表；不得修改生产代码、其他测试、spec 或旧追溯证据，不得自填 GET/notice 账本。
+  - **R：** 无；PRD §9；DECISIONS D-008；spec AC-24。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C010 最终复审 mutation 资源消失：生产 adapter 与 page reader 清空 selection/detail`；并补充 `C010 二次复审 mutation 页面接线：五类 404/409 权威 GET、零重放与零伪成功`。
+  - **验收方式与命令：** 先保存 `git diff 02f5eeab5a9cc910011ffcf6c53c81733c5a7603^..02f5eeab5a9cc910011ffcf6c53c81733c5a7603 -- frontend/src/features/director/directorReviewMutationWiring.test.ts` 作为 T25 文件基线；修改后逐段证明既有矩阵测试名、五个 case、404/409 循环、mutation/GET/error/no-success 全部断言未变。新用例必须精确断言：原 mutation=1，结构化 `detail.message` 原文可见，权威页面 reader 只发正式 GET 且不重放 mutation，success callback/notice=0，最新 clips 不含目标后 `selectedClipId === null`、`clipDetail === null`，旧详情响应不得重新挂回。执行 `npm --prefix frontend run test -- src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；另建仅迁移的 `ai_drama_studio_c010_t30_<timestamp>` 与隔离 DATA_DIR，从 `backend` 执行 `python -m alembic upgrade head`，再用 durable wrapper 执行完整 `python -m pytest -q` 并保存 stdout、stderr、PID 与真实 exit-code。执行 `git diff --check` 及精确 scope diff；全部 exit 0 后回填真实测试 ID/日志、勾选并单独提交，任一失败立即停止且不得进入 T31。
+
+- [ ] **T31 — 修正完成报告证据归属并完成最终一致性复审**
+
+  - **交付：** 不修改生产代码或测试。更新 `.work/c010/completion-report.md`：把 T23 新回归的证据边界准确写成“自动测试覆盖 production `resolveDirectorClipSave` + `createDirectorSync` seam，T28 浏览器重放覆盖实际 `DirectorPage` 调用链”，不得再声称 T23 测试本身穿过 adapter/page；新增 T30 修复前 Sol 探针、修复 commit、真实测试 ID、追溯与复跑结果。核对 AC-24、T30、两条 mutation 追溯行、checkbox 和 commits 一致。
+  - **R：** 无；PRD §0、§9、§11 M4；DECISIONS D-008。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C010 二次复审最终一致性：分离验收库与干净回归库并关闭全部 BLOCK`；`C010 最终复审 mutation 资源消失：生产 adapter 与 page reader 清空 selection/detail`。
+  - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_t31_<timestamp>` 与隔离 DATA_DIR，执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`，再用 durable wrapper 运行完整 `python -m pytest -q` 并要求真实 exit-code=0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts src/features/director/directorReviewOldClipIsolation.test.ts src/features/director/directorReviewMediaConsumption.test.ts src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；执行 `git diff --check`、规划 commit..HEAD name-status/log、migration/workflow/binding/backend production 零新增 diff、既有测试精确差异审计、围栏/versioning/retry/fallback/continuity 扫描和 `rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）。确认 T30 只窄改获授权文件，T25 既有矩阵逐字保留，完成报告不再夸大 T23 测试通路且明确 T28 浏览器证据；全部通过后回填、勾选并单独提交。
+
+- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令或人工检查：** `git diff -- NOTES.md`；复核 T22–T29 是否产生可跨 change 复用的 safe-integer、旧 Clip 竞态、浏览器装置或验收库/回归库分工事实，只写已现场验证的端口、命令、依赖状态、坑和真实结果，所有漂移/未验证事实明确标注。确无长期价值内容时不改文件，并在完成报告精确写“NOTES.md：无”。
+  - **验收方式与命令或人工检查：** `git diff -- NOTES.md`；复核 T22–T31 是否产生可跨 change 复用的 safe-integer、旧 Clip 竞态、浏览器装置、资源消失回归或验收库/回归库分工事实，只写已现场验证的端口、命令、依赖状态、坑和真实结果，所有漂移/未验证事实明确标注。确无长期价值内容时不改文件，并在完成报告精确写“NOTES.md：无”。
 
-- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
   - **R：** 无；PRD §0、§3、§9；DECISIONS D-002、D-004、D-008。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`。
   - **验收方式与人工检查：** 完成报告在原候选审计基础上，判断“异步 action 是否必须绑定发起资源 identity”“生产浏览器验收库与干净回归库分工”“一次性 headless 装置的证据边界”是否只是本 spec 的局部落实或需要长期跨 change 决策。不得自行修改 DECISIONS；无新跨 change 约定时精确写“DECISIONS.md 候选项：无”。
 
-- [x] change 文档与 commit 状态一致
+- [ ] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；binding TOML 与 migration 零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶，后端 Python仅有 T11C/AC-20 的 `gen_clip_video.py` node_id 修正，既有测试仅有 `AGENTS.md` 明列四个 hash 常量与一个 worker failure 测试的精确替换；T14-T19 的历史生产 diff、六个历史新增测试保持不被改写，T22–T25 新增测试精确为四个声明文件且既有前端测试零修改；T26 明列的非 Director 顺手改动已收回；T27/T28 装置和全部证据保持未跟踪；T29、三个收尾 checkbox、追溯回填、提交和报告一致；C012独立获授权文档commit不得冒充C010实现证据。
+  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；binding TOML 与 migration 零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶，后端 Python 仅有 T11C/AC-20 的 `gen_clip_video.py` node_id 修正；既有后端测试仅有 `AGENTS.md` 明列的四个 hash 常量与一个 worker failure 测试的精确替换；T14–T19 的历史生产 diff和六个历史新增测试保持不被改写；T22–T25 新增测试仍精确为四个声明文件，除 T30 获授权在 `directorReviewMutationWiring.test.ts` 追加一个独立分支及直接必需装置外，其余三个文件不变，且 T25 五类 action×404/409 矩阵逐字保留；T26 明列的非 Director 顺手改动已收回；T27/T28 装置和全部证据保持未跟踪；T29、T30、T31、三个收尾 checkbox、追溯回填、提交和报告一致；C012 独立获授权文档 commit 不得冒充 C010 实现证据。
