@@ -673,7 +673,7 @@
   - **追溯行：** `C010 二次复审保存切换竞态：旧 Clip 响应不污染当前 Clip 详情与通知`。
   - **验收方式与命令：** 用 deferred Promise 构造 A PATCH pending→选择 B→A resolve→页面 refresh resolve→任一详情 resolve 的确定顺序；观察 production reader ledger、selectedClipId、A/B draft 和 notices，精确断言 selection=B、A PATCH=1、page GET≤1、A 动作导致的 B detail GET=0、B draft 不变、A success notice=0；重新选 A 后 A detail GET=1 且读到保存值。另覆盖响应时仍选 A 的成功提示精确一次。执行 `npm --prefix frontend run test -- src/features/director/directorReviewOldClipIsolation.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；在仅迁移的新库 `ai_drama_studio_c010_t23_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q` 并保存真实 exit code。全部通过后回填、勾选、单独提交。
 
-- [ ] **T24 — 用真实生产消费链替换媒体 URL 的恒真断言**
+- [x] **T24 — 用真实生产消费链替换媒体 URL 的恒真断言**
 
   - **交付：** 新增独立回归 `frontend/src/features/director/directorReviewMediaConsumption.test.ts`，让 Slot/Video 成功体实际通过 production REST parser、Director model 投影与页面实际使用的媒体 element/sink；若当前 JSX 无可直接调用 seam，只允许把既有 `<img>/<video>` 的最小 presentational consumer 原样抽出并由 `DirectorPage` 实际调用，不得创建第二套 parser、测试专用分支、URL fallback 或新增依赖。不得修改旧 `directorReviewRestBoundary.test.ts`；旧文件中未变动的局部计数器不再作为 AC-23 的通过证据。
   - **R：** R9、R11；PRD §3.4、§3.5、§9。

@@ -65,6 +65,32 @@ interface DirectorPageProps {
   episodeId: number;
 }
 
+interface DirectorSlotMediaProps {
+  alt: string;
+  className: string;
+  imageUrl: string;
+}
+
+export function DirectorSlotMedia({
+  alt,
+  className,
+  imageUrl,
+}: DirectorSlotMediaProps) {
+  return <img alt={alt} className={className} src={imageUrl} />;
+}
+
+interface DirectorTakeMediaProps {
+  mediaUrl: string;
+  onError: () => void;
+}
+
+export function DirectorTakeMedia({
+  mediaUrl,
+  onError,
+}: DirectorTakeMediaProps) {
+  return <video controls onError={onError} src={mediaUrl} />;
+}
+
 export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
   const sync = useMemo(
     () =>
@@ -1251,10 +1277,10 @@ function DirectorSlotsPanel({
                 {slot.enabled ? "启用" : "停用"} · 图片来源：{slot.sourceLabel} · {slot.imageStatusLabel}
               </p>
               {slot.imageUrl !== null ? (
-                <img
+                <DirectorSlotMedia
                   alt={`槽位 ${slot.slotNo} 参考图`}
                   className="director-slot-image"
-                  src={slot.imageUrl}
+                  imageUrl={slot.imageUrl}
                 />
               ) : (
                 <p className="director-slot-missing">缺图</p>
@@ -1365,10 +1391,9 @@ function DirectorTakesPanel({
                     <dd>{take.createdAt}</dd>
                   </div>
                 </dl>
-                <video
-                  controls
+                <DirectorTakeMedia
                   onError={() => onMediaError(take.id)}
-                  src={take.mediaUrl}
+                  mediaUrl={take.mediaUrl}
                 />
                 {mediaErrors[take.id] !== undefined && (
                   <p className="error-message" role="alert">
