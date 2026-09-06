@@ -649,7 +649,7 @@
   - **追溯行：** `C010 复审浏览器补证：Director AC-02..12 缺失路径、修复行为与真实 WS terminal`；并回填 T14-T19 对应复审行的浏览器补充证据。
   - **验收方式与命令/人工检查：** 先按 T11B/T12 的绝对路径方式创建 `ai_drama_studio_c010_t20_<timestamp>`、显式导出 `DATABASE_URL`/隔离 `DATA_DIR`，从 `backend` 执行 `python -m alembic upgrade head`，启动 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`，从仓库根执行 `python .work/c010/director-fixture.py --base-url http://127.0.0.1:8000 --output .work/c010/T20-fixture.json`，再启动 `npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort`；正式模板只通过设置API安装，DEBUG切换时仅停止并以同一DSN重启本task后端。保存“操作 → HTTP/WS → DOM/数据库观测值”、截图和原始 transcript，至少逐项覆盖：初始404/500/非JSON/network；零场景可选、跨场景/双场景/已占用置灰原因；duration非整数与API越界；合法/非法slot上传、清除与取消；save/delete/slot/take/generate的404/409错误、权威刷新和零重放；0/1/多take、current禁删零请求、non-current确认删除、跨Clip current 422；同一已生成take在 `DEBUG_PROMPTS=false/true` 两次正式后端启动下分别无调试区/只显示built_prompt+input_snapshot且无input_hash；note普通/空串/null/空白与双击在途；真实WS在任务提交前已连接并捕获属于唯一task_id的至少一条raw terminal event，随后Task detail和最新REST落地。正常视频路径至少生成两条可播放take并保持不同seed string/唯一current；资源终态queue空、vLLM sleeping、temp空。任一项缺失或GPU服务不健康即停止，不得勾选。完成后执行 `npm --prefix frontend run test`、`npm --prefix frontend run build`，在同一新库从 `backend` 执行 `python -m pytest -q`、`python -m alembic current`、`python -m alembic check`；回填真实证据并单独提交（`.work`不提交）。
 
-- [ ] **T21 — C010 复审修复最终一致性审计**
+- [x] **T21 — C010 复审修复最终一致性审计**
 
   - **交付：** 汇总 T14-T20 的代码、六个新增回归文件、追溯与浏览器证据，更新 `.work/c010/completion-report.md`，明确原复审 BLOCK 的修复前探针、修复提交、回归ID与修复后观测。不得覆盖原失败日志，不得把 T20A 当生产后端证据，不得修改任何既有测试；若复跑仍失败或追溯含待填立即停止。
   - **R：** 无；PRD §0、§3、§9、§11 M4；DECISIONS D-008、D-012。
@@ -657,21 +657,21 @@
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；全部 C010 复审追溯行。
   - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_final_<timestamp>` 且证明不存在，显式导出 DSN与隔离DATA_DIR；从 `backend` 执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；执行 `npm --prefix frontend run test -- src/features/director/directorReviewRestBoundary.test.ts src/features/director/directorReviewTaskBoundary.test.ts src/features/director/directorReviewTerminalRace.test.ts src/features/director/directorReviewErrorVisibility.test.ts src/features/director/directorReviewMutationRefresh.test.ts src/features/director/directorReviewNoticeOrdering.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`。执行 `git diff --check`、baseline..HEAD name/status/full scope、migration/binding/C009 archive零diff检查、禁止围栏/retry/fallback/continuity/versioning扫描、`rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）及既有测试差异精确审计。期望 T14-T20 checkbox/commit/证据相符，新增测试均回填准确ID，原39个前端测试未改弱，完成报告逐AC说明通过或未验证项；全部通过后才勾选并提交。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
   - **验收方式与命令或人工检查：** `git diff -- NOTES.md`；只写 T0/T11/T12/T13/T14-T21 已现场验证且可复用的端口、启动命令、依赖状态、浏览器/WS/数据库坑和真实结果，所有漂移/未验证事实明确标注。确无长期价值内容时不改文件，并在完成报告精确写“NOTES.md：无”。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
   - **R：** 无；PRD §0、§3、§9；DECISIONS D-002、D-004、D-008。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`。
   - **验收方式与人工检查：** 完成报告逐项判断“零场景在单场景选择中仍可选、preview 动态硬上限推导、requested duration 保存门槛与 note 随生成提交、Director D-008 实现形态”是否只是 PRD/spec 的局部落实或需要长期跨 change 决策。不得自行修改 DECISIONS；无新跨 change 约定时精确写“DECISIONS.md 候选项：无”。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
