@@ -2,8 +2,8 @@
 
 ## 执行纪律与固定回归命令
 
-- 严格按 T0→T1→…→T10→T10A→T11→T11A→T12→T13→三个收尾 task 执行；任一验收命令或人工门槛失败立即停止，不勾选、不回填“已通过”、不提交该 task，也不先做后续 task。
-- 每个 task 只提交其列出的生产/新测试/文档文件和当次 checkbox/追溯回填；不得提交 `.work/`、下载目录工件或无关用户改动。现有任何测试文件均不得修改、删除、skip、改名或弱化；唯一例外是 T11A 按 `AGENTS.md` C010 窄授权精确替换四个文件各一个旧 hash 常量，除此之外仍零测试 diff。
+- T0–T21 是已完成的历史阶段；二次复审修复严格按 T22→T23→T24→T25→T26→T27→T28→T29→三个收尾 task 执行。任一验收命令或人工门槛失败立即停止，不勾选、不回填“已通过”、不提交该 task，也不先做后续 task；命令包装、日志采集或临时端口等操作性故障可在同一 task 内自检、修正装置并重跑，但不得借此改变产品语义或放宽断言。
+- 每个 task 只提交其列出的生产/新测试/文档文件和当次 checkbox/追溯回填；不得提交 `.work/`、下载目录工件或无关用户改动。除 `AGENTS.md` 已记录且已在 T11A/T11C 用尽的一次性窄例外外，现有任何测试文件均不得修改、删除、skip、改名或弱化；T22–T25 只能新增各自明确列出的独立测试文件。
 - T0 创建并记录同一个 C010 隔离数据库名。T1 之后每个实现 task 完成前，除本 task 的定向命令外，均执行下面的固定回归命令；`$task` 替换为当前 task 编号：
 
   ```powershell
@@ -28,7 +28,7 @@
   git diff --check
   ```
 
-  期望：frontend test、build、完整 pytest 与 `git diff --check` 均 exit 0；日志保留原生汇总。固定回归不能替代本 task 的定向断言或浏览器证据。
+  期望：frontend test、build、完整 pytest 与 `git diff --check` 均 exit 0；日志保留原生汇总。固定回归不能替代本 task 的定向断言或浏览器证据。T22–T29 不复用 T0 或 T20 已写入正式模板/Task/ClipVideo 的验收库：凡 task 要求完整 backend pytest，均新建“仅 Alembic 迁移、无业务验收数据”的独立干净数据库与隔离 DATA_DIR，并用 durable wrapper 保存真实 exit code；生产浏览器验收库只允许迁移状态、正式 API/数据库/媒体终态的只读核对。
 
 ## Tasks
 
@@ -647,7 +647,7 @@
   - **R：** R5、R5a、R6、R7、R8、R9、R10、R11、R12；PRD §3、§6.4、§9、§11 M4。
   - **计划测试层级：** 跨进程/资源生命周期。
   - **追溯行：** `C010 复审浏览器补证：Director AC-02..12 缺失路径、修复行为与真实 WS terminal`；并回填 T14-T19 对应复审行的浏览器补充证据。
-  - **验收方式与命令/人工检查：** 先按 T11B/T12 的绝对路径方式创建 `ai_drama_studio_c010_t20_<timestamp>`、显式导出 `DATABASE_URL`/隔离 `DATA_DIR`，从 `backend` 执行 `python -m alembic upgrade head`，启动 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`，从仓库根执行 `python .work/c010/director-fixture.py --base-url http://127.0.0.1:8000 --output .work/c010/T20-fixture.json`，再启动 `npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort`；正式模板只通过设置API安装，DEBUG切换时仅停止并以同一DSN重启本task后端。保存“操作 → HTTP/WS → DOM/数据库观测值”、截图和原始 transcript，至少逐项覆盖：初始404/500/非JSON/network；零场景可选、跨场景/双场景/已占用置灰原因；duration非整数与API越界；合法/非法slot上传、清除与取消；save/delete/slot/take/generate的404/409错误、权威刷新和零重放；0/1/多take、current禁删零请求、non-current确认删除、跨Clip current 422；同一已生成take在 `DEBUG_PROMPTS=false/true` 两次正式后端启动下分别无调试区/只显示built_prompt+input_snapshot且无input_hash；note普通/空串/null/空白与双击在途；真实WS在任务提交前已连接并捕获属于唯一task_id的至少一条raw terminal event，随后Task detail和最新REST落地。正常视频路径至少生成两条可播放take并保持不同seed string/唯一current；资源终态queue空、vLLM sleeping、temp空。任一项缺失或GPU服务不健康即停止，不得勾选。完成后执行 `npm --prefix frontend run test`、`npm --prefix frontend run build`，在同一新库从 `backend` 执行 `python -m pytest -q`、`python -m alembic current`、`python -m alembic check`；回填真实证据并单独提交（`.work`不提交）。
+  - **验收方式与命令/人工检查：** 先按 T11B/T12 的绝对路径方式创建 `ai_drama_studio_c010_t20_<timestamp>`、显式导出 `DATABASE_URL`/隔离 `DATA_DIR`，从 `backend` 执行 `python -m alembic upgrade head`，启动 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`，从仓库根执行 `python .work/c010/director-fixture.py --base-url http://127.0.0.1:8000 --output .work/c010/T20-fixture.json`，再启动 `npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort`；正式模板只通过设置API安装，DEBUG切换时仅停止并以同一DSN重启本task后端。保存“操作 → HTTP/WS → DOM/数据库观测值”、截图和原始 transcript，至少逐项覆盖：初始404/500/非JSON/network；零场景可选、跨场景/双场景/已占用置灰原因；duration非整数与API越界；合法/非法slot上传、清除与取消；save/delete/slot/take/generate的404/409错误、权威刷新和零重放；0/1/多take、current禁删零请求、non-current确认删除、跨Clip current 422；同一已生成take在 `DEBUG_PROMPTS=false/true` 两次正式后端启动下分别无调试区/只显示built_prompt+input_snapshot且无input_hash；note普通/空串/null/空白与双击在途；真实WS在任务提交前已连接并捕获属于唯一task_id的至少一条raw terminal event，随后Task detail和最新REST落地。正常视频路径至少生成两条可播放take并保持不同seed string/唯一current；资源终态queue空、vLLM sleeping、temp空。任一项缺失或GPU服务不健康即停止，不得勾选。完成后执行 `npm --prefix frontend run test`、`npm --prefix frontend run build`；在生产浏览器验收库只执行 `python -m alembic current`、`python -m alembic check` 及 Task/ClipVideo/MP4/queue 的只读终态核对。另建 `ai_drama_studio_c010_t20_pytest_<timestamp>` 与独立 DATA_DIR，仅执行 Alembic migration 后运行完整 `python -m pytest -q`，并保存真实 exit code；两类数据库均通过后才可回填证据并单独提交（`.work`不提交）。
 
 - [x] **T21 — C010 复审修复最终一致性审计**
 
@@ -657,23 +657,87 @@
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`；全部 C010 复审追溯行。
   - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_final_<timestamp>` 且证明不存在，显式导出 DSN与隔离DATA_DIR；从 `backend` 执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；执行 `npm --prefix frontend run test -- src/features/director/directorReviewRestBoundary.test.ts src/features/director/directorReviewTaskBoundary.test.ts src/features/director/directorReviewTerminalRace.test.ts src/features/director/directorReviewErrorVisibility.test.ts src/features/director/directorReviewMutationRefresh.test.ts src/features/director/directorReviewNoticeOrdering.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`。执行 `git diff --check`、baseline..HEAD name/status/full scope、migration/binding/C009 archive零diff检查、禁止围栏/retry/fallback/continuity/versioning扫描、`rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）及既有测试差异精确审计。期望 T14-T20 checkbox/commit/证据相符，新增测试均回填准确ID，原39个前端测试未改弱，完成报告逐AC说明通过或未验证项；全部通过后才勾选并提交。
 
-- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [ ] **T22 — 封闭 generate-video 成功体的 safe integer 边界**
+
+  - **交付：** 仅在 `frontend/src/api/clips.ts` 的 `generate-video` 成功体 parser 把 `task_id` 从“正整数”提升为“正的 JavaScript safe integer”，复用项目现有 boundary helper；非法成功体必须抛出可见 `ApiProtocolError`，且在 `DirectorPage` 的 `sync.trackTask`、`generationTaskIds`、Task detail GET 或任何刷新前失败。新增独立回归文件 `frontend/src/features/director/directorReviewGenerateTaskIdBoundary.test.ts`；不得修改 `directorReviewRestBoundary.test.ts`、其他既有测试或后端合同，不得强转、截断、hash 或生成替代 ID。
+  - **R：** 无；PRD §6.4、§9；DECISIONS D-008。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C010 二次复审 generate-video 成功体：task_id safe integer 与零非法状态污染`。
+  - **验收方式与命令：** 新测试通过 production `generateClipVideo` 与 Director 生成提交 seam，依次注入 `Number.MAX_SAFE_INTEGER`、`Number.MAX_SAFE_INTEGER + 1`、string、boolean、float、null、array；精确断言合法最大值只进入一次 `trackTask`，其余均为 `ApiProtocolError` 且 track/state/detail GET/refresh 次数均为 0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；另建仅迁移的 `ai_drama_studio_c010_t22_<timestamp>` 与隔离 DATA_DIR，从 `backend` 执行 `python -m alembic upgrade head`，再用 durable wrapper 执行 `python -m pytest -q` 并保存 stdout、stderr、PID 和真实 exit-code 文件。全部 exit 0 后回填真实用例 ID、勾选并单独提交。
+
+- [ ] **T23 — 隔离保存 Clip A 与切换到 Clip B 的迟到响应**
+
+  - **交付：** 保存动作必须捕获发起时的 Clip ID/动作 generation。保存 Clip A 在途时允许切换到 Clip B；A 成功后至多发起一次页面列表权威刷新，不得以 A 的动作刷新 B 详情、重置 B 草稿或在 B 上显示 `Clip #A 设置已保存`。若响应返回时仍选中 A，则保持既有“页面+详情均为该动作最新快照后提示一次”的语义；重新选择 A 后通过正式详情 reader 取得保存结果。仅修改 `frontend/src/pages/DirectorPage.tsx` 和确有必要的 `frontend/src/features/director/directorSync.ts`，新增 `frontend/src/features/director/directorReviewOldClipIsolation.test.ts`；不得修改既有测试、禁止选择切换、取消请求或吞掉 A 的成功结果。
+  - **R：** 无；PRD §9；DECISIONS D-008。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C010 二次复审保存切换竞态：旧 Clip 响应不污染当前 Clip 详情与通知`。
+  - **验收方式与命令：** 用 deferred Promise 构造 A PATCH pending→选择 B→A resolve→页面 refresh resolve→任一详情 resolve 的确定顺序；观察 production reader ledger、selectedClipId、A/B draft 和 notices，精确断言 selection=B、A PATCH=1、page GET≤1、A 动作导致的 B detail GET=0、B draft 不变、A success notice=0；重新选 A 后 A detail GET=1 且读到保存值。另覆盖响应时仍选 A 的成功提示精确一次。执行 `npm --prefix frontend run test -- src/features/director/directorReviewOldClipIsolation.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；在仅迁移的新库 `ai_drama_studio_c010_t23_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q` 并保存真实 exit code。全部通过后回填、勾选、单独提交。
+
+- [ ] **T24 — 用真实生产消费链替换媒体 URL 的恒真断言**
+
+  - **交付：** 新增独立回归 `frontend/src/features/director/directorReviewMediaConsumption.test.ts`，让 Slot/Video 成功体实际通过 production REST parser、Director model 投影与页面实际使用的媒体 element/sink；若当前 JSX 无可直接调用 seam，只允许把既有 `<img>/<video>` 的最小 presentational consumer 原样抽出并由 `DirectorPage` 实际调用，不得创建第二套 parser、测试专用分支、URL fallback 或新增依赖。不得修改旧 `directorReviewRestBoundary.test.ts`；旧文件中未变动的局部计数器不再作为 AC-23 的通过证据。
+  - **R：** R9、R11；PRD §3.4、§3.5、§9。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C010 二次复审媒体消费证据：生产 parser 到媒体 sink 的敌意 URL 零消费`。
+  - **验收方式与命令：** 新测试对合法 asset-current、override 与 clip-video URL 各验证 production consumer 精确设置/读取一次；再逐个注入站外 URL、`file:`、protocol-relative、UNC、`.`/`..`、query、fragment、资源 ID 不匹配和错类型，精确断言 parser 抛 `ApiProtocolError`，production media sink/element `src` 设置及站外 fetch 均为 0。计数只能由被测 consumer 调用改变，禁止测试在调用外手工递增。执行 `npm --prefix frontend run test -- src/features/director/directorReviewMediaConsumption.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；在仅迁移的新库 `ai_drama_studio_c010_t24_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q` 并保存真实 exit code。全部通过后回填、勾选、单独提交。
+
+- [ ] **T25 — 用 Director 实际 action 接线替换 mutation 的自填账本断言**
+
+  - **交付：** 新增 `frontend/src/features/director/directorReviewMutationWiring.test.ts`，测试必须从 `DirectorPage` 实际使用的 save/delete/slot/take/generate action seam 发起；若现有页面闭包不可调用，只允许提取一个由 `DirectorPage` 生产路径实际调用的最小 Director mutation adapter，不得复制 handler、加入测试 hook、改变 UI/HTTP 合同或引入全页状态框架。结构化 404/409 仍逐字显示 `detail.message`，按动作影响面调用正式 page/detail readers，原 mutation 精确一次且无成功 notice。不得修改旧 `directorReviewMutationRefresh.test.ts`；其测试自行填写的 `authorityGets`/`successNotices` 不作为 AC-24 的通过证据。
+  - **R：** R9、R10、R12（slot/generate 分支）；其余 R：无；PRD §3.3、§3.4、§9。
+  - **计划测试层级：** 任务系统 mock。
+  - **追溯行：** `C010 二次复审 mutation 页面接线：五类 404/409 权威 GET、零重放与零伪成功`。
+  - **验收方式与命令：** 对实际 save/delete/slot/take/generate action 分别注入结构化 404、409 共 10 格；mutation、GET ledger 和 notices 只能由 production adapter/readers/notice publisher 产生。逐格断言 mutation=1、`detail.message` 精确可见、正式 page/detail GET 方法与路径/次数符合动作影响面、无 mutation 重放且 success notice=0；至少一格由 page reader 返回 Clip 消失并断言 selection/detail 清空。执行 `npm --prefix frontend run test -- src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`；在仅迁移的新库 `ai_drama_studio_c010_t25_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q` 并保存真实 exit code。全部通过后回填、勾选、单独提交。
+
+- [ ] **T26 — 收回未消费导出与非 Director 顺手硬化**
+
+  - **交付：** 以二次复审基线 `e158338dc89bebad5cd40781b50e6c11de3f989a` 为逐函数对照，删除 C010 新增但 Director 未消费的 `parseProjectListResponse`、`parseEpisodeListResponse` 导出；把 `deleteProject`、`generateAssets`、`readGenerateShotsImpact`、`generateShots`、`deleteEpisode`、`getAssetImageMediaUrl` 中仅由 C010 顺手加入且不服务 Director 的 safe-ID 行为恢复为该基线。必须保留 Director 实际使用的 Project/Episode 单体 parser、list 读取边界、T22 generate task_id 校验及 T23–T25 修复；不得使用 `git checkout/reset` 覆盖用户改动，不得删除调用中的代码或修改任何测试。
+  - **R：** 无；PRD §0 范围围栏、§9；AGENTS Change 纪律。
+  - **计划测试层级：** 不新增自动测试。
+  - **追溯行：** `C010 二次复审范围收口：移除未使用导出与非 Director 顺手硬化`。
+  - **验收方式与命令：** 执行 `rg -n 'parseProjectListResponse|parseEpisodeListResponse' frontend/src`，期望零匹配；以 `git diff e158338dc89bebad5cd40781b50e6c11de3f989a -- frontend/src/api/projects.ts frontend/src/api/episodes.ts frontend/src/api/assets.ts` 逐函数核对上述六个非 Director helper 无 C010 行为差异，同时证明 Director 所需 parser/reader 与 T22–T25 diff仍在。执行 `npm --prefix frontend run test`、`npm --prefix frontend run build`、`git diff --check`，并用 `git diff --name-status e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD -- 'frontend/src/**/*.test.ts'` 确认测试 diff 精确为 T14–T19 历史六个新增文件和 T22–T25 四个新增文件，均为 `A`，不存在 `M/D/R`；另在仅迁移的新库 `ai_drama_studio_c010_t26_<timestamp>` 上用 durable wrapper 运行完整 `python -m pytest -q`。全部通过后回填 diff/符号证据、勾选并单独提交。
+
+- [ ] **T27 — 审计隔离 headless Edge/CDP 浏览器验收装置**
+
+  - **交付：** 在 `.work/c010/` 审计并按需复用既有 `T20-edge-launch*.py`、`T20-cdp.py`，交付单一不提交的 `.work/c010/director-review-browser-driver.py` 与 `T27-apparatus-audit.log`。驱动必须只连 `127.0.0.1`、使用独立临时 profile、记录启动 PID/完整参数/CDP 目标/结束与端口释放，不得附着或控制用户浏览器；必须提供 `--self-check` 并逐项记录 headless、程序化 click/file selection、`--disable-gpu`、DOM/media 观测与人工浏览器之间的差异。它可以驱动真实 Vite/React/Director、同源 API/WS/media，也可以明确连接 T20A 故障装置，但不得导入生产源码、写数据库/Task/媒体、伪造 WS terminal 或成为仓库长期 E2E runner。
+  - **R：** 无；PRD §9；spec §9 验收装置。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C010 二次复审浏览器装置：隔离 headless CDP 差异、生产终态与修复路径`。
+  - **验收方式与命令：** 执行 `rg -n '0\.0\.0\.0|--user-data-dir|--headless|--disable-gpu|127\.0\.0\.1|CDP|websocket|frontend/src|DATABASE_URL|sqlalchemy|asyncpg' .work/c010/director-review-browser-driver.py` 并人工逐项解释匹配；选择已确认空闲的 remote-debugging port，执行 `python .work/c010/director-review-browser-driver.py --self-check --debug-port <端口> --profile .work/c010/T27-edge-profile --output .work/c010/T27-self-check.json`，要求保存 Edge PID、profile 绝对路径、只连 loopback 的网络 ledger、DOM 读取结果和正常终止证据。随后用 `Get-Process -Id <记录PID> -ErrorAction SilentlyContinue` 与 `Get-NetTCPConnection -LocalPort <记录端口> -ErrorAction SilentlyContinue` 证明仅自建进程/监听已释放。原失败输出保留；装置、profile、截图和 ledger 均留在 `.work/`，本 task 只提交 checkbox 与追溯装置说明。
+
+- [ ] **T28 — 用审计后的浏览器装置重放修复路径并分离两类数据库**
+
+  - **交付：** 使用 T27 的独立 profile 驱动、真实 Vite/React production modules 与本机 loopback 服务，重放 AC-21 的不安全 `task_id` 和 AC-22 的 A 保存/B 切换；保存“操作 → HTTP/WS → DOM/state 观测值”。同时只读复核 T20 生产浏览器验收库中 Task #1/#2、不同 seed、唯一 current video、MP4 可解码、最终空 queue 与已记录的 service 终态；不得在该库运行完整 pytest、清洗模板/Task、重跑失败 Task或把当前外部服务状态与 T20 终端时证据混写。完整 backend pytest 必须改在另一个全新、仅迁移的干净库与隔离 DATA_DIR。
+  - **R：** 无；PRD §6.4、§9、§11 M4；DECISIONS D-008。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C010 二次复审浏览器装置：隔离 headless CDP 差异、生产终态与修复路径`；`C010 二次复审 generate-video 成功体：task_id safe integer 与零非法状态污染`；`C010 二次复审保存切换竞态：旧 Clip 响应不污染当前 Clip 详情与通知`。
+  - **验收方式与命令/人工检查：** 先读取生产 `/openapi.json` 核对本轮使用的 method/path；由 T20A 或同约束的 loopback fault mode 对一次 `generate-video` 返回 `task_id=9007199254740992`，浏览器必须显示 protocol error，ledger 精确记录零 Task detail GET/WS tracking/成功 notice。再以 deferred save mode 让 A PATCH pending，浏览器点击选择 B 后释放 A 响应；精确记录 selected=B、A PATCH=1、A 导致的 B detail GET=0、B draft不变、A success notice=0，重新选择 A 后正式详情 GET 读到保存值。以 `python`/`ffprobe` 或项目既有 PyAV 只读检查 T20 保存 MP4，使用正式 API/DB read-only 查询核对 Task/ClipVideo/current/seed；若当前 Comfy/vLLM 状态与 T20 记录不同只标记漂移，不重写历史通过。运行 `npm --prefix frontend run test`、`npm --prefix frontend run build`；另建 `ai_drama_studio_c010_t28_pytest_<timestamp>`、隔离 DATA_DIR，执行 `python -m alembic upgrade head` 后用 durable wrapper 运行 `python -m pytest -q` 并取得真实 exit-code=0。生产验收库执行 `python -m alembic current`、`python -m alembic check` 和只读终态核对；两侧均满足后回填、勾选并提交，`.work/` 不提交。
+
+- [ ] **T29 — C010 二次复审修复最终一致性审计**
+
+  - **交付：** 更新 `.work/c010/completion-report.md`，把六个复审问题逐项映射到 T22–T28 的修复提交、独立测试 ID、浏览器/数据库证据与保留的修复前失败输出；明确 T20 历史正式库 pytest 的 `2 failed, 344 passed` 是数据库职责错误，另列干净库全绿结果，不把二者合并或删去失败。核对 spec AC-21..27、tasks、TRACEABILITY、代码和 commits 一致；不得修改生产代码或任何既有测试。
+  - **R：** 无；PRD §0、§3、§9、§11 M4；DECISIONS D-008、D-012。
+  - **计划测试层级：** 跨进程/资源生命周期。
+  - **追溯行：** `C010 二次复审最终一致性：分离验收库与干净回归库并关闭全部 BLOCK`；全部 C010 二次复审追溯行。
+  - **验收方式与命令：** 新建 `ai_drama_studio_c010_review_final_<timestamp>` 与隔离 DATA_DIR，先执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`，再用 durable wrapper 执行 `python -m pytest -q` 并要求真实 exit-code=0。执行 `npm --prefix frontend run test -- src/features/director/directorReviewGenerateTaskIdBoundary.test.ts src/features/director/directorReviewOldClipIsolation.test.ts src/features/director/directorReviewMediaConsumption.test.ts src/features/director/directorReviewMutationWiring.test.ts`、`npm --prefix frontend run test`、`npm --prefix frontend run build`。执行 `git diff --check`、`git diff --name-status e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`git log --oneline e158338dc89bebad5cd40781b50e6c11de3f989a..HEAD`、`rg -n 'C010 .*[|].*待填' openspec/TRACEABILITY.md`（期望无匹配）、围栏/versioning/retry/fallback/continuity 扫描及所有既有测试零 diff审计；逐项确认 T22–T28 checkbox/commit/证据一致，四个新测试均有真实用例 ID，完成报告第 5 段按“操作 → 观测值”覆盖正常路径和至少一条异常分支。全部通过后才勾选、回填并单独提交。
+
+- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
 
   - **R：** 无；PRD §12 外部环境与运行事实。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令或人工检查：** `git diff -- NOTES.md`；只写 T0/T11/T12/T13/T14-T21 已现场验证且可复用的端口、启动命令、依赖状态、浏览器/WS/数据库坑和真实结果，所有漂移/未验证事实明确标注。确无长期价值内容时不改文件，并在完成报告精确写“NOTES.md：无”。
+  - **验收方式与命令或人工检查：** `git diff -- NOTES.md`；复核 T22–T29 是否产生可跨 change 复用的 safe-integer、旧 Clip 竞态、浏览器装置或验收库/回归库分工事实，只写已现场验证的端口、命令、依赖状态、坑和真实结果，所有漂移/未验证事实明确标注。确无长期价值内容时不改文件，并在完成报告精确写“NOTES.md：无”。
 
-- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
 
   - **R：** 无；PRD §0、§3、§9；DECISIONS D-002、D-004、D-008。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 Director REST/WS 竞态：socket-first 缓冲、旧响应失效、replacement refresh、task detail 去重与成功通知后置`。
-  - **验收方式与人工检查：** 完成报告逐项判断“零场景在单场景选择中仍可选、preview 动态硬上限推导、requested duration 保存门槛与 note 随生成提交、Director D-008 实现形态”是否只是 PRD/spec 的局部落实或需要长期跨 change 决策。不得自行修改 DECISIONS；无新跨 change 约定时精确写“DECISIONS.md 候选项：无”。
+  - **验收方式与人工检查：** 完成报告在原候选审计基础上，判断“异步 action 是否必须绑定发起资源 identity”“生产浏览器验收库与干净回归库分工”“一次性 headless 装置的证据边界”是否只是本 spec 的局部落实或需要长期跨 change 决策。不得自行修改 DECISIONS；无新跨 change 约定时精确写“DECISIONS.md 候选项：无”。
 
-- [x] change 文档与 commit 状态一致
+- [ ] change 文档与 commit 状态一致
 
   - **R：** 无；PRD §11 M4；AGENTS Change纪律。
   - **计划测试层级：** 不新增自动测试。
   - **追溯行：** `C010 范围、零 migration、构建回归与完成证据`。
-  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；binding TOML 与 migration 零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶，后端 Python仅有 T11C/AC-20 的 `gen_clip_video.py` node_id 修正，既有测试仅有 `AGENTS.md` 明列四个 hash 常量与一个 worker failure 测试的精确替换；T14-T19 的生产 diff 只限 C010 Director 前端边界/同步/页面，新增测试精确为各 task 声明的六个新文件，既有前端测试零修改；T20A装置和全部证据保持未跟踪；C012独立获授权文档commit不得冒充C010实现证据。
+  - **验收方式与命令：** 执行 `git status --short`、`git diff --check`、`git diff --name-status (Get-Content .work/c010/baseline-sha.txt)..HEAD`、`git log --oneline (Get-Content .work/c010/baseline-sha.txt)..HEAD`，并逐项对照 spec AC、tasks checkbox、TRACEABILITY 与完成报告。期望所有勾选交付已提交，未完成项未宣称通过，`.work/`/下载文件未提交，`openspec/archive/C009/` 相对 C010 执行 baseline 未再次移动或改写且 `openspec/changes/c009/` 保持不存在；binding TOML 与 migration 零 diff，workflow 仅有 T11A/AC-18 节点 310 单叶，后端 Python仅有 T11C/AC-20 的 `gen_clip_video.py` node_id 修正，既有测试仅有 `AGENTS.md` 明列四个 hash 常量与一个 worker failure 测试的精确替换；T14-T19 的历史生产 diff、六个历史新增测试保持不被改写，T22–T25 新增测试精确为四个声明文件且既有前端测试零修改；T26 明列的非 Director 顺手改动已收回；T27/T28 装置和全部证据保持未跟踪；T29、三个收尾 checkbox、追溯回填、提交和报告一致；C012独立获授权文档commit不得冒充C010实现证据。
