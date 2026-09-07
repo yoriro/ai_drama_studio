@@ -161,7 +161,7 @@
   - 验收方式与命令：G；人工四视口保存分镜字段/绑定、观察原 API 和零/多场景提示；changed 样式在 T14 统一，但当前业务标记不得消失。
   - 验收归属：AC-05/06/07/08 的分镜切片。
 
-- [ ] **T13 整理导演台视觉与窄屏布局**
+- [x] **T13 整理导演台视觉与窄屏布局**
   - 依赖：T07。
   - R：R5、R5a、R6、R7、R8、R9、R10、R11、R12；PRD：§2.1(7)、§3.2-§3.5、§9、§11 M5。
   - 交付范围：只调整 DirectorPage 展示与 director 样式：三轨同一滚动容器和列定义、详情窄屏下移、preview/slot/take/输入区视觉。保留 directorModel/directorSync 原业务决策/同步接线、所有 soft warning/disabled 条件、DEBUG/媒体路径和比例。

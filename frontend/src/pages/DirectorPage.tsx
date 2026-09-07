@@ -858,167 +858,173 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
         </p>
       )}
 
-      <section aria-label="导演台轨道" className="director-tracks panel">
-        <div className="director-track-group">
-          <h3>场景带</h3>
-          <div
-            className="director-track director-scene-track"
-            style={{ gridTemplateColumns: projection.gridTemplateColumns }}
-          >
-            {projection.sceneBands.map((band) => (
+      <div className="director-workspace">
+        <section aria-label="导演台轨道" className="director-tracks panel">
+          <div className="director-track-scroll">
+            <div className="director-track-group">
+              <h3>场景带</h3>
               <div
-                className={[
-                  "director-scene-band",
-                  `director-scene-band-${band.classification.kind}`,
-                  band.classification.paletteIndex === null
-                    ? ""
-                    : `director-scene-palette-${band.classification.paletteIndex}`,
-                ].filter(Boolean).join(" ")}
-                data-scene-kind={band.classification.kind}
-                key={`${band.classification.key}-${band.startIndex}`}
-                style={{
-                  gridColumn: `${band.startIndex + 1} / ${band.endIndex + 2}`,
-                }}
+                className="director-track director-scene-track"
+                style={{ gridTemplateColumns: projection.gridTemplateColumns }}
               >
-                <strong>{band.classification.label}</strong>
-                <span>{band.shotIds.length} 个分镜</span>
+                {projection.sceneBands.map((band) => (
+                  <div
+                    className={[
+                      "director-scene-band",
+                      `director-scene-band-${band.classification.kind}`,
+                      band.classification.paletteIndex === null
+                        ? ""
+                        : `director-scene-palette-${band.classification.paletteIndex}`,
+                    ].filter(Boolean).join(" ")}
+                    data-scene-kind={band.classification.kind}
+                    key={`${band.classification.key}-${band.startIndex}`}
+                    style={{
+                      gridColumn: `${band.startIndex + 1} / ${band.endIndex + 2}`,
+                    }}
+                  >
+                    <strong>{band.classification.label}</strong>
+                    <span>{band.shotIds.length} 个分镜</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        <div className="director-track-group">
-          <h3>分镜轨</h3>
-          <div
-            className="director-track director-shot-track"
-            style={{ gridTemplateColumns: projection.gridTemplateColumns }}
-          >
-            {projection.shots.map((projectedShot) => {
-              const eligibility = selection.eligibility.find(
-                (item) => item.shotId === projectedShot.shot.id,
-              )!;
-              return (
-                <div className="director-shot-cell" key={projectedShot.shot.id}>
-                  <label className="director-shot-checkbox">
-                    <input
-                      checked={eligibility.selected}
-                      disabled={eligibility.disabled}
-                      onChange={() => toggleShot(projectedShot.shot.id)}
-                      type="checkbox"
-                    />
-                    <span>镜头 {projectedShot.shot.order_index}</span>
-                  </label>
-                  <span className="director-shot-meta">
-                    {projectedShot.shot.shot_type} · {projectedShot.shot.duration_est} 秒
-                  </span>
-                  {projectedShot.shot.status === "changed" && (
-                    <span className="director-shot-changed">changed</span>
-                  )}
-                  {eligibility.reason !== null && (
-                    <span className="director-shot-reason">{eligibility.reason}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="director-track-group">
-          <h3>片段轨</h3>
-          <div
-            className="director-track director-clip-track"
-            style={{ gridTemplateColumns: projection.gridTemplateColumns }}
-          >
-            {projection.gaps.map((gap) => (
+            <div className="director-track-group">
+              <h3>分镜轨</h3>
               <div
-                aria-label={`未覆盖分镜：${gap.shotIds.join(", ")}`}
-                className="director-gap"
-                key={`gap-${gap.startIndex}`}
-                style={{ gridColumn: `${gap.startIndex + 1} / ${gap.endIndex + 2}` }}
+                className="director-track director-shot-track"
+                style={{ gridTemplateColumns: projection.gridTemplateColumns }}
               >
-                空洞
+                {projection.shots.map((projectedShot) => {
+                  const eligibility = selection.eligibility.find(
+                    (item) => item.shotId === projectedShot.shot.id,
+                  )!;
+                  return (
+                    <div className="director-shot-cell" key={projectedShot.shot.id}>
+                      <label className="director-shot-checkbox">
+                        <input
+                          checked={eligibility.selected}
+                          disabled={eligibility.disabled}
+                          onChange={() => toggleShot(projectedShot.shot.id)}
+                          type="checkbox"
+                        />
+                        <span>镜头 {projectedShot.shot.order_index}</span>
+                      </label>
+                      <span className="director-shot-meta">
+                        {projectedShot.shot.shot_type} · {projectedShot.shot.duration_est} 秒
+                      </span>
+                      {projectedShot.shot.status === "changed" && (
+                        <span className="director-shot-changed">changed</span>
+                      )}
+                      {eligibility.reason !== null && (
+                        <span className="director-shot-reason">{eligibility.reason}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-            {projection.clipSpans.map((span) => (
-              <button
-                aria-pressed={syncState.selectedClipId === span.clip.id}
-                className={[
-                  "director-clip-bar",
-                  span.status.generationClassName,
-                  span.status.freshnessClassName,
-                  syncState.selectedClipId === span.clip.id
-                    ? "director-clip-bar-selected"
-                    : "",
-                ].filter(Boolean).join(" ")}
-                key={span.clip.id}
-                onClick={() => selectClip(span.clip.id)}
-                style={{ gridColumn: `${span.startIndex + 1} / ${span.endIndex + 2}` }}
-                type="button"
+            </div>
+
+            <div className="director-track-group">
+              <h3>片段轨</h3>
+              <div
+                className="director-track director-clip-track"
+                style={{ gridTemplateColumns: projection.gridTemplateColumns }}
               >
-                <strong>Clip #{span.clip.id}</strong>
-                <span>{span.status.generationLabel}</span>
-                <span>{span.status.freshnessLabel}</span>
-              </button>
-            ))}
+                {projection.gaps.map((gap) => (
+                  <div
+                    aria-label={`未覆盖分镜：${gap.shotIds.join(", ")}`}
+                    className="director-gap"
+                    key={`gap-${gap.startIndex}`}
+                    style={{ gridColumn: `${gap.startIndex + 1} / ${gap.endIndex + 2}` }}
+                  >
+                    空洞
+                  </div>
+                ))}
+                {projection.clipSpans.map((span) => (
+                  <button
+                    aria-pressed={syncState.selectedClipId === span.clip.id}
+                    className={[
+                      "director-clip-bar",
+                      span.status.generationClassName,
+                      span.status.freshnessClassName,
+                      syncState.selectedClipId === span.clip.id
+                        ? "director-clip-bar-selected"
+                        : "",
+                    ].filter(Boolean).join(" ")}
+                    key={span.clip.id}
+                    onClick={() => selectClip(span.clip.id)}
+                    style={{ gridColumn: `${span.startIndex + 1} / ${span.endIndex + 2}` }}
+                    type="button"
+                  >
+                    <strong>Clip #{span.clip.id}</strong>
+                    <span>{span.status.generationLabel}</span>
+                    <span>{span.status.freshnessLabel}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+        </section>
+
+        <div className="director-detail">
+          <DirectorPreviewPanel
+            createProjection={createProjection}
+            onCreate={handleCreate}
+            onPreview={startPreview}
+            onReferenceToggle={toggleReference}
+            onRequestedDurationChange={handleRequestedDurationChange}
+            state={previewState}
+          />
+
+          <DirectorSelectionPanel
+            clips={syncState.pageSnapshot.clips}
+            detailPhase={syncState.detailPhase}
+            detailError={syncState.detailError}
+            generationGate={generationGate}
+            generationActionError={generationActionError}
+            generationRequestInFlight={generationRequestInFlight}
+            generationTaskIds={generationTaskIds}
+            taskDetails={syncState.taskDetails}
+            taskEvents={syncState.taskEvents}
+            taskError={syncState.taskError}
+            onGenerate={handleGenerateVideo}
+            onClearNote={() => updateSelectedClipDraft({ userNote: null })}
+            onDelete={handleDeleteClip}
+            onSave={handleSaveSettings}
+            onUserNoteChange={(userNote) => updateSelectedClipDraft({ userNote })}
+            onRequestedDurationChange={(requestedDuration) =>
+              updateSelectedClipDraft({ requestedDuration })
+            }
+            onSlotClear={handleSlotClear}
+            onSlotEnabledChange={handleSlotEnabledChange}
+            onSlotUpload={handleSlotUpload}
+            selection={selection}
+            settingsActionError={settingsActionError}
+            settingsProjection={settingsProjection}
+            settingsSaving={settingsSavingClipId !== null}
+            slotMutationError={slotMutationError}
+            slotMutationKey={slotMutationKey}
+            slotsProjection={slotsProjection}
+            takeMutationError={takeMutationError}
+            takeMutationKey={takeMutationKey}
+            takesProjection={takesProjection}
+            mediaErrors={mediaErrors}
+            onDeleteTake={handleDeleteTake}
+            onSetCurrentTake={handleSetCurrentTake}
+            onMediaError={(videoId) =>
+              setMediaErrors((current) => ({
+                ...current,
+                [videoId]: "视频媒体加载失败",
+              }))
+            }
+            deleting={pendingDeleteClipId !== null}
+            clipDraft={syncState.clipDraft}
+            selectedClipId={syncState.selectedClipId}
+            selectedShotIds={selectedShotIds}
+          />
         </div>
-      </section>
-
-      <DirectorPreviewPanel
-        createProjection={createProjection}
-        onCreate={handleCreate}
-        onPreview={startPreview}
-        onReferenceToggle={toggleReference}
-        onRequestedDurationChange={handleRequestedDurationChange}
-        state={previewState}
-      />
-
-      <DirectorSelectionPanel
-        clips={syncState.pageSnapshot.clips}
-        detailPhase={syncState.detailPhase}
-        detailError={syncState.detailError}
-        generationGate={generationGate}
-        generationActionError={generationActionError}
-        generationRequestInFlight={generationRequestInFlight}
-        generationTaskIds={generationTaskIds}
-        taskDetails={syncState.taskDetails}
-        taskEvents={syncState.taskEvents}
-        taskError={syncState.taskError}
-        onGenerate={handleGenerateVideo}
-        onClearNote={() => updateSelectedClipDraft({ userNote: null })}
-        onDelete={handleDeleteClip}
-        onSave={handleSaveSettings}
-        onUserNoteChange={(userNote) => updateSelectedClipDraft({ userNote })}
-        onRequestedDurationChange={(requestedDuration) =>
-          updateSelectedClipDraft({ requestedDuration })
-        }
-        onSlotClear={handleSlotClear}
-        onSlotEnabledChange={handleSlotEnabledChange}
-        onSlotUpload={handleSlotUpload}
-        selection={selection}
-        settingsActionError={settingsActionError}
-        settingsProjection={settingsProjection}
-        settingsSaving={settingsSavingClipId !== null}
-        slotMutationError={slotMutationError}
-        slotMutationKey={slotMutationKey}
-        slotsProjection={slotsProjection}
-        takeMutationError={takeMutationError}
-        takeMutationKey={takeMutationKey}
-        takesProjection={takesProjection}
-        mediaErrors={mediaErrors}
-        onDeleteTake={handleDeleteTake}
-        onSetCurrentTake={handleSetCurrentTake}
-        onMediaError={(videoId) =>
-          setMediaErrors((current) => ({
-            ...current,
-            [videoId]: "视频媒体加载失败",
-          }))
-        }
-        deleting={pendingDeleteClipId !== null}
-        clipDraft={syncState.clipDraft}
-        selectedClipId={syncState.selectedClipId}
-        selectedShotIds={selectedShotIds}
-      />
+      </div>
     </section>
   );
 }
