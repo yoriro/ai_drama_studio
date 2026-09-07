@@ -209,7 +209,10 @@ export function SettingsPage() {
       <AuxiliaryPageReturn />
       <PageTitle>设置</PageTitle>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
-      <section className="settings-section" aria-labelledby="diagnostics-heading">
+      <section
+        className="settings-section settings-diagnostics-section"
+        aria-labelledby="diagnostics-heading"
+      >
         <div className="settings-section-heading">
           <h2 id="diagnostics-heading">系统诊断</h2>
           <button
@@ -279,7 +282,10 @@ export function SettingsPage() {
           </dl>
         )}
       </section>
-      <section className="settings-section" aria-labelledby="styles-heading">
+      <section
+        className="settings-section settings-styles-section"
+        aria-labelledby="styles-heading"
+      >
         <h2 id="styles-heading">风格</h2>
         {stylesLoadState === "loading" && <p>正在加载风格…</p>}
         {stylesLoadError !== null && (
@@ -287,7 +293,10 @@ export function SettingsPage() {
         )}
         {stylesLoadState === "ready" && (
           <>
-        <form className="panel form-grid" onSubmit={handleCreateStyle}>
+        <form
+          className="panel form-grid settings-create-form"
+          onSubmit={handleCreateStyle}
+        >
           <h3>创建风格</h3>
           <label>
             风格名称
@@ -311,12 +320,15 @@ export function SettingsPage() {
         {styles.length === 0 ? (
           <EmptyState message="暂无风格" />
         ) : (
-          <section className="entity-list" aria-label="风格列表">
+          <section
+            className="entity-list settings-style-list"
+            aria-label="风格列表"
+          >
             {styles.map((style) => (
-              <article className="entity-card" key={style.id}>
+              <article className="entity-card settings-style-card" key={style.id}>
                 <h3>{style.name}</h3>
                 <p className="settings-content">{style.prompt_fragment}</p>
-                <div className="action-row">
+                <div className="action-row settings-style-actions">
                   <button type="button" onClick={() => startEditingStyle(style)}>
                     编辑风格
                   </button>
@@ -328,7 +340,10 @@ export function SettingsPage() {
                   </button>
                 </div>
                 {editingStyleId === style.id && (
-                  <form className="form-grid" onSubmit={handleUpdateStyle}>
+                  <form
+                    className="form-grid settings-style-edit-form"
+                    onSubmit={handleUpdateStyle}
+                  >
                     <label>
                       风格名称
                       <input
@@ -350,7 +365,7 @@ export function SettingsPage() {
                         }
                       />
                     </label>
-                    <div className="action-row">
+                    <div className="action-row settings-style-edit-actions">
                       <button type="submit">保存风格</button>
                       <button
                         type="button"
@@ -368,7 +383,10 @@ export function SettingsPage() {
           </>
         )}
       </section>
-      <section className="settings-section" aria-labelledby="templates-heading">
+      <section
+        className="settings-section settings-templates-section"
+        aria-labelledby="templates-heading"
+      >
         <h2 id="templates-heading">提示词模板</h2>
         {templatesLoadState === "loading" && <p>正在加载提示词模板…</p>}
         {templatesLoadError !== null && (
@@ -377,10 +395,13 @@ export function SettingsPage() {
         {templatesLoadState === "ready" && (templates.length === 0 ? (
           <EmptyState message="暂无提示词模板" />
         ) : (
-          <section className="entity-list" aria-label="提示词模板列表">
+          <section
+            className="entity-list settings-template-list"
+            aria-label="提示词模板列表"
+          >
             {templates.map((template) => (
               <form
-                className="panel form-grid"
+                className="panel form-grid settings-template-card"
                 key={template.key}
                 onSubmit={(event) => void handleUpdateTemplate(event, template)}
               >

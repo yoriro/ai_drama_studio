@@ -469,6 +469,7 @@ button:disabled {
 
 .settings-section {
   margin: 0 0 40px;
+  min-width: 0;
 }
 
 .settings-section > h2 {
@@ -481,6 +482,8 @@ button:disabled {
   gap: 16px;
   justify-content: space-between;
   margin-bottom: 18px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .settings-section h3 {
@@ -488,7 +491,59 @@ button:disabled {
 }
 
 .settings-content {
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.settings-create-form {
+  margin-bottom: 16px;
+}
+
+.settings-style-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.settings-style-card {
+  align-content: start;
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  min-width: 0;
+}
+
+.settings-style-card h3,
+.settings-template-card h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-style-actions,
+.settings-style-edit-actions {
+  margin: 0;
+}
+
+.settings-style-edit-form {
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
+  max-width: none;
+  padding-top: 16px;
+}
+
+.settings-template-list {
+  grid-template-columns: 1fr;
+}
+
+.settings-template-card {
+  gap: 16px;
+  margin: 0;
+  max-width: none;
+  min-width: 0;
+}
+
+.settings-template-card textarea {
+  line-height: 1.5;
+  min-height: 180px;
+  overflow-wrap: anywhere;
 }
 
 .diagnostic-list {
@@ -498,6 +553,7 @@ button:disabled {
   display: grid;
   gap: 14px;
   margin: 0;
+  min-width: 0;
   padding: 24px;
 }
 
@@ -513,6 +569,7 @@ button:disabled {
 
 .diagnostic-list dd {
   margin: 0;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -536,10 +593,13 @@ button:disabled {
 
 .diagnostic-message {
   color: var(--color-danger);
+  overflow-wrap: anywhere;
 }
 
 .diagnostic-hash {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .workspace-tabs {
