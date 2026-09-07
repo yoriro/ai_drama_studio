@@ -11,6 +11,16 @@ import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { AuxiliaryPageReturn } from "../components/AuxiliaryPageReturn";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
+import {
+  buildTaskListQuery,
+  groupTasksByStatus,
+  TASK_LIMIT_OPTIONS,
+  TASK_STATUS_FILTER_OPTIONS,
+  TASK_TYPE_FILTER_OPTIONS,
+  type TaskListLimit,
+  type TaskStatusFilter,
+  type TaskTypeFilter,
+} from "../features/tasks/taskList";
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 5000] as const;
 
@@ -139,12 +149,27 @@ export function TasksPage() {
   const [restError, setRestError] = useState<unknown>(null);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("connecting");
+  const [statusFilter, setStatusFilter] =
+    useState<TaskStatusFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TaskTypeFilter>("all");
+  const [taskLimit, setTaskLimit] = useState<TaskListLimit>(50);
+
+  const taskGroups = groupTasksByStatus(tasks);
 
   useEffect(() => {
     let disposed = false;
     let activeSocket: WebSocket | null = null;
     let reconnectTimer: number | null = null;
     let reconnectAttempt = 0;
+    const listQuery = buildTaskListQuery({
+      status: statusFilter,
+      type: typeFilter,
+      limit: taskLimit,
+    });
+    setTasks([]);
+    setRestState("loading");
+    setRestError(null);
+    setConnectionState("connecting");
 
     function isActive(socket: WebSocket): boolean {
       return !disposed && activeSocket === socket;
@@ -271,7 +296,7 @@ export function TasksPage() {
 
       async function synchronize(): Promise<void> {
         try {
-          const snapshot = await listTasks();
+          const snapshot = await listTasks(listQuery);
           if (!isActive(socket)) {
             return;
           }
@@ -351,12 +376,107 @@ export function TasksPage() {
         closeWebSocket(socket);
       }
     };
-  }, []);
+  }, [statusFilter, taskLimit, typeFilter]);
+
+  function renderTaskCard(task: TaskListItem) {
+    return (
+      <article className="entity-card task-card" key={task.id}>
+        <div className="task-heading">
+          <h3>任务 #{task.id}</h3>
+          <span className="task-status">{task.status}</span>
+        </div>
+        <p>
+          类型：{task.type}；目标 ID：{task.target_id ?? "—"}
+        </p>
+        <div className="task-progress-row">
+          <progress
+            aria-label={`任务 ${task.id} 进度`}
+            max={1}
+            value={task.progress}
+          />
+          <span>{Math.round(task.progress * 100)}%</span>
+        </div>
+        {task.error_msg !== null && (
+          <p className="error-message">{task.error_msg}</p>
+        )}
+        <dl className="task-times">
+          <div>
+            <dt>创建时间</dt>
+            <dd>{formatTaskTime(task.created_at)}</dd>
+          </div>
+          <div>
+            <dt>开始时间</dt>
+            <dd>{formatTaskTime(task.started_at)}</dd>
+          </div>
+          <div>
+            <dt>完成时间</dt>
+            <dd>{formatTaskTime(task.finished_at)}</dd>
+          </div>
+        </dl>
+      </article>
+    );
+  }
 
   return (
     <>
       <AuxiliaryPageReturn />
       <PageTitle>任务中心</PageTitle>
+      <section aria-label="任务筛选" className="panel task-filters">
+        <h2>任务筛选</h2>
+        <div className="task-filter-grid">
+          <label>
+            状态
+            <select
+              aria-label="状态筛选"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as TaskStatusFilter)
+              }
+            >
+              {TASK_STATUS_FILTER_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status === "all" ? "全部" : status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            类型
+            <select
+              aria-label="类型筛选"
+              value={typeFilter}
+              onChange={(event) =>
+                setTypeFilter(event.target.value as TaskTypeFilter)
+              }
+            >
+              {TASK_TYPE_FILTER_OPTIONS.map((type) => (
+                <option key={type} value={type}>
+                  {type === "all" ? "全部" : type}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            数量
+            <select
+              aria-label="任务数量"
+              value={taskLimit}
+              onChange={(event) =>
+                setTaskLimit(Number(event.target.value) as TaskListLimit)
+              }
+            >
+              {TASK_LIMIT_OPTIONS.map((limit) => (
+                <option key={limit} value={limit}>
+                  {limit}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="field-hint">
+          最多显示匹配条件的最近 {taskLimit} 条，本次已加载 {tasks.length} 条
+        </p>
+      </section>
       {connectionState === "reconnecting" && (
         <p
           aria-live="polite"
@@ -383,52 +503,28 @@ export function TasksPage() {
       )}
       {restState === "ready" && tasks.length === 0 && (
         <div data-task-state="empty">
-          <EmptyState message="暂无任务" />
+          <EmptyState message="当前条件下暂无任务" />
         </div>
       )}
       {restState !== "loading" && tasks.length > 0 && (
-        <section
-          aria-label="任务列表"
-          className="task-list"
-          data-task-state={restState === "ready" ? "ready" : "rest-error-list"}
-        >
-          {tasks.map((task) => (
-            <article className="entity-card task-card" key={task.id}>
-              <div className="task-heading">
-                <h2>任务 #{task.id}</h2>
-                <span className="task-status">{task.status}</span>
+        <>
+          {taskGroups.inProgress.length > 0 && (
+            <section aria-label="进行中任务" className="task-group">
+              <h2>进行中</h2>
+              <div className="task-list" data-task-state="ready">
+                {taskGroups.inProgress.map(renderTaskCard)}
               </div>
-              <p>
-                类型：{task.type}；目标 ID：{task.target_id ?? "—"}
-              </p>
-              <div className="task-progress-row">
-                <progress
-                  aria-label={`任务 ${task.id} 进度`}
-                  max={1}
-                  value={task.progress}
-                />
-                <span>{Math.round(task.progress * 100)}%</span>
+            </section>
+          )}
+          {taskGroups.history.length > 0 && (
+            <section aria-label="历史任务" className="task-group">
+              <h2>历史</h2>
+              <div className="task-list" data-task-state="ready">
+                {taskGroups.history.map(renderTaskCard)}
               </div>
-              {task.error_msg !== null && (
-                <p className="error-message">{task.error_msg}</p>
-              )}
-              <dl className="task-times">
-                <div>
-                  <dt>创建时间</dt>
-                  <dd>{formatTaskTime(task.created_at)}</dd>
-                </div>
-                <div>
-                  <dt>开始时间</dt>
-                  <dd>{formatTaskTime(task.started_at)}</dd>
-                </div>
-                <div>
-                  <dt>完成时间</dt>
-                  <dd>{formatTaskTime(task.finished_at)}</dd>
-                </div>
-              </dl>
-            </article>
-          ))}
-        </section>
+            </section>
+          )}
+        </>
       )}
     </>
   );
