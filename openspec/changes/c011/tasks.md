@@ -98,7 +98,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/navigation/returnLocation.test.ts`；G；人工浏览器逐项 AC-02/03：六类来源、辅助页互跳、刷新、新标签、浏览器 back/forward、非法来源和已删实体，记录目标 URL 与零额外 mutation。纯函数用例不得声称验证已挂载 Router；真实浏览器补足接线。
   - 验收归属：AC-02/AC-03 完整。实现前对被替换的既有导航片段 git blame。
 
-- [ ] **T06 移除剧集重复入口**
+- [x] **T06 移除剧集重复入口**
   - 依赖：T05。
   - R：无；PRD：§2.1(3)、§9、§11 M5。
   - 交付范围：只删除 ProjectPage 的“进入集工作区”重复 Link；保留原集标题 Link 和独立编辑/删除按钮。删除前 git blame 定位用途，记录精确删除项，不扩大为删卡片或改路由。
