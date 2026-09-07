@@ -384,7 +384,7 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
 
   return (
     <section className="asset-page">
-      <div className="panel">
+      <div className="panel asset-overview-panel">
         <div className="asset-page-heading">
           <div>
             <h2>资产</h2>
@@ -736,7 +736,7 @@ function AssetCard({
           </button>
         </>
       ) : (
-        <form className="form-grid" onSubmit={handleSave}>
+        <form className="form-grid asset-edit-form" onSubmit={handleSave}>
           <p className="field-hint">类型：{assetTypeLabel(asset.type)}（不可修改）</p>
           <label>
             名称
@@ -755,7 +755,7 @@ function AssetCard({
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
-          <div className="action-row">
+          <div className="action-row asset-edit-actions">
             <button disabled={busy} type="submit">
               {saving ? "保存中…" : "保存修改"}
             </button>
@@ -845,7 +845,7 @@ function AssetCard({
                   {image.is_current ? (
                     <p className="field-hint">当前版本不可直接删除</p>
                   ) : (
-                    <div className="action-row">
+                    <div className="action-row asset-image-actions">
                       <button
                         disabled={busy}
                         type="button"

@@ -667,6 +667,7 @@ button:disabled {
 .asset-page {
   display: grid;
   gap: 24px;
+  min-width: 0;
 }
 
 .asset-page-heading,
@@ -674,8 +675,26 @@ button:disabled {
 .asset-gallery-heading {
   align-items: flex-start;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
+  min-width: 0;
+}
+
+.asset-page > .panel,
+.asset-card {
+  margin: 0;
+  min-width: 0;
+}
+
+.asset-page-heading > div,
+.asset-card-heading > div,
+.asset-gallery-heading > * {
+  min-width: 0;
+}
+
+.asset-card-heading button {
+  flex-shrink: 0;
 }
 
 .asset-page-heading h2,
@@ -703,12 +722,15 @@ button:disabled {
 
 .asset-description {
   color: var(--color-text-muted);
+  margin: 0;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .asset-generation {
   border-top: 1px solid var(--color-border);
   margin-top: 24px;
+  min-width: 0;
   padding-top: 20px;
 }
 
@@ -721,6 +743,7 @@ button:disabled {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
   overflow-wrap: anywhere;
+  line-height: 1.5;
 }
 
 .asset-current-image {
@@ -736,9 +759,11 @@ button:disabled {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   display: block;
+  height: auto;
   max-height: 240px;
   max-width: min(100%, 360px);
   object-fit: contain;
+  width: auto;
 }
 
 .asset-gallery {
@@ -750,36 +775,53 @@ button:disabled {
 .asset-upload-control {
   align-items: center;
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 8px;
   font-weight: 600;
+  max-width: 100%;
 }
 
 .asset-upload-control input {
-  max-width: 220px;
+  max-width: min(100%, 220px);
+  min-width: 0;
 }
 
 .asset-gallery-list {
   display: grid;
   gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   list-style: none;
   margin: 16px 0 0;
+  min-width: 0;
   padding: 0;
 }
 
 .asset-gallery-item {
-  align-items: center;
+  align-items: flex-start;
   background: var(--color-surface-input);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  display: flex;
+  display: grid;
   gap: 14px;
+  grid-template-columns: minmax(96px, 128px) minmax(0, 1fr);
+  min-width: 0;
   padding: 10px;
 }
 
+.asset-gallery-item > div {
+  min-width: 0;
+}
+
 .asset-gallery-item img {
-  height: 76px;
+  height: auto;
+  max-height: 128px;
+  max-width: 100%;
   object-fit: contain;
-  width: 96px;
+  width: 128px;
+}
+
+.asset-image-actions {
+  min-width: 0;
 }
 
 .asset-debug {
@@ -812,6 +854,7 @@ button:disabled {
   background: var(--color-text);
   border-radius: 8px;
   margin: 0;
+  max-width: 100%;
   max-height: 260px;
   overflow: auto;
   padding: 10px;
@@ -1545,6 +1588,22 @@ button:disabled {
   .settings-section-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .asset-page-heading,
+  .asset-card-heading,
+  .asset-gallery-heading {
+    flex-direction: column;
+  }
+
+  .asset-gallery-item {
+    gap: 10px;
+    grid-template-columns: minmax(80px, 96px) minmax(0, 1fr);
+  }
+
+  .asset-gallery-item img {
+    max-height: 96px;
+    width: 96px;
   }
 
   .diagnostic-list > div {
