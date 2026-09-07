@@ -224,7 +224,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx`；G；按 AC-11/18 注入长错误/null时间/取消时间、未知enum/越界progress/非safeID/extra payload/畸形JSON及422/500，断言DOM原文、非法ID零详情GET、没有空列表伪成功。
   - 验收归属：AC-11/18 完整；既有 api/tasks parser 的合法合同不放宽。
 
-- [ ] **T20 接入单任务取消基本交互**
+- [x] **T20 接入单任务取消基本交互**
   - 依赖：T19。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5。
   - 交付范围：新增复用 requestJson/parser 的 cancelTask helper（无 body POST），在 TasksPage 实际按钮接线；每task in-flight、queued/running/已请求/终态按钮状态与等待文案；取消成功后权威读取详情和当前窗口，确认前无成功提示。新增独立 `frontend/src/features/tasks/taskCancel.test.tsx`。

@@ -204,3 +204,12 @@ export function getTask(taskId: number): Promise<Task> {
     parseTaskResponse,
   );
 }
+
+export function cancelTask(taskId: number): Promise<Task> {
+  const safeTaskId = requirePositiveSafeInteger(taskId, "task_id");
+  return requestJson<Task>(
+    `/tasks/${safeTaskId}/cancel`,
+    { method: "POST" },
+    parseTaskResponse,
+  );
+}

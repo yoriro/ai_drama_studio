@@ -151,6 +151,10 @@ export function TasksPage() {
 
   function renderTaskCard(task: Task) {
     const isExpanded = expandedTaskId === task.id;
+    const cancelState = observation.cancelStates[task.id];
+    const cancelRequested =
+      task.status === "running" && task.cancel_requested_at !== null;
+    const canCancel = task.status === "queued" || task.status === "running";
     return (
       <article className="entity-card task-card" key={task.id}>
         <div className="task-heading">
@@ -185,6 +189,40 @@ export function TasksPage() {
             <dd>{formatTaskTime(task.finished_at)}</dd>
           </div>
         </dl>
+        {cancelState?.phase === "error" && (
+          <ApiErrorMessage error={cancelState.error} />
+        )}
+        {cancelState?.phase === "posting" && (
+          <button disabled type="button">
+            正在取消…
+          </button>
+        )}
+        {cancelState?.phase === "confirming" && (
+          <button disabled type="button">
+            正在确认取消…
+          </button>
+        )}
+        {cancelRequested && cancelState?.phase !== "confirming" && (
+          <>
+            <button disabled type="button">
+              已请求取消
+            </button>
+            <p data-task-state="cancel-requested">
+              已请求取消，等待任务停止
+            </p>
+          </>
+        )}
+        {canCancel &&
+          !cancelRequested &&
+          cancelState?.phase !== "posting" &&
+          cancelState?.phase !== "confirming" && (
+            <button
+              type="button"
+              onClick={() => observationController.current?.cancelTask(task.id)}
+            >
+              取消任务
+            </button>
+          )}
         <button
           aria-controls={isExpanded ? `task-detail-${task.id}` : undefined}
           aria-expanded={isExpanded}

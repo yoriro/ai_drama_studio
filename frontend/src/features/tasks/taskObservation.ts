@@ -1,5 +1,5 @@
 import type { Task, TaskEvent, TaskListQuery } from "../../api/tasks";
-import { getTask, listTasks } from "../../api/tasks";
+import { cancelTask as requestCancelTask, getTask, listTasks } from "../../api/tasks";
 import { openTaskWebSocket, parseTaskEvent } from "../../api/ws";
 import { ApiProtocolError } from "../../api/client";
 
@@ -27,6 +27,13 @@ export interface TaskDetailState {
   error: unknown | null;
 }
 
+export type TaskCancelPhase = "posting" | "confirming" | "error";
+
+export interface TaskCancelState {
+  phase: TaskCancelPhase;
+  error: unknown | null;
+}
+
 export interface TaskObservationDetailError {
   taskId: number;
   error: unknown;
@@ -39,6 +46,7 @@ export interface TaskObservationState {
   listError: unknown | null;
   detailError: TaskObservationDetailError | null;
   taskDetails: Record<number, TaskDetailState>;
+  cancelStates: Record<number, TaskCancelState>;
   socketError: unknown | null;
   connectionState: TaskConnectionState;
 }
@@ -47,6 +55,7 @@ export interface TaskObservationOptions {
   query: TaskListQuery;
   readTasks?: (query: TaskListQuery) => Promise<Task[]>;
   readTask?: (taskId: number) => Promise<Task>;
+  submitCancel?: (taskId: number) => Promise<Task>;
   openSocket?: () => TaskObservationSocket;
 }
 
@@ -56,6 +65,7 @@ export interface TaskObservationController {
   subscribe(listener: (state: TaskObservationState) => void): () => void;
   getState(): TaskObservationState;
   loadTaskDetail(taskId: number): void;
+  cancelTask(taskId: number): void;
 }
 
 interface ListRequest {
@@ -140,6 +150,7 @@ function createInitialState(): TaskObservationState {
     listError: null,
     detailError: null,
     taskDetails: {},
+    cancelStates: {},
     socketError: null,
     connectionState: "connecting",
   };
@@ -151,6 +162,7 @@ class TaskObservation implements TaskObservationController {
     query: TaskListQuery,
   ) => Promise<Task[]>;
   private readonly readTask: (taskId: number) => Promise<Task>;
+  private readonly submitCancel: (taskId: number) => Promise<Task>;
   private readonly openSocket: () => TaskObservationSocket;
   private readonly listeners = new Set<
     (state: TaskObservationState) => void
@@ -171,12 +183,15 @@ class TaskObservation implements TaskObservationController {
   private latestEvents = new Map<number, TaskEvent>();
   private readonly detailRequests = new Map<number, DetailRequest>();
   private readonly detailLoaded = new Set<number>();
+  private readonly cancelRequests = new Map<number, object>();
+  private readonly cancelConfirmations = new Set<number>();
   private refreshScheduled = false;
 
   constructor(options: TaskObservationOptions) {
     this.query = options.query;
     this.readTasks = options.readTasks ?? listTasks;
     this.readTask = options.readTask ?? getTask;
+    this.submitCancel = options.submitCancel ?? requestCancelTask;
     this.openSocket = options.openSocket ?? defaultSocket;
   }
 
@@ -199,6 +214,8 @@ class TaskObservation implements TaskObservationController {
       this.reconnectTimer = null;
     }
     this.listRequest = null;
+    this.cancelRequests.clear();
+    this.cancelConfirmations.clear();
     this.socketEpoch += 1;
     const socket = this.socket;
     this.socket = null;
@@ -221,6 +238,7 @@ class TaskObservation implements TaskObservationController {
       ...this.state,
       tasks: [...this.state.tasks],
       taskDetails: { ...this.state.taskDetails },
+      cancelStates: { ...this.state.cancelStates },
     };
   }
 
@@ -235,6 +253,56 @@ class TaskObservation implements TaskObservationController {
     };
     this.emit();
     this.requestTaskDetail(taskId, false, true, false);
+  }
+
+  cancelTask(taskId: number): void {
+    if (this.disposed || this.cancelRequests.has(taskId)) {
+      return;
+    }
+    const task = this.state.tasks.find((candidate) => candidate.id === taskId);
+    if (
+      task === undefined ||
+      isTerminalStatus(task.status) ||
+      (task.status === "running" && task.cancel_requested_at !== null)
+    ) {
+      return;
+    }
+
+    const request = {};
+    this.cancelRequests.set(taskId, request);
+    this.state.cancelStates = {
+      ...this.state.cancelStates,
+      [taskId]: { phase: "posting", error: null },
+    };
+    this.emit();
+
+    void Promise.resolve()
+      .then(() => this.submitCancel(taskId))
+      .then(
+        () => {
+          if (!this.isCurrentCancelRequest(taskId, request)) {
+            return;
+          }
+          this.cancelConfirmations.add(taskId);
+          this.state.cancelStates = {
+            ...this.state.cancelStates,
+            [taskId]: { phase: "confirming", error: null },
+          };
+          this.emit();
+          this.requestTaskDetail(taskId, false, true, true);
+        },
+        (error: unknown) => {
+          if (!this.isCurrentCancelRequest(taskId, request)) {
+            return;
+          }
+          this.cancelRequests.delete(taskId);
+          this.state.cancelStates = {
+            ...this.state.cancelStates,
+            [taskId]: { phase: "error", error },
+          };
+          this.emit();
+        },
+      );
   }
 
   private connect(): void {
@@ -428,7 +496,7 @@ class TaskObservation implements TaskObservationController {
       }
       return;
     }
-    if (!terminalRefresh && this.detailLoaded.has(taskId)) {
+    if (!terminalRefresh && !explicitRequested && this.detailLoaded.has(taskId)) {
       return;
     }
 
@@ -449,6 +517,12 @@ class TaskObservation implements TaskObservationController {
         this.detailLoaded.add(taskId);
         if (this.state.detailError?.taskId === taskId) {
           this.state.detailError = null;
+        }
+        if (this.cancelConfirmations.delete(taskId)) {
+          this.cancelRequests.delete(taskId);
+          const cancelStates = { ...this.state.cancelStates };
+          delete cancelStates[taskId];
+          this.state.cancelStates = cancelStates;
         }
         const event = this.latestEvents.get(taskId);
         const merged = mergeTaskWithEvent(task, event);
@@ -479,6 +553,13 @@ class TaskObservation implements TaskObservationController {
           ...this.state.taskDetails,
           [taskId]: { phase: "error", task: null, error },
         };
+        if (this.cancelConfirmations.delete(taskId)) {
+          this.cancelRequests.delete(taskId);
+          this.state.cancelStates = {
+            ...this.state.cancelStates,
+            [taskId]: { phase: "error", error },
+          };
+        }
         this.emit();
         if (protocol) {
           this.handleSocketProtocolErrorForCurrentSocket(error);
@@ -588,6 +669,11 @@ class TaskObservation implements TaskObservationController {
         this.listRequest = null;
         const bufferedEvents = this.bufferedEvents.splice(0);
         this.emit();
+        for (const taskId of this.cancelConfirmations) {
+          if (!this.detailRequests.has(taskId)) {
+            this.requestTaskDetail(taskId, false, true, true);
+          }
+        }
         bufferedEvents.forEach((event) => this.processEvent(socket, event));
       },
       (error: unknown) => {
@@ -653,6 +739,13 @@ class TaskObservation implements TaskObservationController {
       this.listRequest === request &&
       request.epoch === this.socketEpoch
     );
+  }
+
+  private isCurrentCancelRequest(
+    taskId: number,
+    request: object,
+  ): boolean {
+    return !this.disposed && this.cancelRequests.get(taskId) === request;
   }
 
   private isCurrentDetailRequest(

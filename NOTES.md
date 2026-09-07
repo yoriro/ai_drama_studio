@@ -147,3 +147,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-07 C011 T18 G 前端 17 files/103 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 142.80s` 均 exit 0；证据见 `.work/c011/T18-taskobservation20260907_1840-test.log`。
 - 2026-09-07 C011 T19 定向 `taskBoundary.test.tsx` 修正测试文本匹配与未使用 import 后为 14 passed；首轮 2 个断言失败及 G 首次 `TS6196` 失败证据均保留在 `.work/c011/`。
 - 2026-09-07 C011 T19 G 前端 18 files/117 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 138.10s` 均 exit 0；证据见 `.work/c011/T19-taskboundary20260907_1930-test.log`。
+- 2026-09-07 C011 T20 新增 `cancelTask` 无 body POST 与 TasksPage 取消状态；挂载测试 3 passed，实际账本确认 queued/running 状态与 detail/list 回读。
+- 2026-09-07 C011 T20 G 前端 19 files/120 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 139.74s` 均 exit 0；证据见 `.work/c011/T20-taskcancel20260907_2030-test.log`。
