@@ -153,3 +153,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-07 C011 T21 G 前端 20 files/126 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 142.92s` 均 exit 0；证据见 `.work/c011/T21-taskcancelraces20260907_2120-test.log`。
 - 2026-09-07 C011 T22 定向新库 `ai_drama_studio_c011_t22_target_20260907_181653_4908` 仅执行 Alembic upgrade 后运行独立跨进程取消观察测试，`1 passed in 2.99s`、退出码 0；测试进程已退出，证据见 `.work/c011/T22-targeted-20260907_181653-4908.log`。
 - 2026-09-07 C011 T22 G 使用新的 target/full PostgreSQL 与独立 DATA_DIR；target `1 passed`，前端 `126 passed`/build `64 modules`，full Alembic upgrade/current/check、完整 backend `348 passed in 144.01s`、git diff check 均 exit 0；证据见 `.work/c011/T22-t22crossprocess20260907_1820-test.log`。
+- 2026-09-07 C011 T23 浏览器批次使用 `http://127.0.0.1:5194`→T04 `127.0.0.1:53002`、数据库 `ai_drama_studio_c011_t23_browser_20260907_183050_42501`；真实 TasksPage 观察 queued/running 取消、过滤、详情、WS 重连和来源回跳。
+- 2026-09-07 C011 T23 独立只读 DB 查询确认 #122 done、#123/#125/#126 canceled、#124 failed，#125 的 `cancel_requested_at` 与进度 `0.5` 与浏览器一致；53002/5194 停止后无监听。
+- 2026-09-07 C011 T23 G 前端 `126 passed`、build `64 modules`、Alembic upgrade/current/check、完整 backend `348 passed in 139.80s`、git diff check 均 exit 0；原始证据见 `.work/c011/T23-t23browser20260907_183050_42501-test.log`。
+- 2026-09-07 C011 T23 asyncpg 读取不能直接接受 SQLAlchemy `postgresql+asyncpg` DSN；改用 `postgresql://` 后只读查询 exit 0，失败 traceback 与修正输出均保留。
