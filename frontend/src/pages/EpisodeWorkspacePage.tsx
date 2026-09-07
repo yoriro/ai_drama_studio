@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, NavLink, useParams } from "react-router-dom";
+import { Link, NavLink, useLocation, useParams } from "react-router-dom";
 
 import {
   generateAssets,
@@ -22,6 +22,7 @@ import type { Episode, Project } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
+import { getAuxiliaryNavigationState } from "../features/navigation/returnLocation";
 import { AssetPage } from "./AssetPage";
 import { DirectorPage } from "./DirectorPage";
 import { ShotsPage } from "./ShotsPage";
@@ -178,6 +179,7 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
       <>
         <PageTitle>集工作区</PageTitle>
         <ApiErrorMessage error={loadError ?? new Error("剧集不存在")} />
+        <Link to="/">返回项目首页</Link>
       </>
     );
   }
@@ -236,6 +238,7 @@ interface ScriptEditorProps {
 }
 
 function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
+  const location = useLocation();
   const [scriptText, setScriptText] = useState(episode.script_text);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -374,7 +377,12 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           {generationTaskId !== null && (
             <p className="success-message" role="status">
               资产生成任务已提交：#{generationTaskId}。{" "}
-              <Link to="/tasks">前往任务中心</Link>
+              <Link
+                state={getAuxiliaryNavigationState(location, location.state)}
+                to="/tasks"
+              >
+                前往任务中心
+              </Link>
             </p>
           )}
           {shotGenerationError !== null && (
@@ -383,7 +391,12 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           {shotGenerationTaskId !== null && (
             <p className="success-message" role="status">
               分镜生成任务已提交：#{shotGenerationTaskId}。{" "}
-              <Link to="/tasks">前往任务中心</Link>
+              <Link
+                state={getAuxiliaryNavigationState(location, location.state)}
+                to="/tasks"
+              >
+                前往任务中心
+              </Link>
             </p>
           )}
         </>

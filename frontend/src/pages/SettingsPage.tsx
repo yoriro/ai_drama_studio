@@ -11,6 +11,7 @@ import {
 } from "../api";
 import type { HealthResponse, PromptTemplate, Style } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
+import { AuxiliaryPageReturn } from "../components/AuxiliaryPageReturn";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
 
@@ -205,6 +206,7 @@ export function SettingsPage() {
 
   return (
     <>
+      <AuxiliaryPageReturn />
       <PageTitle>设置</PageTitle>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
       <section className="settings-section" aria-labelledby="diagnostics-heading">

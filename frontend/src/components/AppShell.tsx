@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { ApiError, getHealth } from "../api";
+import { getAuxiliaryNavigationState } from "../features/navigation/returnLocation";
 import { BackendStatus, type BackendState } from "./BackendStatus";
 
 const navigation = [
@@ -11,6 +12,7 @@ const navigation = [
 ];
 
 export function AppShell() {
+  const location = useLocation();
   const [backendState, setBackendState] = useState<BackendState>({
     status: "loading",
   });
@@ -50,6 +52,11 @@ export function AppShell() {
               }
               end={item.to === "/"}
               key={item.to}
+              state={
+                item.to === "/"
+                  ? undefined
+                  : getAuxiliaryNavigationState(location, location.state)
+              }
               to={item.to}
             >
               {item.label}

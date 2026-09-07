@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import {
   createAsset,
@@ -36,6 +36,7 @@ import type {
 } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
+import { getAuxiliaryNavigationState } from "../features/navigation/returnLocation";
 
 interface AssetPageProps {
   episode: Episode;
@@ -567,6 +568,7 @@ function AssetCard({
   onGenerationStarted,
   taskNotice,
 }: AssetCardProps) {
+  const location = useLocation();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(asset.name);
   const [description, setDescription] = useState(asset.description);
@@ -782,7 +784,12 @@ function AssetCard({
         {imageGenerationTaskId !== null && (
           <p className="success-message" role="status">
             图片生成任务已提交：#{imageGenerationTaskId}。{" "}
-            <Link to="/tasks">前往任务中心</Link>
+            <Link
+              state={getAuxiliaryNavigationState(location, location.state)}
+              to="/tasks"
+            >
+              前往任务中心
+            </Link>
           </p>
         )}
         {taskNotice !== null && (

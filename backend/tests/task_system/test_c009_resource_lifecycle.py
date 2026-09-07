@@ -88,6 +88,7 @@ class _LifecycleHTTPHandler(BaseHTTPRequestHandler):
         component: str | None = None
         task_id: int | None = _stub_current_task
         detail: object | None = None
+        prompt_response_sent = False
         started = time.perf_counter_ns()
         try:
             if path == "/wake_up":
@@ -149,8 +150,8 @@ class _LifecycleHTTPHandler(BaseHTTPRequestHandler):
                 detail = {"prompt_id": prompt_id}
                 if _stub_prompt_submitted is None:
                     raise RuntimeError("stub submit barrier is not configured")
-                _stub_prompt_submitted.set()
                 self._send_json(200, {"prompt_id": prompt_id})
+                prompt_response_sent = True
             elif path == "/interrupt":
                 component, operation = "comfy", "interrupt"
                 self._send_json(200, {})
@@ -168,6 +169,8 @@ class _LifecycleHTTPHandler(BaseHTTPRequestHandler):
                     task_id=task_id,
                     detail=detail,
                 )
+                if path == "/prompt" and prompt_response_sent:
+                    _stub_prompt_submitted.set()
 
     def do_GET(self) -> None:
         global _stub_current_task

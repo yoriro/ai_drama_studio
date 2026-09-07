@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import {
   createProject,
@@ -12,8 +12,10 @@ import type { Project, Style } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
+import { getAuxiliaryNavigationState } from "../features/navigation/returnLocation";
 
 export function HomePage() {
+  const location = useLocation();
   const [projects, setProjects] = useState<Project[]>([]);
   const [styles, setStyles] = useState<Style[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
@@ -135,7 +137,14 @@ export function HomePage() {
         <h2>创建项目</h2>
         {styles.length === 0 ? (
           <p>
-            暂无可用风格，请先前往 <Link to="/settings">设置</Link> 创建风格。
+            暂无可用风格，请先前往{" "}
+            <Link
+              state={getAuxiliaryNavigationState(location, location.state)}
+              to="/settings"
+            >
+              设置
+            </Link>{" "}
+            创建风格。
           </p>
         ) : (
           <form className="form-grid" onSubmit={handleCreate}>

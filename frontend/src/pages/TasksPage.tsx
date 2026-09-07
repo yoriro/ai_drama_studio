@@ -8,6 +8,7 @@ import {
   parseTaskEvent,
 } from "../api/ws";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
+import { AuxiliaryPageReturn } from "../components/AuxiliaryPageReturn";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
 
@@ -354,6 +355,7 @@ export function TasksPage() {
 
   return (
     <>
+      <AuxiliaryPageReturn />
       <PageTitle>任务中心</PageTitle>
       {connectionState === "reconnecting" && (
         <p
