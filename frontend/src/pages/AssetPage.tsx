@@ -411,7 +411,11 @@ export function AssetPage({ episode, projectId }: AssetPageProps) {
             {successMessage}
           </p>
         )}
-        {loadState === "loading" && <p>正在加载资产…</p>}
+        {loadState === "loading" && (
+          <p aria-live="polite" role="status">
+            正在加载资产…
+          </p>
+        )}
         {loadState === "error" && (
           <ApiErrorMessage error={loadError ?? new Error("资产加载失败")} />
         )}
@@ -806,9 +810,9 @@ function AssetCard({
         {currentImage === null ? (
           <p className="field-hint">暂无当前图片</p>
         ) : (
-          <img
+          <AssetImageMedia
             alt={`${asset.name}当前图片`}
-            src={getAssetImageMediaUrl(currentImage.id)}
+            imageId={currentImage.id}
           />
         )}
       </div>
@@ -832,9 +836,9 @@ function AssetCard({
           <ul className="asset-gallery-list">
             {images.map((image) => (
               <li className="asset-gallery-item" key={image.id}>
-                <img
+                <AssetImageMedia
                   alt={`${asset.name}版本 ${image.id}`}
-                  src={getAssetImageMediaUrl(image.id)}
+                  imageId={image.id}
                 />
                 <div>
                   <p>版本 {image.id}</p>
@@ -898,6 +902,34 @@ function AssetCard({
         )}
       </div>
     </article>
+  );
+}
+
+interface AssetImageMediaProps {
+  alt: string;
+  imageId: number;
+}
+
+function AssetImageMedia({ alt, imageId }: AssetImageMediaProps) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [imageId]);
+
+  return (
+    <div className="asset-media">
+      <img
+        alt={alt}
+        onError={() => setFailed(true)}
+        src={getAssetImageMediaUrl(imageId)}
+      />
+      {failed && (
+        <p className="error-message media-error" role="alert">
+          图片加载失败
+        </p>
+      )}
+    </div>
   );
 }
 

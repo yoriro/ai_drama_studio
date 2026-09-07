@@ -169,7 +169,9 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
     return (
       <>
         <PageTitle>集工作区</PageTitle>
-        <p>正在加载项目与剧集…</p>
+        <p aria-live="polite" role="status">
+          正在加载项目与剧集…
+        </p>
       </>
     );
   }

@@ -115,7 +115,9 @@ export function HomePage() {
     return (
       <>
         <PageTitle>项目首页</PageTitle>
-        <p>正在加载项目与风格…</p>
+        <p aria-live="polite" role="status">
+          正在加载项目与风格…
+        </p>
       </>
     );
   }

@@ -179,7 +179,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/status/statusPresentation.test.ts`；G；穷举 normal/changed、五种生成态×fresh/stale 和 null/旧/当前 revision 展示，人工确认 generating+stale 共存且 stale 本身不禁用。
   - 验收归属：AC-09 完整；纯函数只证明文案/状态投影，页面集成由人工与 T24 补足。
 
-- [ ] **T15 统一全局加载错误空态与媒体失败展示**
+- [x] **T15 统一全局加载错误空态与媒体失败展示**
   - 依赖：T08、T09、T10、T11、T12、T13。
   - R：无；PRD：§2.1、§5 通用、§9、§11 M5。
   - 交付范围：整理 ApiErrorMessage/EmptyState 及各页呈现接线：主错误直显原 message、code 另列；loading/error/empty 区分，长错误换行；现有媒体 onError 在真实页面可见。保留原业务表单和动作，缺数据不渲染假卡片，不增加自动重试或业务 fallback。

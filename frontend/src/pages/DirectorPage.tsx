@@ -66,14 +66,16 @@ interface DirectorSlotMediaProps {
   alt: string;
   className: string;
   imageUrl: string;
+  onError?: () => void;
 }
 
 export function DirectorSlotMedia({
   alt,
   className,
   imageUrl,
+  onError,
 }: DirectorSlotMediaProps) {
-  return <img alt={alt} className={className} src={imageUrl} />;
+  return <img alt={alt} className={className} onError={onError} src={imageUrl} />;
 }
 
 interface DirectorTakeMediaProps {
@@ -380,7 +382,9 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
     return (
       <section aria-label="导演台" className="director-page">
         <h2>导演台</h2>
-        <p>正在加载资产、分镜与片段…</p>
+        <p aria-live="polite" role="status">
+          正在加载资产、分镜与片段…
+        </p>
       </section>
     );
   }
@@ -1278,6 +1282,8 @@ function DirectorSlotsPanel({
   onUpload,
   projection,
 }: DirectorSlotsPanelProps) {
+  const [mediaErrors, setMediaErrors] = useState<Record<string, string>>({});
+
   return (
     <section aria-label="片段槽位" className="director-slots-panel">
       <h4>参考槽位</h4>
@@ -1295,6 +1301,7 @@ function DirectorSlotsPanel({
       <div className="director-slot-list">
         {projection.slots.map((slot) => {
           const enabledAction = slot.enabled ? "disable" : "enable";
+          const mediaErrorKey = `${slot.slotNo}:${slot.imageUrl ?? ""}`;
           return (
             <article className="director-slot-row" key={slot.slotId}>
               <div className="director-slot-heading">
@@ -1309,11 +1316,24 @@ function DirectorSlotsPanel({
                 {slot.enabled ? "启用" : "停用"} · 图片来源：{slot.sourceLabel} · {slot.imageStatusLabel}
               </p>
               {slot.imageUrl !== null ? (
-                <DirectorSlotMedia
-                  alt={`槽位 ${slot.slotNo} 参考图`}
-                  className="director-slot-image"
-                  imageUrl={slot.imageUrl}
-                />
+                <>
+                  <DirectorSlotMedia
+                    alt={`槽位 ${slot.slotNo} 参考图`}
+                    className="director-slot-image"
+                    imageUrl={slot.imageUrl}
+                    onError={() =>
+                      setMediaErrors((current) => ({
+                        ...current,
+                        [mediaErrorKey]: "图片加载失败",
+                      }))
+                    }
+                  />
+                  {mediaErrors[mediaErrorKey] !== undefined && (
+                    <p className="error-message media-error" role="alert">
+                      {mediaErrors[mediaErrorKey]}
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="director-slot-missing">缺图</p>
               )}

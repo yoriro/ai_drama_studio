@@ -441,7 +441,24 @@ button:disabled {
   border: 1px solid var(--color-danger-border);
   border-radius: 10px;
   color: var(--color-danger);
+  overflow-wrap: anywhere;
   padding: 12px 14px;
+  white-space: pre-wrap;
+}
+
+.error-message-text,
+.error-message-code {
+  display: block;
+}
+
+.error-message-code {
+  font-size: 0.85rem;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+.media-error {
+  margin: 8px 0 0;
 }
 
 .success-message {
@@ -748,6 +765,10 @@ button:disabled {
 
 .asset-current-image {
   margin-top: 24px;
+}
+
+.asset-media {
+  min-width: 0;
 }
 
 .asset-current-image h4 {

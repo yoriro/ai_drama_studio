@@ -223,7 +223,11 @@ export function SettingsPage() {
             {healthLoadState === "loading" ? "诊断读取中…" : "刷新诊断"}
           </button>
         </div>
-        {healthLoadState === "loading" && <p>正在读取系统诊断…</p>}
+        {healthLoadState === "loading" && (
+          <p aria-live="polite" role="status">
+            正在读取系统诊断…
+          </p>
+        )}
         {healthLoadError !== null && (
           <ApiErrorMessage error={healthLoadError} />
         )}
@@ -287,7 +291,11 @@ export function SettingsPage() {
         aria-labelledby="styles-heading"
       >
         <h2 id="styles-heading">风格</h2>
-        {stylesLoadState === "loading" && <p>正在加载风格…</p>}
+        {stylesLoadState === "loading" && (
+          <p aria-live="polite" role="status">
+            正在加载风格…
+          </p>
+        )}
         {stylesLoadError !== null && (
           <ApiErrorMessage error={stylesLoadError} />
         )}
@@ -388,7 +396,11 @@ export function SettingsPage() {
         aria-labelledby="templates-heading"
       >
         <h2 id="templates-heading">提示词模板</h2>
-        {templatesLoadState === "loading" && <p>正在加载提示词模板…</p>}
+        {templatesLoadState === "loading" && (
+          <p aria-live="polite" role="status">
+            正在加载提示词模板…
+          </p>
+        )}
         {templatesLoadError !== null && (
           <ApiErrorMessage error={templatesLoadError} />
         )}

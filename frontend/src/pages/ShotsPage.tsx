@@ -182,7 +182,9 @@ export function ShotsPage({
     return (
       <section className="panel" aria-live="polite">
         <h2>分镜</h2>
-        <p>正在加载分镜…</p>
+        <p aria-live="polite" role="status">
+          正在加载分镜…
+        </p>
       </section>
     );
   }

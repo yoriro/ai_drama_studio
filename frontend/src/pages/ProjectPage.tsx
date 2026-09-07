@@ -127,7 +127,9 @@ export function ProjectPage() {
     return (
       <>
         <PageTitle>项目详情</PageTitle>
-        <p>正在加载项目与剧集…</p>
+        <p aria-live="polite" role="status">
+          正在加载项目与剧集…
+        </p>
       </>
     );
   }
