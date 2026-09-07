@@ -197,7 +197,7 @@ export function ShotsPage({
 
   return (
     <section className="shots-page">
-      <div className="panel">
+      <div className="panel shots-overview-panel">
         <div className="shots-heading">
           <div>
             <h2>分镜</h2>
@@ -322,7 +322,7 @@ function ShotCard({ assets, onSaved, shot }: ShotCardProps) {
           {successMessage}
         </p>
       )}
-      <form className="form-grid" onSubmit={handleSubmit}>
+      <form className="form-grid shot-edit-form" onSubmit={handleSubmit}>
         <label>
           景别
           <select
@@ -415,7 +415,7 @@ function ShotCard({ assets, onSaved, shot }: ShotCardProps) {
             )}
           </div>
         </fieldset>
-        <div className="action-row">
+        <div className="action-row shot-edit-actions">
           <button disabled={saving} type="submit">
             {saving ? "保存中…" : "保存分镜"}
           </button>

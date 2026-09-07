@@ -869,14 +869,29 @@ button:disabled {
 .shots-page {
   display: grid;
   gap: 24px;
+  min-width: 0;
+}
+
+.shots-page > .panel,
+.shot-card {
+  margin: 0;
+  min-width: 0;
 }
 
 .shots-heading,
 .shot-card-heading {
   align-items: flex-start;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
+  min-width: 0;
+}
+
+.shots-heading > div,
+.shot-card-heading > div,
+.shot-badges {
+  min-width: 0;
 }
 
 .shots-heading h2,
@@ -887,10 +902,13 @@ button:disabled {
 .shot-list {
   display: grid;
   gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
 }
 
 .shot-card {
-  margin: 0;
+  display: grid;
+  gap: 20px;
 }
 
 .shot-meta,
@@ -910,7 +928,10 @@ button:disabled {
 .shot-badge {
   border-radius: 999px;
   font-size: 0.85rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 5px 9px;
+  text-align: right;
 }
 
 .shot-badge-changed {
@@ -933,6 +954,7 @@ button:disabled {
   border-radius: 10px;
   display: grid;
   gap: 10px;
+  min-width: 0;
   padding: 14px;
 }
 
@@ -948,6 +970,8 @@ button:disabled {
 .shot-asset-options {
   display: grid;
   gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  min-width: 0;
 }
 
 .shot-asset-option {
@@ -955,11 +979,42 @@ button:disabled {
   display: flex;
   gap: 8px;
   font-weight: 400;
+  min-width: 0;
 }
 
 .shot-asset-option input {
   accent-color: var(--color-surface-strong);
+  flex: 0 0 auto;
   margin: 0;
+}
+
+.shot-asset-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.shot-edit-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: none;
+  min-width: 0;
+}
+
+.shot-edit-form > label,
+.shot-edit-form > fieldset,
+.shot-edit-actions {
+  min-width: 0;
+}
+
+.shot-edit-form > label:nth-of-type(n + 3),
+.shot-edit-form > .shot-assets,
+.shot-edit-form > .shot-edit-actions {
+  grid-column: 1 / -1;
+}
+
+.shot-edit-form select,
+.shot-edit-form textarea {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .director-page {
@@ -1604,6 +1659,24 @@ button:disabled {
   .asset-gallery-item img {
     max-height: 96px;
     width: 96px;
+  }
+
+  .shots-heading,
+  .shot-card-heading {
+    flex-direction: column;
+  }
+
+  .shot-badges {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .shot-badge {
+    text-align: left;
+  }
+
+  .shot-edit-form {
+    grid-template-columns: 1fr;
   }
 
   .diagnostic-list > div {
