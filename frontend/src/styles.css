@@ -305,6 +305,67 @@ button:disabled {
   gap: 16px;
 }
 
+.home-create-panel,
+.project-create-panel {
+  margin-bottom: 0;
+}
+
+.home-create-panel .form-grid,
+.project-create-panel .form-grid {
+  max-width: 560px;
+}
+
+.home-project-list,
+.project-episode-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.home-project-card,
+.project-episode-card {
+  align-content: start;
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  min-width: 0;
+}
+
+.entity-card-title {
+  display: block;
+  min-width: 0;
+}
+
+.entity-card-title h2 {
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.home-project-card > p,
+.project-episode-card > p,
+.project-meta {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.project-home-link {
+  margin: 0 0 16px;
+}
+
+.home-edit-form,
+.project-edit-form {
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
+  padding-top: 16px;
+}
+
+.home-project-actions,
+.project-episode-actions,
+.home-edit-actions,
+.project-edit-actions {
+  margin: 0;
+}
+
 .task-list {
   display: grid;
   gap: 16px;

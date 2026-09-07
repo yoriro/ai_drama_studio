@@ -133,7 +133,7 @@ export function HomePage() {
     <>
       <PageTitle>项目首页</PageTitle>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
-      <section className="panel">
+      <section className="panel home-create-panel">
         <h2>创建项目</h2>
         {styles.length === 0 ? (
           <p>
@@ -177,14 +177,14 @@ export function HomePage() {
       {projects.length === 0 ? (
         <EmptyState message="暂无项目" />
       ) : (
-        <section className="entity-list" aria-label="项目列表">
+        <section className="entity-list home-project-list" aria-label="项目列表">
           {projects.map((project) => (
-            <article className="entity-card" key={project.id}>
-              <Link to={`/projects/${project.id}`}>
+            <article className="entity-card home-project-card" key={project.id}>
+              <Link className="entity-card-title" to={`/projects/${project.id}`}>
                 <h2>{project.name}</h2>
               </Link>
               <p>风格 ID：{project.style_id}</p>
-              <div className="action-row">
+              <div className="action-row home-project-actions">
                 <button type="button" onClick={() => startEditing(project)}>
                   编辑
                 </button>
@@ -193,7 +193,7 @@ export function HomePage() {
                 </button>
               </div>
               {editingProjectId === project.id && (
-                <form className="form-grid" onSubmit={handleUpdate}>
+                <form className="form-grid home-edit-form" onSubmit={handleUpdate}>
                   <label>
                     项目名称
                     <input
@@ -216,7 +216,7 @@ export function HomePage() {
                       ))}
                     </select>
                   </label>
-                  <div className="action-row">
+                  <div className="action-row home-edit-actions">
                     <button type="submit">保存项目</button>
                     <button
                       type="button"

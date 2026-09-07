@@ -144,14 +144,14 @@ export function ProjectPage() {
   return (
     <>
       <PageTitle>项目详情</PageTitle>
-      <p>
+      <p className="project-home-link">
         <Link className="button-link" to="/">
           返回项目首页
         </Link>
       </p>
-      <p>项目 ID：{project.id} · 风格 ID：{project.style_id}</p>
+      <p className="project-meta">项目 ID：{project.id} · 风格 ID：{project.style_id}</p>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
-      <section className="panel">
+      <section className="panel project-create-panel">
         <h2>创建剧集</h2>
         <form className="form-grid" onSubmit={handleCreateEpisode}>
           <label>
@@ -178,10 +178,11 @@ export function ProjectPage() {
       {episodes.length === 0 ? (
         <EmptyState message="暂无剧集" />
       ) : (
-        <section className="entity-list" aria-label="剧集列表">
+        <section className="entity-list project-episode-list" aria-label="剧集列表">
           {episodes.map((episode) => (
-            <article className="entity-card" key={episode.id}>
+            <article className="entity-card project-episode-card" key={episode.id}>
               <Link
+                className="entity-card-title"
                 to={`/projects/${project.id}/episodes/${episode.id}/script`}
               >
                 <h2>
@@ -189,7 +190,7 @@ export function ProjectPage() {
                 </h2>
               </Link>
               <p>剧本修订：{episode.script_revision}</p>
-              <div className="action-row">
+              <div className="action-row project-episode-actions">
                 <button type="button" onClick={() => startEditingEpisode(episode)}>
                   编辑集信息
                 </button>
@@ -201,7 +202,7 @@ export function ProjectPage() {
                 </button>
               </div>
               {editingEpisodeId === episode.id && (
-                <form className="form-grid" onSubmit={handleUpdateEpisode}>
+                <form className="form-grid project-edit-form" onSubmit={handleUpdateEpisode}>
                   <label>
                     集序
                     <input
@@ -220,7 +221,7 @@ export function ProjectPage() {
                       onChange={(event) => setEditingTitle(event.target.value)}
                     />
                   </label>
-                  <div className="action-row">
+                  <div className="action-row project-edit-actions">
                     <button type="submit">保存集信息</button>
                     <button
                       type="button"
