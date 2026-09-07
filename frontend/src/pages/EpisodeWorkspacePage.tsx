@@ -187,10 +187,10 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
   return (
     <>
       <PageTitle>集工作区</PageTitle>
-      <p>
+      <p className="workspace-context">
         {context.project.name} · 第 {context.episode.seq} 集 · {context.episode.title}
       </p>
-      <p>
+      <p className="workspace-return">
         <Link className="button-link" to={`/projects/${context.project.id}`}>
           返回项目
         </Link>
@@ -331,7 +331,7 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
   }
 
   return (
-    <section className="panel">
+    <section className="panel workspace-script-panel">
       <h2>剧本</h2>
       {error !== null && <ApiErrorMessage error={error} />}
       {successMessage !== null && (
@@ -353,7 +353,7 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           ) : (
             <div className="script-content">{episode.script_text}</div>
           )}
-          <div className="action-row">
+          <div className="action-row script-actions">
             <button type="button" onClick={handleStartEditing}>
               编辑剧本
             </button>
@@ -401,7 +401,7 @@ function ScriptEditor({ episode, onUpdated }: ScriptEditorProps) {
           )}
         </>
       ) : (
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid script-edit-form" onSubmit={handleSubmit}>
           <label>
             剧本内容
             <textarea

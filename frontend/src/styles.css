@@ -603,23 +603,65 @@ button:disabled {
 }
 
 .workspace-tabs {
+  background: var(--color-nav);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 24px;
+  max-width: 100%;
+  padding: 6px;
 }
 
 .workspace-tab {
+  align-items: center;
   border: 1px solid var(--color-border-strong);
   border-radius: 999px;
   color: var(--color-text-muted);
+  display: inline-flex;
+  min-height: 40px;
   padding: 8px 14px;
+  text-decoration: none;
 }
 
 .workspace-tab-active {
   background: var(--color-surface-strong);
   border-color: var(--color-surface-strong);
   color: var(--color-text);
+}
+
+.workspace-context {
+  color: var(--color-text-muted);
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+}
+
+.workspace-return {
+  margin: 0 0 20px;
+}
+
+.workspace-script-panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.workspace-script-panel h2 {
+  margin: 0;
+}
+
+.script-actions {
+  margin: 0;
+}
+
+.script-edit-form {
+  max-width: none;
+}
+
+.script-edit-form textarea {
+  line-height: 1.6;
+  min-height: min(50vh, 28rem);
 }
 
 .asset-page {
