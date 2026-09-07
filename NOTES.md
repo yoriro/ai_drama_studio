@@ -143,3 +143,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-04 C010 T12 终态观测 Comfy `/queue` running/pending 均为空、vLLM `is_sleeping=true`、健康 binding valid；正式临时目录不存在且文件计数为 0。
 - 2026-09-04 C010 T13 最终库 `ai_drama_studio_c010_final_20260904_150611` 迁移到 `6b8e3f0a1d24 (head)`，backend `346 passed`、frontend `39 passed`、build 成功，`alembic check` 无新操作。
 - 2026-09-04 C010 T13 首次 workflow scope 检查因相邻 Python 字符串的源码字面量断言失败，原始 `.work/c010/T13-workflow-scope.log` 保留；修正验收脚本后 `T13-workflow-scope-rerun.log` 三项精确 PASS。
+- 2026-09-07 C011 T18 生产 TasksPage 已改由 `frontend/src/features/tasks/taskObservation.ts` 协调 REST/WS；真实挂载测试使用 jsdom、fetch 账本和 FakeSocket，定向 5 passed。
+- 2026-09-07 C011 T18 G 前端 17 files/103 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 142.80s` 均 exit 0；证据见 `.work/c011/T18-taskobservation20260907_1840-test.log`。

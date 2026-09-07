@@ -206,7 +206,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskList.test.ts`；G；普通浏览器选控件并核对实际 GET、匹配集合/数量/组别/空态。同步在普通顺序下可用，竞态完整验收单列 T18。
   - 验收归属：AC-10 的控件/分组/窗口说明完整；T18 前不能宣称 AC-16 完成。
 
-- [ ] **T18 落实任务中心列表与详情的 WS 权威同步**
+- [x] **T18 落实任务中心列表与详情的 WS 权威同步**
   - 依赖：T02、T17。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5；D-008。
   - 交付范围：把 TasksPage 已有同步按需整理到 features/tasks，实际页面消费同一协调器。明确初连/重连缓冲、过滤代次/socket身份、未知详情去重、terminal替代读取、列表窗口补足、过期请求不写状态、最新失败可见、卸载清理与无轮询。新增独立挂载 TasksPage 的 `frontend/src/features/tasks/taskObservation.test.tsx`；不用测试副本替代生产 action/parser。
