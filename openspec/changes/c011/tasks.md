@@ -233,7 +233,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx`；G；按AC-12遍历状态、鼠标/键盘双击和多task隔离；断言真实helper收到的method/path/body、POST=1、200 running仍显示等待且没有canceled假状态。
   - 验收归属：AC-12 完整；竞争/失败不夹带为未列出的修复，后续T21独立验收。
 
-- [ ] **T21 封闭取消竞争错误与当前页面隔离**
+- [x] **T21 封闭取消竞争错误与当前页面隔离**
   - 依赖：T20。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5；D-008。
   - 交付范围：落实取消与done竞争、迟到200 running、404/409权威刷新与资源消失、超时未知结果、筛选A/B/展开B/卸载identity。操作错误不被后台GET清除；未知结果确认前禁止再次提交，仅显式刷新或观察重建。新增独立 `frontend/src/features/tasks/taskCancelRaces.test.tsx`，保持T20既有用例不变。

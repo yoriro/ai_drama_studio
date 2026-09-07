@@ -155,6 +155,7 @@ export function TasksPage() {
     const cancelRequested =
       task.status === "running" && task.cancel_requested_at !== null;
     const canCancel = task.status === "queued" || task.status === "running";
+    const cancelAuthorityPending = cancelState?.authorityPending === true;
     return (
       <article className="entity-card task-card" key={task.id}>
         <div className="task-heading">
@@ -189,8 +190,14 @@ export function TasksPage() {
             <dd>{formatTaskTime(task.finished_at)}</dd>
           </div>
         </dl>
-        {cancelState?.phase === "error" && (
+        {(cancelState?.phase === "error" ||
+          cancelState?.phase === "unknown") && (
           <ApiErrorMessage error={cancelState.error} />
+        )}
+        {cancelState?.phase === "unknown" && cancelAuthorityPending && (
+          <p data-task-state="cancel-unconfirmed">
+            取消结果未确认，正在读取最新任务状态
+          </p>
         )}
         {cancelState?.phase === "posting" && (
           <button disabled type="button">
@@ -202,7 +209,14 @@ export function TasksPage() {
             正在确认取消…
           </button>
         )}
-        {cancelRequested && cancelState?.phase !== "confirming" && (
+        {cancelState?.phase === "unknown" && cancelAuthorityPending && (
+          <button disabled type="button">
+            取消结果未确认
+          </button>
+        )}
+        {cancelRequested &&
+          !cancelAuthorityPending &&
+          cancelState?.phase !== "confirming" && (
           <>
             <button disabled type="button">
               已请求取消
@@ -215,7 +229,8 @@ export function TasksPage() {
         {canCancel &&
           !cancelRequested &&
           cancelState?.phase !== "posting" &&
-          cancelState?.phase !== "confirming" && (
+          cancelState?.phase !== "confirming" &&
+          !cancelAuthorityPending && (
             <button
               type="button"
               onClick={() => observationController.current?.cancelTask(task.id)}
@@ -349,6 +364,27 @@ export function TasksPage() {
           <ApiErrorMessage error={observation.detailError.error} />
         </section>
       )}
+      {Object.entries(observation.cancelStates)
+        .filter(
+          ([taskId, cancelState]) =>
+            (cancelState.phase === "error" ||
+              cancelState.phase === "unknown") &&
+            !observation.tasks.some((task) => task.id === Number(taskId)),
+        )
+        .map(([taskId, cancelState]) => (
+          <section
+            aria-label={`任务 ${taskId} 取消错误`}
+            data-task-state="cancel-error"
+            key={taskId}
+          >
+            <p>任务 #{taskId}：取消操作</p>
+            <ApiErrorMessage error={cancelState.error} />
+            {cancelState.phase === "unknown" &&
+              cancelState.authorityPending && (
+                <p>取消结果未确认，正在读取最新任务状态</p>
+              )}
+          </section>
+        ))}
       {observation.listPhase === "ready" && observation.tasks.length === 0 && (
         <div data-task-state="empty">
           <EmptyState message="当前条件下暂无任务" />
