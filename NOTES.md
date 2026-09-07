@@ -145,3 +145,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-04 C010 T13 首次 workflow scope 检查因相邻 Python 字符串的源码字面量断言失败，原始 `.work/c010/T13-workflow-scope.log` 保留；修正验收脚本后 `T13-workflow-scope-rerun.log` 三项精确 PASS。
 - 2026-09-07 C011 T18 生产 TasksPage 已改由 `frontend/src/features/tasks/taskObservation.ts` 协调 REST/WS；真实挂载测试使用 jsdom、fetch 账本和 FakeSocket，定向 5 passed。
 - 2026-09-07 C011 T18 G 前端 17 files/103 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 142.80s` 均 exit 0；证据见 `.work/c011/T18-taskobservation20260907_1840-test.log`。
+- 2026-09-07 C011 T19 定向 `taskBoundary.test.tsx` 修正测试文本匹配与未使用 import 后为 14 passed；首轮 2 个断言失败及 G 首次 `TS6196` 失败证据均保留在 `.work/c011/`。
+- 2026-09-07 C011 T19 G 前端 18 files/117 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 138.10s` 均 exit 0；证据见 `.work/c011/T19-taskboundary20260907_1930-test.log`。

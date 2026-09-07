@@ -19,9 +19,18 @@ export type TaskConnectionState =
   | "connected"
   | "reconnecting";
 
+export type TaskDetailPhase = "idle" | "loading" | "ready" | "error";
+
+export interface TaskDetailState {
+  phase: TaskDetailPhase;
+  task: Task | null;
+  error: unknown | null;
+}
+
 export interface TaskObservationDetailError {
   taskId: number;
   error: unknown;
+  protocol: boolean;
 }
 
 export interface TaskObservationState {
@@ -29,6 +38,7 @@ export interface TaskObservationState {
   listPhase: TaskListPhase;
   listError: unknown | null;
   detailError: TaskObservationDetailError | null;
+  taskDetails: Record<number, TaskDetailState>;
   socketError: unknown | null;
   connectionState: TaskConnectionState;
 }
@@ -45,6 +55,7 @@ export interface TaskObservationController {
   dispose(): void;
   subscribe(listener: (state: TaskObservationState) => void): () => void;
   getState(): TaskObservationState;
+  loadTaskDetail(taskId: number): void;
 }
 
 interface ListRequest {
@@ -56,6 +67,8 @@ interface ListRequest {
 
 interface DetailRequest {
   epoch: number;
+  explicitRequested: boolean;
+  listRefreshRequested: boolean;
   terminalRefreshRequested: boolean;
 }
 
@@ -126,6 +139,7 @@ function createInitialState(): TaskObservationState {
     listPhase: "loading",
     listError: null,
     detailError: null,
+    taskDetails: {},
     socketError: null,
     connectionState: "connecting",
   };
@@ -206,7 +220,21 @@ class TaskObservation implements TaskObservationController {
     return {
       ...this.state,
       tasks: [...this.state.tasks],
+      taskDetails: { ...this.state.taskDetails },
     };
+  }
+
+  loadTaskDetail(taskId: number): void {
+    const existing = this.state.taskDetails[taskId];
+    if (existing?.phase === "loading" || existing?.phase === "ready") {
+      return;
+    }
+    this.state.taskDetails = {
+      ...this.state.taskDetails,
+      [taskId]: { phase: "loading", task: null, error: null },
+    };
+    this.emit();
+    this.requestTaskDetail(taskId, false, true, false);
   }
 
   private connect(): void {
@@ -225,6 +253,17 @@ class TaskObservation implements TaskObservationController {
     this.detailRequests.clear();
     this.detailLoaded.clear();
     this.refreshScheduled = false;
+    const resetDetails = { ...this.state.taskDetails };
+    for (const [taskId, detail] of Object.entries(resetDetails)) {
+      if (detail.phase === "loading") {
+        resetDetails[Number(taskId)] = {
+          phase: "idle",
+          task: null,
+          error: null,
+        };
+      }
+    }
+    this.state.taskDetails = resetDetails;
     this.state.connectionState = "connecting";
     this.emit();
 
@@ -301,6 +340,14 @@ class TaskObservation implements TaskObservationController {
     if (!this.isActiveSocket(socket)) {
       return;
     }
+    this.handleSocketProtocolErrorForCurrentSocket(error);
+  }
+
+  private handleSocketProtocolErrorForCurrentSocket(error: unknown): void {
+    const socket = this.socket;
+    if (socket === null) {
+      return;
+    }
     this.synchronizationFailed = true;
     this.synchronized = false;
     this.state.socketError = error;
@@ -350,6 +397,8 @@ class TaskObservation implements TaskObservationController {
       this.requestTaskDetail(
         event.task_id,
         isTerminalStatus(event.status),
+        false,
+        true,
       );
       this.requestListRefresh();
       return;
@@ -359,14 +408,21 @@ class TaskObservation implements TaskObservationController {
       this.requestListRefresh();
     }
     if (isTerminalStatus(event.status)) {
-      this.requestTaskDetail(event.task_id, true);
+      this.requestTaskDetail(event.task_id, true, false, true);
       this.requestListRefresh();
     }
   }
 
-  private requestTaskDetail(taskId: number, terminalRefresh: boolean): void {
+  private requestTaskDetail(
+    taskId: number,
+    terminalRefresh: boolean,
+    explicitRequested: boolean,
+    listRefreshRequested: boolean,
+  ): void {
     const pending = this.detailRequests.get(taskId);
     if (pending !== undefined) {
+      pending.explicitRequested ||= explicitRequested;
+      pending.listRefreshRequested ||= listRefreshRequested;
       if (terminalRefresh) {
         pending.terminalRefreshRequested = true;
       }
@@ -378,6 +434,8 @@ class TaskObservation implements TaskObservationController {
 
     const request: DetailRequest = {
       epoch: this.socketEpoch,
+      explicitRequested,
+      listRefreshRequested,
       terminalRefreshRequested: false,
     };
     this.detailRequests.set(taskId, request);
@@ -394,6 +452,10 @@ class TaskObservation implements TaskObservationController {
         }
         const event = this.latestEvents.get(taskId);
         const merged = mergeTaskWithEvent(task, event);
+        this.state.taskDetails = {
+          ...this.state.taskDetails,
+          [taskId]: { phase: "ready", task: merged, error: null },
+        };
         const index = this.state.tasks.findIndex(
           (candidate) => candidate.id === taskId,
         );
@@ -401,17 +463,29 @@ class TaskObservation implements TaskObservationController {
           const next = [...this.state.tasks];
           next[index] = merged;
           this.state.tasks = limitTasks(next, this.query);
-          this.emit();
         }
-        this.requestListRefresh();
+        this.emit();
+        if (request.listRefreshRequested) {
+          this.requestListRefresh();
+        }
       },
       (error: unknown) => {
         if (!this.isCurrentDetailRequest(taskId, request)) {
           return;
         }
-        this.state.detailError = { taskId, error };
+        const protocol = error instanceof ApiProtocolError;
+        this.state.detailError = { taskId, error, protocol };
+        this.state.taskDetails = {
+          ...this.state.taskDetails,
+          [taskId]: { phase: "error", task: null, error },
+        };
         this.emit();
-        this.requestListRefresh();
+        if (protocol) {
+          this.handleSocketProtocolErrorForCurrentSocket(error);
+        }
+        if (request.listRefreshRequested) {
+          this.requestListRefresh();
+        }
       },
     )
       .finally(() => {
@@ -420,7 +494,12 @@ class TaskObservation implements TaskObservationController {
         }
         this.detailRequests.delete(taskId);
         if (request.terminalRefreshRequested && !this.disposed) {
-          this.requestTaskDetail(taskId, true);
+          this.requestTaskDetail(
+            taskId,
+            true,
+            request.explicitRequested,
+            request.listRefreshRequested,
+          );
         }
       });
   }
@@ -487,6 +566,20 @@ class TaskObservation implements TaskObservationController {
         this.state.tasks = limitTasks(tasks, this.query);
         this.state.listError = null;
         this.state.socketError = null;
+        if (this.state.detailError?.protocol) {
+          this.state.detailError = null;
+          const taskDetails = { ...this.state.taskDetails };
+          for (const [taskId, detail] of Object.entries(taskDetails)) {
+            if (detail.error instanceof ApiProtocolError) {
+              taskDetails[Number(taskId)] = {
+                phase: "idle",
+                task: null,
+                error: null,
+              };
+            }
+          }
+          this.state.taskDetails = taskDetails;
+        }
         this.state.listPhase = "ready";
         this.state.connectionState = "connected";
         this.synchronized = true;
@@ -512,7 +605,7 @@ class TaskObservation implements TaskObservationController {
         this.state.listError = error;
         this.state.listPhase = "error";
         this.emit();
-        if (request.initial) {
+        if (request.initial || error instanceof ApiProtocolError) {
           this.synchronizationFailed = true;
           this.synchronized = false;
           socket.close();

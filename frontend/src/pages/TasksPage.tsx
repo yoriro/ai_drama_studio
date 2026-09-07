@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Task } from "../api/tasks";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
@@ -8,6 +8,8 @@ import { PageTitle } from "../components/PageTitle";
 import {
   createTaskObservation,
   createTaskObservationInitialState,
+  type TaskDetailState,
+  type TaskObservationController,
   type TaskObservationState,
 } from "../features/tasks/taskObservation";
 import {
@@ -22,7 +24,9 @@ import {
 } from "../features/tasks/taskList";
 
 function formatTaskTime(value: string | null): string {
-  return value === null ? "—" : new Date(value).toLocaleString();
+  return value === null
+    ? "—"
+    : new Date(value).toLocaleString(undefined, { timeZoneName: "short" });
 }
 
 export function TasksPage() {
@@ -33,6 +37,8 @@ export function TasksPage() {
   const [observation, setObservation] = useState<TaskObservationState>(() =>
     createTaskObservationInitialState(),
   );
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
+  const observationController = useRef<TaskObservationController | null>(null);
 
   useEffect(() => {
     const controller = createTaskObservation({
@@ -42,17 +48,109 @@ export function TasksPage() {
         limit: taskLimit,
       }),
     });
+    observationController.current = controller;
     const unsubscribe = controller.subscribe(setObservation);
     controller.start();
     return () => {
       unsubscribe();
       controller.dispose();
+      if (observationController.current === controller) {
+        observationController.current = null;
+      }
     };
   }, [statusFilter, taskLimit, typeFilter]);
 
   const taskGroups = groupTasksByStatus(observation.tasks);
 
+  function toggleTaskDetail(taskId: number): void {
+    if (expandedTaskId === taskId) {
+      setExpandedTaskId(null);
+      return;
+    }
+    setExpandedTaskId(taskId);
+    observationController.current?.loadTaskDetail(taskId);
+  }
+
+  function renderTaskDetail(
+    task: Task,
+    detail: TaskDetailState | undefined,
+  ) {
+    if (detail?.phase === "error") {
+      return (
+        <div
+          className="task-detail"
+          data-task-state="detail-error"
+          id={`task-detail-${task.id}`}
+        >
+          <ApiErrorMessage error={detail.error} />
+        </div>
+      );
+    }
+    if (detail?.phase !== "ready" || detail.task === null) {
+      return (
+        <p
+          className="field-hint"
+          data-task-state="detail-loading"
+          id={`task-detail-${task.id}`}
+        >
+          正在加载任务详情…
+        </p>
+      );
+    }
+
+    const detailTask = detail.task;
+    return (
+      <dl
+        className="task-detail"
+        data-task-state="detail-ready"
+        id={`task-detail-${task.id}`}
+      >
+        <div>
+          <dt>request_id</dt>
+          <dd>{detailTask.request_id ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>状态</dt>
+          <dd>{detailTask.status}</dd>
+        </div>
+        <div>
+          <dt>进度</dt>
+          <dd>{detailTask.progress}</dd>
+        </div>
+        <div>
+          <dt>心跳时间（本地时区）</dt>
+          <dd>{formatTaskTime(detailTask.heartbeat_at)}</dd>
+        </div>
+        <div>
+          <dt>取消请求时间（本地时区）</dt>
+          <dd>{formatTaskTime(detailTask.cancel_requested_at)}</dd>
+        </div>
+        <div>
+          <dt>创建时间（本地时区）</dt>
+          <dd>{formatTaskTime(detailTask.created_at)}</dd>
+        </div>
+        <div>
+          <dt>开始时间（本地时区）</dt>
+          <dd>{formatTaskTime(detailTask.started_at)}</dd>
+        </div>
+        <div>
+          <dt>完成时间（本地时区）</dt>
+          <dd>{formatTaskTime(detailTask.finished_at)}</dd>
+        </div>
+        <div>
+          <dt>完整错误</dt>
+          <dd>
+            <pre className="task-error-detail">
+              {detailTask.error_msg ?? "—"}
+            </pre>
+          </dd>
+        </div>
+      </dl>
+    );
+  }
+
   function renderTaskCard(task: Task) {
+    const isExpanded = expandedTaskId === task.id;
     return (
       <article className="entity-card task-card" key={task.id}>
         <div className="task-heading">
@@ -87,6 +185,16 @@ export function TasksPage() {
             <dd>{formatTaskTime(task.finished_at)}</dd>
           </div>
         </dl>
+        <button
+          aria-controls={isExpanded ? `task-detail-${task.id}` : undefined}
+          aria-expanded={isExpanded}
+          type="button"
+          onClick={() => toggleTaskDetail(task.id)}
+        >
+          {isExpanded ? "收起详情" : "查看详情"}
+        </button>
+        {isExpanded &&
+          renderTaskDetail(task, observation.taskDetails[task.id])}
       </article>
     );
   }
@@ -191,7 +299,10 @@ export function TasksPage() {
           <ApiErrorMessage error={observation.socketError} />
         </section>
       )}
-      {observation.detailError !== null && (
+      {observation.detailError !== null &&
+        (expandedTaskId !== observation.detailError.taskId ||
+          observation.taskDetails[observation.detailError.taskId]?.phase !==
+            "error") && (
         <section
           aria-label="任务详情错误"
           data-task-state="detail-error"

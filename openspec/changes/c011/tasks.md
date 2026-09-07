@@ -215,7 +215,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskObservation.test.tsx`；G；deferred+FakeSocket 逐项 AC-15/16/17：初始/重连顺序、过滤A/B、列表/详情过期补读、同时未知事件、终态去重、idle零GET、1/2/5/10秒重连和卸载。GET账本由真实 fetch stub 记录。
   - 验收归属：AC-15/16/17 完整；输出明确仅 DOM/传输 mock，真实进程见 T22/T23。
 
-- [ ] **T19 接入任务详情与严格错误呈现**
+- [x] **T19 接入任务详情与严格错误呈现**
   - 依赖：T15、T18。
   - R：无；PRD：§2.1(8)、§5 任务、§9、§11 M5。
   - 交付范围：TasksPage 可展开具体 task 正式详情，完整时间/错误与 request_id 展示；接线 parseTaskResponse/parseTaskEventResponse 的可见失败路径，状态/进度/ID/extra字段不能强转；协议错误关闭该 socket、观察重连成功前错误不消失。新增 `frontend/src/features/tasks/taskBoundary.test.tsx`，挂载真实页面。
