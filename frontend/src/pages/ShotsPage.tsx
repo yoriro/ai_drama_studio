@@ -22,6 +22,7 @@ import {
 } from "../api/ws";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
 import { EmptyState } from "../components/EmptyState";
+import { presentShotStatus } from "../features/status/statusPresentation";
 
 const SHOT_TYPES: ShotType[] = ["远景", "全景", "中景", "近景", "特写"];
 const CAMERA_TYPES: CameraType[] = ["固定", "推", "拉", "摇", "移", "跟", "手持"];
@@ -256,6 +257,7 @@ function ShotCard({ assets, onSaved, shot }: ShotCardProps) {
     const asset = assets.find((candidate) => candidate.id === assetId);
     return asset === undefined ? `资产 #${assetId}` : asset.name;
   });
+  const statusBadge = presentShotStatus(shot.status);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -303,8 +305,10 @@ function ShotCard({ assets, onSaved, shot }: ShotCardProps) {
         </div>
         <div className="shot-badges">
           <span className="shot-status">状态：{shot.status}</span>
-          {shot.status === "changed" && (
-            <span className="shot-badge shot-badge-changed">changed</span>
+          {statusBadge !== null && (
+            <span className={`shot-badge ${statusBadge.className}`}>
+              {statusBadge.label}
+            </span>
           )}
           {sceneCount === 0 && (
             <span className="shot-badge shot-badge-note">未绑定场景</span>

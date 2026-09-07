@@ -170,7 +170,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/director`；G；人工四视口比较三轨列与 duration 比例、滚动对齐；按 §4.1 Director 清单操作原 preview/create、设置、槽位、take/current/delete，记录每项入口和请求不变。
   - 验收归属：AC-05/06/07/08 的导演台切片；不声称真实视频生成链路在本 task 重新验收。
 
-- [ ] **T14 统一既有新鲜态与生成态展示**
+- [x] **T14 统一既有新鲜态与生成态展示**
   - 依赖：T10、T11、T12、T13。
   - R：R8、R12；PRD：§2.1(4,6,7)、§3.2、§3.3、§3.4、§9、§11 M5。
   - 交付范围：最小共享状态文案/Badge，仅消费已知状态；新增独立 `frontend/src/features/status/statusPresentation.test.ts`，把 Shots/Director 的标签统一到 spec §4.2，并保持剧本/资产旧剧本原文、R8 黄色、R12 已删原文。不把业务 freshness 判定迁入通用组件。

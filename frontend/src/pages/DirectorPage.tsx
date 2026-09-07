@@ -51,6 +51,10 @@ import {
   type DirectorMutationAction,
   type DirectorSyncState,
 } from "../features/director/directorSync";
+import {
+  presentClipFreshness,
+  presentClipGenerationState,
+} from "../features/status/statusPresentation";
 import type { Task, TaskEvent } from "../api/tasks";
 
 interface DirectorPageProps {
@@ -941,27 +945,39 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
                     空洞
                   </div>
                 ))}
-                {projection.clipSpans.map((span) => (
-                  <button
-                    aria-pressed={syncState.selectedClipId === span.clip.id}
-                    className={[
-                      "director-clip-bar",
-                      span.status.generationClassName,
-                      span.status.freshnessClassName,
-                      syncState.selectedClipId === span.clip.id
-                        ? "director-clip-bar-selected"
-                        : "",
-                    ].filter(Boolean).join(" ")}
-                    key={span.clip.id}
-                    onClick={() => selectClip(span.clip.id)}
-                    style={{ gridColumn: `${span.startIndex + 1} / ${span.endIndex + 2}` }}
-                    type="button"
-                  >
-                    <strong>Clip #{span.clip.id}</strong>
-                    <span>{span.status.generationLabel}</span>
-                    <span>{span.status.freshnessLabel}</span>
-                  </button>
-                ))}
+                {projection.clipSpans.map((span) => {
+                  const generationStatus = presentClipGenerationState(
+                    span.status.generationState,
+                  );
+                  const freshnessStatus = presentClipFreshness(
+                    span.status.freshness,
+                  );
+                  return (
+                    <button
+                      aria-pressed={syncState.selectedClipId === span.clip.id}
+                      className={[
+                        "director-clip-bar",
+                        generationStatus.className,
+                        span.status.freshnessClassName,
+                        syncState.selectedClipId === span.clip.id
+                          ? "director-clip-bar-selected"
+                          : "",
+                      ].filter(Boolean).join(" ")}
+                      key={span.clip.id}
+                      onClick={() => selectClip(span.clip.id)}
+                      style={{ gridColumn: `${span.startIndex + 1} / ${span.endIndex + 2}` }}
+                      type="button"
+                    >
+                      <strong>Clip #{span.clip.id}</strong>
+                      <span>{generationStatus.label}</span>
+                      {freshnessStatus !== null && (
+                        <span className={freshnessStatus.className}>
+                          {freshnessStatus.label}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
