@@ -71,7 +71,7 @@
   5. 全部审计和自检通过后，授权一次新的完整 T03 验收。现场查明可用端口后运行 `powershell.exe -NoProfile -File .work/c011/prepare_ui_fixture.ps1 -ApiPort <现场端口>`；新普通库、新 DATA_DIR、新证据目录，upgrade/current/check 均 exit=0，然后普通后端/OpenAPI/prepare/verify；记录 AC-24 的循环、事务/session、dispose、子进程退出及正式回读证据。再运行 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T03 -EvidenceLabel <本轮唯一标签>`，其完整 pytest 使用另一个全新仅迁移库。尖括号为需现场替换的参数，不预设可用端口或通过结果。
   6. 任一自检或正式门槛失败即保存本轮证据并停止，不继续修跑到绿、不复用部分数据、不重放业务 Task、不进入 T04。成功才勾选 T03；追溯分别记 AC-24 装置证据和 AC-22 的装置前置，不能把整条浏览器视觉验收回填为通过。只按既有授权提交本项已验收文档/追溯，不 stage .work 或夹带 T01/T02 的前端依赖改动，不追认旧任务已提交。报告真实命令/原始输出/退出码、HEAD/commit、遗留进程和失败分支未验证项。
 
-- [ ] **T04 交付受控任务运行时装置**
+- [x] **T04 交付受控任务运行时装置**
   - 依赖：T01。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§11 M5。
   - 交付范围：仅交付 `.work/c011/task_runtime.py`：既有 create_app 的显式注入 seam、独立进程/管道 barrier、生产 TaskQueue/EventBus/REST/WS/真实 PostgreSQL；足量有效 target 和混合历史任务通过队列原语产生。CLI 支持 serve、自检和按 task ID 放行/失败控制，输出 READY 与 barrier reached 事实。外部 clients/handler 为明确受控替代。普通 app.main 默认 handler/配置不改。
@@ -79,6 +79,15 @@
   - 追溯行：`C011 验收装置与生产通路归属`。
   - 验收方式与命令：`python .work/c011/task_runtime.py --help`；`python .work/c011/task_runtime.py self-check`；G。自检以独立 HTTP/WS 客户端观察真实 enqueue→claim→progress→done，第三方 DB 只读连接对照，正常退出后本轮进程消失；逐项审计无直接状态 UPDATE、伪 WS/第五 task type/生产 endpoint。服务端写操作前一次核对该 runtime 的 /openapi.json。
   - 验收归属：AC-20；取消胜方验收另列 T22。本 task 不声称真实 GPU/业务产物成功。
+
+  **2026-09-07 Astra 对 T04 OpenAPI/WS 阻塞的裁决（仅本项）：**
+
+  1. `.work/c011/T04-selfcheck-20260907-131110-5772.log` 记录 `required task OpenAPI operations missing: [('/ws/tasks', 'get')]`。task_runtime.py 的 REQUIRED_OPENAPI_OPERATIONS 错误包含该项，而生产 backend/app/api/tasks.py 使用 `@ws_router.websocket("/ws/tasks")`。本机无网络/数据库副作用的 FastAPI 探针输出 `HTTP_IN_OPENAPI=True`、`WS_IN_OPENAPI=False`、`WS_ROUTE_TYPE=APIWebSocketRoute`，exit=0。这是装置协议分类错误，不是生产缺失接口；T04 未验收，原日志保留。
+  2. 授权只修现有 task_runtime.py：从 HTTP OpenAPI 必需集合移除该 WS 项，保留原三项任务 HTTP 路径及其 method 检查；保留并实际执行原有独立 websockets 客户端握手、事件采集、Task/REST/独立 DB 对照及 barrier 检查。移除错误分类不等于取消 WS 验收。不得新增 GET /ws/tasks、修改生产路由/schema、伪造事件、放宽事件断言或跳过 WS。
+  3. 同时修正 command_self_check 成功标记：现有代码只在 RuntimeCheckError 时赋 failure，其他异常逃出仍可能在 finally 写 RESULT PASS。成功标记只能放在 run_self_check（含其 finally 清理）正常返回之后；异常路径不写 PASS。用明确成功控制流保留所有异常及 traceback，不新增 broad catch，不把未知异常转换为成功。日志保存失败同样非成功，不允许原始异常被无说明覆盖。
+  4. 重验前完整读完本装置，核对 HTTP/WS 分类、事件订阅时序、跨进程事件实际来源、DB/loop/engine 所有权、stdin barrier、超时/异常/清理及结果标记。审计记录已知两处修复及其余发现；其他会改变业务语义或扩大实现范围的缺陷先停止报告，不顺手实现后续任务。静态审计不能冒称真实 WS 已连接。
+  5. 上述修复与审计完成后允许一次新 T04 自检：`python .work/c011/task_runtime.py --help`，随后 `python .work/c011/task_runtime.py self-check`，使用新的隔离库、DATA_DIR、证据批次和本轮自有进程；保留旧失败资源。记录 HTTP OpenAPI 核对、独立 WS 握手与匹配 task_id 的事件、barrier、REST/DB 对照、engine 释放、子进程退出及真实原生退出码。自检通过后运行 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T04 -EvidenceLabel <本轮唯一标签>`；完整 pytest 使用另一个新建仅迁移库。任一正式门槛再次失败即停止，不连续改动/重跑到绿。
+  6. 仍归“跨进程/资源生命周期”，R：无；PRD：§2.1(8)、§5 任务、§6.1、§11 M5；沿用 AC-20 与 `C011 验收装置与生产通路归属`，覆盖行已存在，不新增测试文件或提前回填通过。全部通过才勾 T04并依既有授权提交本项文档/追溯；不提交 .work、不夹带前端依赖等其他 task 改动、不进入 T05。报告命令、原始输出、退出码及未验证边界。
 
 - [ ] **T05 实现设置与任务中心的来源返回**
   - 依赖：T02、T03。
