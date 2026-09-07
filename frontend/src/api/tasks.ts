@@ -52,6 +52,12 @@ export interface TaskEvent {
   message: string;
 }
 
+export interface TaskListQuery {
+  status?: TaskStatus;
+  type?: TaskType;
+  limit?: number;
+}
+
 function requireTaskProgress(
   value: unknown,
   context: string,
@@ -171,8 +177,23 @@ export function parseTaskEventResponse(
   };
 }
 
-export function listTasks(): Promise<Task[]> {
-  return requestJson<Task[]>("/tasks", undefined, parseTaskListResponse);
+export function listTasks(query: TaskListQuery = {}): Promise<Task[]> {
+  const search = new URLSearchParams();
+  if (query.status !== undefined) {
+    search.set("status", query.status);
+  }
+  if (query.type !== undefined) {
+    search.set("type", query.type);
+  }
+  if (query.limit !== undefined) {
+    search.set("limit", String(query.limit));
+  }
+  const suffix = search.toString();
+  return requestJson<Task[]>(
+    suffix.length === 0 ? "/tasks" : `/tasks?${suffix}`,
+    undefined,
+    parseTaskListResponse,
+  );
 }
 
 export function getTask(taskId: number): Promise<Task> {

@@ -188,7 +188,7 @@
   - 验收方式与命令：G；按 AC-19 对 §4.1 全页逐一人工制造加载、空数据、读取失败、动作失败；媒体页另检查损坏响应。浏览器网络调试的阻断/响应替换证据标记为受控外部输入，与普通成功通路分开。
   - 验收归属：AC-19；Task 页异步/协议自动验证由 T19/T21 提供，本 task 不替代。
 
-- [ ] **T16 接入任务过滤读取客户端并验证既有 API 窗口**
+- [x] **T16 接入任务过滤读取客户端并验证既有 API 窗口**
   - 依赖：T02、T04。
   - R：无；PRD：§2.1(8)、§5 任务、§11 M5。
   - 交付范围：扩展 api/tasks.ts 的 listTasks 查询参数，仅允许现有 status/type/limit，复用 parser。新增 `backend/tests/api/test_c011_task_listing.py` 通过生产 GET 与真实 PostgreSQL 验证过滤先于 limit、默认50/最大100、id降序、空数组和非法 query 422；不改 backend/app 或既有 test_tasks.py。
