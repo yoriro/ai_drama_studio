@@ -242,7 +242,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelRaces.test.tsx`；G；deferred控制AC-13/14两种胜方与迟到响应，实际DOM/action链证明POST一次、正确task归属、GET次数/路径、无success notice、消失清详情且不污染B。
   - 验收归属：AC-13/14 完整；不修改后端竞争裁决或改既有测试换绿。
 
-- [ ] **T22 验证跨进程取消与观察一致性**
+- [x] **T22 验证跨进程取消与观察一致性**
   - 依赖：T04、T21。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§11 M5。
   - 交付范围：只新增 `backend/tests/task_system/test_c011_task_observation.py`，以独立被测后端进程、独立HTTP/WS客户端和独立DB只读连接，验证生产取消/队列/事务/发布的真实关系。测试在该新增文件内通过create_app/TaskQueue正式seam建立自身进程fixture，禁止依赖未提交的.work驱动，断言生产可观察行为而非装置自检输出。屏障控制queued取消、running意图到安全点、done先提交；不引入文件/marker业务副作用或新锁。

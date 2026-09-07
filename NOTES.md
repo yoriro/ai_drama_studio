@@ -151,3 +151,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-07 C011 T20 G 前端 19 files/120 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 139.74s` 均 exit 0；证据见 `.work/c011/T20-taskcancel20260907_2030-test.log`。
 - 2026-09-07 C011 T21 挂载竞态测试 6 passed，覆盖终态迟到响应、409/404、网络未知结果及筛选/展开/卸载 identity；证据见 `.work/c011/T21-taskcancelraces-targeted-20260907_2110.log`。
 - 2026-09-07 C011 T21 G 前端 20 files/126 tests、build 64 modules、Alembic upgrade/current/check 与完整 backend `347 passed in 142.92s` 均 exit 0；证据见 `.work/c011/T21-taskcancelraces20260907_2120-test.log`。
+- 2026-09-07 C011 T22 定向新库 `ai_drama_studio_c011_t22_target_20260907_181653_4908` 仅执行 Alembic upgrade 后运行独立跨进程取消观察测试，`1 passed in 2.99s`、退出码 0；测试进程已退出，证据见 `.work/c011/T22-targeted-20260907_181653-4908.log`。
+- 2026-09-07 C011 T22 G 使用新的 target/full PostgreSQL 与独立 DATA_DIR；target `1 passed`，前端 `126 passed`/build `64 modules`，full Alembic upgrade/current/check、完整 backend `348 passed in 144.01s`、git diff check 均 exit 0；证据见 `.work/c011/T22-t22crossprocess20260907_1820-test.log`。
