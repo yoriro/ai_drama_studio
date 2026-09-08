@@ -1261,13 +1261,11 @@ button:disabled {
 .director-track-group {
   display: grid;
   gap: 10px;
-  min-width: 760px;
 }
 
 .director-track {
   display: grid;
   gap: 8px;
-  min-width: 760px;
 }
 
 .director-scene-track {
@@ -1690,6 +1688,11 @@ button:disabled {
   padding: 12px;
 }
 
+.director-slot-row > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
 .director-slot-heading {
   align-items: baseline;
   display: flex;
@@ -1715,6 +1718,7 @@ button:disabled {
   max-height: 180px;
   max-width: 280px;
   object-fit: contain;
+  width: 100%;
 }
 
 .director-slot-actions {
@@ -1730,11 +1734,15 @@ button:disabled {
   border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
   padding: 8px 10px;
 }
 
 .director-slot-upload input {
+  min-width: 0;
   max-width: 220px;
 }
 

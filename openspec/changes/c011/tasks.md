@@ -25,6 +25,7 @@
 - **G**：在仓库根运行 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task Txx`（Txx 换为本项编号）。T01 必须先交付此装置；各项调用内部逐条执行 `npm --prefix frontend run test`、`npm --prefix frontend run build`，在新建、仅迁移的 PostgreSQL/独立 DATA_DIR 中以 backend 为 cwd 执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`，最后 `git diff --check`。每步原生退出码为0才继续；stdout中“passed”不能替代已结束进程和真实退出码。
 - 定向 backend 命令也由T01装置以新隔离库运行；装置提供 `-Task Txx -TargetPytest tests/...` 参数。定向后完整pytest使用**另一个**新建仅迁移库，不能复用已有Task的浏览器库。前端定向命令在本项明列。
 - 浏览器 ordinary、受控任务、pytest 三类环境分离；通过环境变量显式选择，不改用户 `backend/.env`。现场选择并记录可用端口；若Vite固定代理8000被用户进程占用，单独的验收Vite配置放.work并启动隔离端口，不能停用户进程或修改生产业务地址。启动自有后台进程使用 Hidden 窗口。
+- 浏览器能力须用公开API发现：在当前工具文档允许的已选browser上执行`await browser.capabilities.list()`，再以`await browser.capabilities.get("viewport")`取得能力并读取其`documentation()`；不能用对象JSON序列化结果`{}`或不存在的`tab.playwright.viewport`推断能力缺失。2026-09-08 T24F裁决现场只读确认IAB列出visibility/viewport，viewport正式接口为`set({width,height})`和`reset()`。Luna按当前任务分别设置320×800、390×844、768×1024、1440×900，每次读取实际页面尺寸、截图与任务规定的布局/交互结果，结束恢复override；能力可调用的证据不等于项目四视口验收通过。原错误记录保留，可在既有自主修复范围内纠正调用并补验，无需新增脚本。原生200%是独立门槛，viewport、devicePixelRatio=2均不能替代；若当前无可用原生控制，先完成其余可验证项，再明确列出剩余人工补验条件和本轮实际隔离页面地址，不反复重跑G或猜测隐藏API，也不勾选尚缺200%的任务。
 - 自建脚本/fixture不提交。装置需记录实际命令与原始证据；文中没有可用地址、数据库或测试通过的预设结论。依赖门槛见spec“外部依赖”。
 - 计划测试层级仅使用题设五种名称；同时涉及取消与跨进程的任务同时列“任务系统 mock”和“跨进程/资源生命周期”。前端使用任务事件/取消的DOM mock不冒称后端集成，反之跨进程API测试不冒称点击了React控件。
 - 表达“某AC切片”意味着本task仅验收明确列出的页面/职责；AC全量收口在T23/T24/T25，不能提前声称整条AC完成。
@@ -339,7 +340,7 @@
   - 验收方式与命令：`npm --prefix frontend run build`；G（Task=T24E）；真实浏览器两主题四视口测checkbox与首行Range行盒中心差≤1px，检查长中文/英文名换行和输入框/上传控件未退化；分别点击checkbox、名称及Space各一次，观察选中集合和一次保存PATCH body/正式GET回读与原合同一致，取消/未保存行为不变；参考候选上限和R8提示保持。布局不新增jsdom几何断言，以实际计算样式/坐标/网络记录验收。
   - 验收归属：AC-30；现有fixture不能提供长名称时仅经本轮隔离库正式资产编辑API准备输入，不新增驱动或生产特判。
 
-- [ ] **T24F 增宽导演台镜头并保持共同时间比例**
+- [x] **T24F 增宽导演台镜头并保持共同时间比例**
   - 依赖：T24E、T13。
   - R：R5、R5a、R8（原选择约束保持）；PRD：§3.4、§9（一带两轨一板）、§11 M5；追加来源：需求方2026-09-08走查第4项。宽度计算本身R：无；选择/连续/同场景规则保持不变。
   - 交付范围：①新增features/director/directorTrackLayout.ts仅计算spec §3.5的共同最小宽度，输入沿用现有已验证正duration_est，空数组单独处理；②DirectorPage把同一布局宽度施加于三个轨道共同内容，保留projection.gridTemplateColumns与span/gap/选择接线；③styles.css取消本区域仅760px压缩的约束，保证最短列192px、gap8px、局部滚动与焦点可见，metadata/原因换行可读；④新增独立features/director/directorTrackLayout.test.ts覆盖空/单列/不等时长/多列/小数时长计算，既有directorModel及其测试不改。禁止独立列钳制/等宽/时间轴缩放控件或扩大为虚拟化改造。

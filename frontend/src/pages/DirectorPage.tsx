@@ -41,6 +41,7 @@ import {
   type DirectorPreviewState,
   type ShotSelectionProjection,
 } from "../features/director/directorModel";
+import { calculateDirectorTrackContentWidth } from "../features/director/directorTrackLayout";
 import {
   createDirectorSync,
   createDirectorGenerationRequester,
@@ -411,6 +412,15 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
       </section>
     );
   }
+
+  const directorTrackContentWidth = calculateDirectorTrackContentWidth(
+    projection.gridColumns.map((column) => column.durationEst),
+  );
+  const directorTrackStyle = {
+    gridTemplateColumns: projection.gridTemplateColumns,
+    minWidth: `${directorTrackContentWidth}px`,
+    width: "100%",
+  };
 
   const selection = projectShotSelection(
     projection,
@@ -873,7 +883,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
               <h3>场景带</h3>
               <div
                 className="director-track director-scene-track"
-                style={{ gridTemplateColumns: projection.gridTemplateColumns }}
+                style={directorTrackStyle}
               >
                 {projection.sceneBands.map((band) => (
                   <div
@@ -901,7 +911,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
               <h3>分镜轨</h3>
               <div
                 className="director-track director-shot-track"
-                style={{ gridTemplateColumns: projection.gridTemplateColumns }}
+                style={directorTrackStyle}
               >
                 {projection.shots.map((projectedShot) => {
                   const eligibility = selection.eligibility.find(
@@ -937,7 +947,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
               <h3>片段轨</h3>
               <div
                 className="director-track director-clip-track"
-                style={{ gridTemplateColumns: projection.gridTemplateColumns }}
+                style={directorTrackStyle}
               >
                 {projection.gaps.map((gap) => (
                   <div

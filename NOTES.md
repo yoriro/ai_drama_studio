@@ -167,3 +167,8 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-08 C011 T24D 首次 BackNavigation 构建因联合类型收窄失败，失败日志保留；修正为 `props.to !== undefined` 后 build 与 `returnLocation.test.ts` 各退出0，未修改既有测试。
 - 2026-09-08 C011 T24D G 前端22 files/136 tests、build67 modules、Alembic upgrade/current/check、完整 backend `348 passed in 143.96s`、git diff check 均退出0；IAB 动态非法 Router state 因公开 evaluate 不暴露 history 未验证，证据见`.work/c011/T24D-browser-acceptance-20260908_142513.log`。
 - 2026-09-08 C011 T24E：`.form-grid` 文本输入选择器与三类勾选行修正后 build/G 均 exit 0；新普通批次 8015/5184 的双主题四视口浏览器采集记录18×18、8px、首行中心差0px、正式GET回读与清理无监听，详见`.work/c011/T24E-browser-acceptance-20260908_145851.log`。
+- 2026-09-08 C011 T24F：新增共同轨道宽度纯函数及三轨共同宽度接线，定向6/6、director72/72、前端全量142/142、build、Alembic与完整pytest348均exit0；修正前IAB首列191.992px的浮点舍入证据保留，修正后默认1280×720 IAB最短列192.039px、三轨边界差0、根无溢出，详见`.work/c011/T24F-browser-acceptance-20260908_1715.log`。
+- 2026-09-08 C011 T24F：当前公开CUA只返回IAB且`iab.capabilities={}`，无Chrome/Edge或viewport/native-zoom/reduced-motion入口；四视口、原生200%和动态reduced-motion未验证，T24F及其后T24/T25未勾选/未提交。
+- 2026-09-08 C011 T24F视口补验：`browser.capabilities.list/get("viewport")`提供正式覆盖；新批次后端52426、前端52427、tab38完成320×800/390×844/768×1024/1440×900双主题，DPR均1，最短列192.039px、三轨边界/宽度差0、gap8px，局部滚动、键盘选中镜头18与主题切换保持；已调用`viewport.reset()`并清理归属进程，原生200%仍未验证。
+- 2026-09-08 C011 T24F槽位边界修正：IAB 320×800初始根`scrollWidth=360/clientWidth=305`，修正`.director-slot-row`子项、上传框/file input及图片宽度后双主题根均`305/305`，390/768/1440也无根溢出；新G前端142、完整pytest348与Alembic均exit 0，证据见`.work/c011/T24F-slot-overflow-fix-browser-20260908.log`和`.work/c011/T24F-t24fslotfix20260908-test.log`。
+- 2026-09-08 C011 T24F：调用方确认原生桌面200%人工审查通过，确认记录见`.work/c011/T24F-native200-user-confirmation-20260908.log`；该确认不扩展为T24全页或动态reduced-motion通过。
