@@ -294,13 +294,15 @@ nav {
   max-width: 680px;
 }
 
-.form-grid label {
+.form-grid > label {
   display: grid;
   gap: 6px;
   font-weight: 600;
 }
 
-.form-grid input,
+.form-grid input:not([type]),
+.form-grid input[type="text"],
+.form-grid input[type="number"],
 .form-grid select,
 .form-grid textarea {
   background: var(--color-surface-input);
@@ -1130,20 +1132,24 @@ button:disabled {
 }
 
 .shot-asset-option {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   gap: 8px;
   font-weight: 400;
+  min-height: 40px;
   min-width: 0;
 }
 
 .shot-asset-option input {
   accent-color: var(--color-surface-strong);
-  flex: 0 0 auto;
-  margin: 0;
+  flex: 0 0 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  width: 18px;
 }
 
 .shot-asset-option span {
+  line-height: 1.5;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -1335,17 +1341,22 @@ button:disabled {
 .director-shot-checkbox {
   align-items: flex-start;
   display: flex;
-  gap: 7px;
+  gap: 8px;
+  min-height: 40px;
   min-width: 0;
 }
 
 .director-shot-checkbox input {
   accent-color: var(--color-surface-strong);
-  flex: 0 0 auto;
+  flex: 0 0 18px;
+  height: 18px;
   margin: 3px 0 0;
+  width: 18px;
 }
 
 .director-shot-checkbox span {
+  line-height: 1.5;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -1522,15 +1533,20 @@ button:disabled {
   display: flex;
   gap: 8px;
   font-weight: 400;
+  min-height: 40px;
 }
 
 .director-reference-candidate input {
   accent-color: var(--color-surface-strong);
-  flex: 0 0 auto;
+  flex: 0 0 18px;
+  height: 18px;
   margin: 3px 0 0;
+  width: 18px;
 }
 
 .director-reference-candidate span {
+  line-height: 1.5;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 

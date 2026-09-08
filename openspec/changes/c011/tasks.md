@@ -330,7 +330,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/navigation/returnLocation.test.ts`；G（Task=T24D）；`rg -n '返回项目首页|返回项目|返回刚才页面' frontend/src`人工核对每项作为名称/title保留，不能要求零匹配。真实浏览器两主题检查40px尺寸、焦点、Link Enter与button Enter/Space、原目标/replace/search/hash及无来源/已删实体；不新增低影响图标的镜像测试，实际交互补足接线。非空非法Router state分支按spec §9的2026-09-08裁决采用组合证据：上述既有非法输入测试通过；用`git diff <T24D实施前记录的实际基线> -- frontend/src/features/navigation/returnLocation.ts frontend/src/components/AuxiliaryPageReturn.tsx`审计判定/提示/目标/replace不变，人工完整读取BackNavigation.tsx与对应CSS确认Link props透传和无非法分支专属渲染；补齐同一共享Link的两主题真实尺寸/名称/焦点/键盘及辅助返回replace证据。基线须引用实际记录，不杜撰commit；记录这三部分各自能证明的范围，不声称IAB动态注入已完成。
   - 验收归属：AC-29、AC-02/03；图标统一不表示返回行为统一为历史后退。原history不可用证据保留，不以query returnTo或无state冒充非法分支；不新增注入脚本、生产调试入口或测试文件。组合证据全部齐备且其余本项验收通过后可回填追溯、勾选并按原依赖进入T24E；判定逻辑/导航语义变化或存在非法分支专属样式时本裁决不适用。最终T24对该分支沿用同一证据方法，其他浏览器门槛不变。
 
-- [ ] **T24E 修复资产勾选行与通用表单样式冲突**
+- [x] **T24E 修复资产勾选行与通用表单样式冲突**
   - 依赖：T24D、T12。
   - R：R8（参考候选上限/警示保持）；PRD：§3.2/§3.3（绑定编辑修订与级联）、§3.4 R8、§9、§11 M5；追加来源：需求方2026-09-08走查第3项。仅对齐样式本身R：无；R8行为不变。
   - 交付范围：①styles.css将文字输入样式限定于实际文本/数值输入，避免checkbox/radio/file继承文本框padding/min-height；②修复`.form-grid label`与`.shot-asset-option`的specificity，按spec §3.4设置18px框、8px间隔、40px可点击行及多行第一行对齐；③检查并修复同因影响的Director参考候选/镜头勾选行；④仅在布局必须时调整ShotsPage/DirectorPage的label文字容器class，不改事件、draft.asset_ids、API、上限/禁用/保存逻辑。不得大范围!important覆盖、定高裁字或拆散label关联。

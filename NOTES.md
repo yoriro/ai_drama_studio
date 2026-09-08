@@ -166,3 +166,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-08 C011 T24D 新普通 fixture 后端8014、隔离 Vite 5183、数据库`ai_drama_studio_c011_t03_ui_20260908_141708_30844`；fixture prepare/verify 与迁移退出码均为0，vLLM health 为 unhealthy、ComfyUI healthy。
 - 2026-09-08 C011 T24D 首次 BackNavigation 构建因联合类型收窄失败，失败日志保留；修正为 `props.to !== undefined` 后 build 与 `returnLocation.test.ts` 各退出0，未修改既有测试。
 - 2026-09-08 C011 T24D G 前端22 files/136 tests、build67 modules、Alembic upgrade/current/check、完整 backend `348 passed in 143.96s`、git diff check 均退出0；IAB 动态非法 Router state 因公开 evaluate 不暴露 history 未验证，证据见`.work/c011/T24D-browser-acceptance-20260908_142513.log`。
+- 2026-09-08 C011 T24E：`.form-grid` 文本输入选择器与三类勾选行修正后 build/G 均 exit 0；新普通批次 8015/5184 的双主题四视口浏览器采集记录18×18、8px、首行中心差0px、正式GET回读与清理无监听，详见`.work/c011/T24E-browser-acceptance-20260908_145851.log`。
