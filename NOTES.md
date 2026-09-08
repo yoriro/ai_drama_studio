@@ -157,3 +157,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-07 C011 T23 独立只读 DB 查询确认 #122 done、#123/#125/#126 canceled、#124 failed，#125 的 `cancel_requested_at` 与进度 `0.5` 与浏览器一致；53002/5194 停止后无监听。
 - 2026-09-07 C011 T23 G 前端 `126 passed`、build `64 modules`、Alembic upgrade/current/check、完整 backend `348 passed in 139.80s`、git diff check 均 exit 0；原始证据见 `.work/c011/T23-t23browser20260907_183050_42501-test.log`。
 - 2026-09-07 C011 T23 asyncpg 读取不能直接接受 SQLAlchemy `postgresql+asyncpg` DSN；改用 `postgresql://` 后只读查询 exit 0，失败 traceback 与修正输出均保留。
+- 2026-09-08 C011 T24 使用普通 fixture 批次 `T03-rerun-20260908_110151-34220`、后端 `53003`、前端 `5195`；四视口及默认高密度浏览器视口走查记录在 `.work/c011/T24-browser-acceptance-20260908_110151.log`，53003/5195 走查后无监听。
+- 2026-09-08 C011 T24 定向 Director 为 12 files/66 tests passed；G 使用新库 `ai_drama_studio_c011_t24_full_20260908_112524_32664` 与独立 DATA_DIR，完整 pytest `348 passed in 143.90s`，前端全量 `126 passed`、build 64 modules、Alembic current/check、git diff check 均 exit 0。
