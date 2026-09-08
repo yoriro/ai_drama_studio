@@ -172,3 +172,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-08 C011 T24F视口补验：`browser.capabilities.list/get("viewport")`提供正式覆盖；新批次后端52426、前端52427、tab38完成320×800/390×844/768×1024/1440×900双主题，DPR均1，最短列192.039px、三轨边界/宽度差0、gap8px，局部滚动、键盘选中镜头18与主题切换保持；已调用`viewport.reset()`并清理归属进程，原生200%仍未验证。
 - 2026-09-08 C011 T24F槽位边界修正：IAB 320×800初始根`scrollWidth=360/clientWidth=305`，修正`.director-slot-row`子项、上传框/file input及图片宽度后双主题根均`305/305`，390/768/1440也无根溢出；新G前端142、完整pytest348与Alembic均exit 0，证据见`.work/c011/T24F-slot-overflow-fix-browser-20260908.log`和`.work/c011/T24F-t24fslotfix20260908-test.log`。
 - 2026-09-08 C011 T24F：调用方确认原生桌面200%人工审查通过，确认记录见`.work/c011/T24F-native200-user-confirmation-20260908.log`；该确认不扩展为T24全页或动态reduced-motion通过。
+- 2026-09-08 C011 T24A：受控服务使用新库`ai_drama_studio_c011_t24a_controlled_20260908_180251`、端口52428、独立DATA_DIR且启动前`DEBUG_PROMPTS=true`；fixture prepare/verify、正式四次模板PATCH 200、集合GET逐字回读、独立current_database与DEBUG字段检查均exit 0。
+- 2026-09-08 C011 T24A：Alembic必须在`backend` CWD运行；仓库根目录调用缺少script_location，重复拼接backend路径也失败；两次命令构造/证据查询失败均保留在`.work/c011/`，未改生产代码、迁移或重发PATCH。
+- 2026-09-08 C011 T24A G：`T24A-t24aconfig20260908-test.log`记录前端142 passed、build 68 modules、全新full迁移库upgrade/current/check exit 0、完整backend `348 passed in 236.78s`、diff check exit 0。
