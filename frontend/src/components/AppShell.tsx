@@ -3,7 +3,14 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { ApiError, getHealth } from "../api";
 import { getAuxiliaryNavigationState } from "../features/navigation/returnLocation";
+import {
+  getDocumentTheme,
+  getThemeInitializationNotice,
+  setThemePreference,
+  type Theme,
+} from "../features/theme/theme";
 import { BackendStatus, type BackendState } from "./BackendStatus";
+import { ThemeSwitch } from "./ThemeSwitch";
 
 const navigation = [
   { label: "项目", to: "/" },
@@ -13,9 +20,22 @@ const navigation = [
 
 export function AppShell() {
   const location = useLocation();
+  const [theme, setTheme] = useState<Theme>(() => getDocumentTheme());
+  const [themeNotice, setThemeNotice] = useState<string | null>(() =>
+    getThemeInitializationNotice(),
+  );
   const [backendState, setBackendState] = useState<BackendState>({
     status: "loading",
   });
+
+  function handleThemeChange(nextTheme: Theme): void {
+    if (nextTheme === theme) {
+      return;
+    }
+    const change = setThemePreference(nextTheme);
+    setTheme(change.theme);
+    setThemeNotice(change.notice);
+  }
 
   useEffect(() => {
     let disposed = false;
@@ -44,25 +64,32 @@ export function AppShell() {
         <NavLink className="brand" to="/">
           AI Drama Studio
         </NavLink>
-        <nav aria-label="主导航">
-          {navigation.map((item) => (
-            <NavLink
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link-active" : "nav-link"
-              }
-              end={item.to === "/"}
-              key={item.to}
-              state={
-                item.to === "/"
-                  ? undefined
-                  : getAuxiliaryNavigationState(location, location.state)
-              }
-              to={item.to}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
+        <div className="app-header-actions">
+          <ThemeSwitch
+            notice={themeNotice}
+            onThemeChange={handleThemeChange}
+            theme={theme}
+          />
+          <nav aria-label="主导航">
+            {navigation.map((item) => (
+              <NavLink
+                className={({ isActive }) =>
+                  isActive ? "nav-link nav-link-active" : "nav-link"
+                }
+                end={item.to === "/"}
+                key={item.to}
+                state={
+                  item.to === "/"
+                    ? undefined
+                    : getAuxiliaryNavigationState(location, location.state)
+                }
+                to={item.to}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
       </header>
       <BackendStatus state={backendState} />
       <main className="page-container">

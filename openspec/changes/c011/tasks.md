@@ -1,8 +1,24 @@
 # C011 执行任务
 
-本文件是实施计划，checkbox 只表示已有验收证据，不替代 commit 证据；实施范围以需求方另行指定的任务为准。最初规划轮不授权实施；需求方随后已向 Luna 派发执行，本次 2026-09-07 裁决仅解除下述 T03 装置修复与重新验收的阻塞。按依赖一次只执行需求方指定的一项；失败/歧义立即停止，不勾选、不推进、不重试任务、不覆盖失败证据。新增测试只能是新的独立文件；任何已存在测试文件都不能修改。
+本文件是实施计划，checkbox 只表示已有验收证据，不替代 commit 证据；实施范围以需求方另行指定的任务为准。最初规划轮不授权实施；需求方随后已向 Luna 派发执行，并于 2026-09-07 授权下述任务内自主修复。按依赖一次只执行需求方指定的一项；失败不得勾选或推进，技术缺陷按下节自主诊断修复，需求歧义及越界事项停止报告，不重放失败业务 Task、不覆盖失败证据。新增测试只能是新的独立文件；既有测试仅允许 AGENTS.md 明确记录的 C011 T05 提交屏障窄修正，其余不变。
 
 ## 通用验收命令与约定
+
+2026-09-08需求方追加四项前端优化：先完成T24B-T24F（按下文依赖），结合T24A再执行最终双主题T24，最后才进入T25及固定收尾。T24本身仍是无实现改动的验收任务；实现单列在B-F，旧任务编号/提交历史不重命名、不重写。新增AC-26..31在spec定稿后已先补4条追溯行，再编写以下任务；不把过去暗色验收或G通过当作新需求完成。本轮Astra仅修改计划/追溯，不实施前端。
+
+2026-09-08 T24B安全停止后调整：按spec §7.4将正式控件交付前的DevTools临时主题检查移交T24C，改由真实主题按钮验收。先完成下列T24B静态交付检查，才按既有派发进入T24C；不得直接凭G勾选T24B或声称双主题视觉通过。AC-05/07/26仍有准确追溯行，无新增AC或测试行；T24C承担完整双主题视觉检查及明确的主题CSS修正，验收未完成不得进入T24D。浏览器安全停止不属于可通过改脚本、换工具通路或伪造URL自主绕过的技术错误；保留原证据。本轮规划不代Luna勾选或提交任何任务。
+
+### 需求方于 2026-09-07 授权的任务内自主修复边界
+
+本节记录需求方“下次碰到这种情况让 Luna 自己想办法解决”的最新授权，适用于 C011 当前已被明确派发的 task。此前本文件各次裁决中对下列技术缺陷要求“立即停止并等待再次裁决”“仅允许一次重验”的限制，由本节替代；不改变需求合同、任务顺序或验收通过标准。根因未明时可以继续只读诊断，不必把每个工具错误都交回需求方。
+
+- **可自行修复并重新验证**：当前 task 范围内的脚本语法/字符串/参数/路径拼接错误、原生命令启动与输出/退出码采集、已安装依赖的初始化、验收装置的 HTTP/WS 协议分类及资源生命周期错误，以及当前授权实现的明确编译/类型/变量作用域缺陷。前提是根因有代码或日志证据，修复保持既定 spec/PRD/API/数据语义且不扩大文件或能力范围。例如 PowerShell `.concat()`、未启动 npm 的空日志路径、把 useLocation 放错组件，都不再需要逐次请求裁决。
+- **执行顺序**：保留原命令、原始输出、失败退出码或“命令未启动”事实；检查相关完整调用通路并说明根因；做最小修复；执行最便宜且能覆盖该缺陷的验证；通过后完成原 task 的全部验收。优先直接调用标准 CLI 或复用已通过验证的装置，不为一次命令另建启动器。需要重跑 G 或有数据库/文件副作用的验收时使用新批次和既定新隔离库/DATA_DIR，旧证据与部分数据保留，禁止在同一部分完成环境盲目重放 mutation。无需为了修复未启动的本地 CLI 再等待需求方批准。
+- **自主修复不等于隐藏失败或自动重试**：原次运行仍标记失败/未启动；修复后的执行单独记录。禁止不改根因重复同一失败命令、循环跑到绿、吞异常、过滤错误、伪造退出码、削弱检查或拿局部通过代替整项验收。修复若未解决已判断的根因，应重新诊断；不能定位根因或只能通过越界改动继续时，停止并汇总证据与待决问题。
+- **仍须停止报告**：PRD/spec/代码之间会改变行为的冲突或歧义；业务/一致性/并发验收断言失败而需要改变既定行为或期望值；需要修改任何既有测试、关闭类型/构建检查、增加依赖/机制或扩大当前授权实现范围；需要操作用户数据库/进程、缺失外部依赖门槛、重放 failed 业务 Task、破坏性清理或其他未获授权行为。普通检查失败可以诊断，但不得自行把它认定为“测试错了”。本节不授权后续 task、修改生产依赖配置或绕过外部门槛。
+- **完成与报告**：所有原定验收（含浏览器与 G）完成前不勾选、不回填成功、不提交。完成报告集中列出遇到的技术缺陷、修复、各次证据与最终真实退出码，不再让需求方逐条批准这些范围内修复；提交仍遵守既有逐 task 授权，不夹带其他 task 改动。生产 Task 的失败不重试规则完全保留。
+
+### 命令与证据
 
 - 本轮规划基线：`1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`。正式实施前记录实际HEAD与已有改动；未经授权不清理 `.work/`。
 - 以下文件名/CLI 是前置 task 的**计划交付合同**，不是声称当前已存在。`tasks.md` 不授权把它们今天落盘。
@@ -97,6 +113,24 @@
   - 追溯行：`C011 导航来源返回与剧集唯一入口`。
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/navigation/returnLocation.test.ts`；G；人工浏览器逐项 AC-02/03：六类来源、辅助页互跳、刷新、新标签、浏览器 back/forward、非法来源和已删实体，记录目标 URL 与零额外 mutation。纯函数用例不得声称验证已挂载 Router；真实浏览器补足接线。
   - 验收归属：AC-02/AC-03 完整。实现前对被替换的既有导航片段 git blame。
+
+  **2026-09-07 Astra 对 T05 location 作用域构建失败的裁决（仅本项）：**
+
+  1. `.work/c011/T05-t05complete20260907_1337-test.log` 记录前端14个测试文件、88个用例通过，frontend test exit=0；`tsc -b && vite build` exit=1，G 停止，Alembic/完整 pytest 未执行。AssetPage 第64行与 EpisodeWorkspacePage 第44行的 useLocation 局部变量声明在父组件，使用位置却分别在独立模块级组件 AssetCard、ScriptEditor 内。子组件无法访问父组件局部变量，裸 location 解析为 DOM 全局 Location，产生无 state 的 TS2339；父组件未使用的局部变量产生 TS6133。这是 T05 导航接线缺陷，不是依赖/构建器失败，也不涉及产品语义歧义。
+  2. 授权本轮最小修复仅限这两个生产页面：将 `const location = useLocation()` 从未使用的父组件移至实际使用路由来源的 AssetCard、ScriptEditor 函数组件顶层，遵守 Hooks 无条件调用规则；两个组件均沿用既有 Router 上下文。保留三个任务中心 Link 的 getAuxiliaryNavigationState 调用和原 pathname/search/hash/state 合同。不使用 window.location、any/类型断言、ts-ignore、关闭 noUnusedLocals、改 tsconfig 或削弱 build；不修改既有测试、生成动作、API、数据或其他业务逻辑。删除旧声明前按 AGENTS 执行 git blame，报告准确移除位置。
+  3. 先只读核查 T05 全部新增来源链接的声明/使用是否处于同一有效作用域，重点检查同文件独立子组件；不得把文件内“存在 useLocation”当成接线有效。发现本裁决之外的业务歧义或额外缺陷按既有停止规则报告，不扩大本轮修改范围。现有纯函数测试不证明挂载页面接线，沿用 AC-02/03 与 `C011 导航来源返回与剧集唯一入口`；计划测试层级仍为“纯函数”，编译和真实浏览器是既有补充验收，不新增追溯行或测试装置。
+  4. 修复后先运行 `npm --prefix frontend run build`，再运行 `npm --prefix frontend run test -- src/features/navigation/returnLocation.test.ts`；记录实际命令、原始输出和退出码，任一失败即停止。通过后在已授权隔离浏览器环境按原 T05 验收全部 AC-02/03，特别实际点击 AssetCard 的图片任务链接及 ScriptEditor 的资产/分镜任务链接，核对返回到同一集 assets/script tab 及原 search/hash，无额外 mutation；不以纯函数通过替代浏览器接线，不另行授权真实 GPU 生成或伪造浏览器通过证据。
+  5. 上述检查通过后允许一次新的完整 G：`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T05 -EvidenceLabel <本轮唯一标签>`，完整 pytest 使用新的仅迁移隔离库/DATA_DIR，保留原次失败日志与资源，不从失败 G 中间续接或复用其通过片段冒称整轮通过。任一门槛失败停止，未全部验收前 T05 不勾选、不回填成功、不提交、不进入 T06。全部完成后仅按原逐 task 授权提交 T05 已验收改动，不 stage .work 或夹带 T02 依赖变更；报告命令/输出/退出码、浏览器证据、删除项及 commit 状态。
+
+  **2026-09-07 T05 build 尚未启动的执行补充：** `.work/c011/T05-scopefix-build-launcher-error-20260907_140000.log` 记录 PowerShell 字符串实例误用 `.concat()`，导致日志路径为空，Tee-Object 参数绑定失败，`PROCESS_RESULT=BUILD_NOT_STARTED`。其中 `EXIT_CODE=0` 不能归属未启动的 npm，也不能作为构建证据。保留该日志。授权执行尚未启动的原定 build，不新建启动器：在仓库根通过终端工具直接执行 `& npm.cmd --prefix frontend run build`，紧接着保存 `$buildExitCode = $LASTEXITCODE`，输出该值并以 `exit $buildExitCode` 结束本次命令；保留工具原始输出和已结束进程的退出码，不用临时 Tee-Object 管道或日志文件名包装阻挡命令。后续完整 G 继续使用既有装置持久化证据。build 实际非零则停止；通过后依上一裁决继续定向测试、浏览器与新批次 G。本补充不追认此前 build 成功，不修改产品 spec、不扩大生产修复范围。
+
+  **2026-09-07 需求方授权 T05 回归门槛中的 C009 stub 屏障窄修正：**
+
+  - 证据与范围：G 的 `.work/c011/T05-t05scopefix20260907_1410-full-pytest.stdout.log` 记录 `1 failed, 345 passed in 138.73s`，退出码文件为1；相对C010归档基线backend无diff。既有 `/prompt` stub 先 set 屏障、再发送响应、最后 finally 记录 submit，WS线程有机会先记录ws。C011 T01/T02旧日志分别记录346 passed，不能证明该竞态不存在。当前失败保留，不能靠无修复重复跑绿消除。
+  - 交付：Luna 仅按 AGENTS.md 本次例外调整 `_LifecycleHTTPHandler.do_POST`，将屏障释放置于本次 `/prompt` 响应成功及 submit 记录入队之后；明确记录成功标记在何处置位，验证发送/记录失败不放行。每次HTTP请求只记录一次，不改变任何测试断言或生产代码。该授权取代本文件此前对这一个函数的禁止修改限制，不类推到其他位置。
+  - R：无；PRD：§6.2（gen_clip_video 流水线）、§6.3（显存分时）；计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C009 GPU/Comfy 资源生命周期、取消与失败：cache miss/hit 的 wake/chat/sleep/upload/submit/WS/history/view/free 精确顺序，vLLM/Comfy 跨组件活跃区间不重叠，各安全点取消、interrupt best-effort、主错误与 cleanup/free 双保留`；以及 `C011 范围回归与文档提交一致性`。现有行已包含失败用例，无新增测试行或用例。
+  - 验收：人工逐字审计该文件diff仅在授权函数内，所有断言保持原文，屏障释放在记录之后形成明确同步关系，不依靠时间概率。运行 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T05 -EvidenceLabel <本轮唯一标签> -TargetPytest tests/task_system/test_c009_resource_lifecycle.py`，定向该文件全部用例及随后完整pytest分别使用新的隔离库/DATA_DIR，保留完整命令/输出/真实退出码；这不是对旧失败批次的重试。不得为证明稳定而无目的循环重跑；通过依据包括修复的同步关系、原断言及本轮真实运行结果。T05原定浏览器/其他验收仍需齐全才能勾选并按授权提交，不能进入T06或把新通过改写为旧批次通过。
 
 - [x] **T06 移除剧集重复入口**
   - 依赖：T05。
@@ -260,22 +294,85 @@
   - 验收方式与命令：人工浏览器按AC-10..18、AC-20/21逐项执行，使用T04管道精确放行；保存实际网络/WS、截图和独立DB对照；G。若浏览器链路未经过被测page则此task失败，DOM mock结果不能代替。
   - 验收归属：任务中心用户→页面→真实API/DB/WS完整观察链；handler为mock，不声称真实生成或GPU。
 
-- [x] **T24 完成全站响应式视觉与功能保留验收**
-  - 依赖：T05-T15、T23。
+- [ ] **T24A 补齐受控生成按钮验收的运行配置前置（2026-09-08裁决新增，先于T24补验）**
+  - 依赖：T03、T04、T23；不依赖T24完成。
+  - R：无；PRD：§7、§12.2（干净测试库示例）、§11 M5；按spec §7.4执行，正式四模板生产部署仍归C012。
+  - 交付范围：不改代码、不新建脚本；用既有装置准备新受控库/DATA_DIR/证据批次，启动前设置DEBUG_PROMPTS=true，确认T04的四类handler与health client替代及进程身份。先执行现有ui_fixture prepare/verify，再核对本轮OpenAPI，通过正式设置API安装spec §7.4的四行人工模板并GET逐字回读。记录四类按钮所需合法target与确认条件，避免同target任务互相冲突。此项只完成前置，不点击生成按钮或伪称到达barrier。
+  - 计划测试层级：API 集成；跨进程/资源生命周期。
+  - 追溯行：`C011 验收装置与生产通路归属`；AC-25已完成spec→现有行覆盖检查，无缺行，不新增仓库测试。
+  - 验收方式与命令：`python .work/c011/ui_fixture.py --help`、`python .work/c011/ui_fixture.py prepare`、`python .work/c011/ui_fixture.py verify`（通过现有明确环境变量选择同一新受控批次）；正式设置页逐项保存或直接用既有HTTP客户端发送四次 `PATCH /api/prompt-templates/{key}`（body仅content，精确内容见spec），再 `GET /api/prompt-templates`；每次200且key/正文逐字一致，verify exit=0并有DEBUG字段；独立只读查询current_database()对照，进程命令/显式配置证据确认受控模式；G（Task=T24A，唯一EvidenceLabel，完整pytest另建仅迁移库）。原失败日志及旧资源保留。
+  - 产出证据：只记录配置前置通过与环境身份，生产源文件/迁移/工作流/正式模板无diff；人工模板不得装到普通服务或用户库。未达到条件保持本项未完成及T24阻塞。
+
+- [x] **T24B 完成白紫亮色与暗色语义样式**
+  - 依赖：T07、T15、T23；当前T24未完成不阻塞这项明确授权的修复。
+  - R：无；PRD：§9、§11 M5；追加来源：需求方2026-09-08走查第1项。
+  - 交付范围：仅styles.css。逐项交付①复用根data-theme选择两套完整token，暗色基线保留、亮色逐项采用spec §3.3；②覆盖header/状态栏/页面/表单/select/checkbox/按钮各状态/错误/DEBUG/scene与两轨/预检/媒体空态；③移除相应硬编码暗色及颜色滤镜，原媒体不反色；④双主题color-scheme/焦点/对比度与320px主题控件预留布局。此项不接线主题状态/存储，后者由T24C单独交付；不安装样式库/字体/图标包。
+  - 计划测试层级：不新增自动测试。
+  - 追溯行：`C011 明暗主题与偏好存储`、`C011 全站视觉与响应式可访问性`。
+  - 验收方式与命令：`git diff -- frontend/src/styles.css`；`rg -n -- 'data-theme|--color-|--shadow-|color-scheme|filter:|#[0-9a-fA-F]{3,8}|oklch\(|rgba?\(|@media|focus' frontend/src/styles.css`；人工逐项对照§3.1/§3.3的token值、作用域和§4组件消费选择器，记录每项对应规则、无对应暗色硬编码/媒体反色、响应式与焦点规则保留。`npm --prefix frontend run build`；G（Task=T24B）。检索命中颜色定义本身不是失败，须区分主题定义与组件硬编码；不新建检验脚本或镜像测试。已有G只有在确认其后实现/依赖/装置没有变动且原生退出码完整时才可沿用并引用原证据，不能把文档调整称为重跑通过；发生相关改动后执行新批次G。
+  - 验收归属：仅CSS交付与回归证据，不是AC-26或AC-05/07的渲染通过。双主题真实组件、实际合成背景对比度和320px根溢出检查完整移交T24C，在T24D前完成；最终T24仍全量检查。原DevTools安全停止证据保留，不改写其结果。静态审计和build/G均通过后才可勾选本项；本次裁决不代执行者勾选。
+
+- [x] **T24C 接线主题切换、偏好存储与页面状态保持**
+  - 依赖：T24B、T02。
+  - R：无；PRD：§9、§11 M5；追加来源：需求方2026-09-08走查第1项。仅浏览器外观偏好，不新增后端设置项。
+  - 交付范围：①新增features/theme/theme.ts，单一实现dark/light解析、根属性/theme-color应用及localStorage读写的明确错误语义；②main.tsx在首次React挂载前调用一次初始化，index.html同步暗色默认theme-color，禁止重复bootstrap；③新增components/ThemeSwitch.tsx并由AppShell接线可访问的两个按钮及存储提示，styles.css补控件布局；④新增独立features/theme/theme.test.ts覆盖无/合法/非法值与存储异常的规定结果；⑤新增独立features/theme/themeWiring.test.tsx，jsdom挂载实际AppRoutes/AppShell/主题控件和实际页面，mock仅HTTP/WS边界，验证草稿/选择/筛选保持、在途生成请求精确一次及响应处理；⑥收口从T24B移交的双主题渲染检查，若发现与§3.1/§3.3不符的主题颜色、焦点或窄屏主题控件布局，只在styles.css内修正并重新验证，不提前实施T24D-F。不得修改既有测试，不给路由/页面增加theme key，不请求主题API，不新建全局状态框架。
+  - 计划测试层级：纯函数；任务系统 mock（AC-28含在途与重放竞态）。
+  - 追溯行：`C011 明暗主题与偏好存储`、`C011 全站视觉与响应式可访问性`。
+  - 验收方式与命令：`npm --prefix frontend run test -- src/features/theme/theme.test.ts src/features/theme/themeWiring.test.tsx`；`npm --prefix frontend run build`；G（Task=T24C）。人工真实按钮切换、刷新/同origin新标签、320px键盘操作并对照data-theme/color-scheme/theme-color/aria-pressed；在明暗两主题逐页检查§4全部组件、表单/状态/错误/DEBUG/预检/媒体空态，并记录实际合成背景对比度满足§3.2阈值、320px根scrollWidth不超过clientWidth、媒体无反色。使用正式主题按钮，不通过DevTools临时改根属性模拟功能；进入浏览器前须满足spec §7.4的安全URL确认条件。自动用例以原页面实际请求账本核对零额外mutation/WS，不手填期望账本。各页面草稿/镜头Clip选择/筛选独立场景，不构造同页不可达状态；在途生成选择现有允许提交的页面。
+  - 验收归属：AC-26/27/28及AC-05/07双主题视觉切片；使用既有DOM装置，无新验收驱动。mock存储异常证据与真实浏览器正常存储分别说明；媒体生成/真实GPU不在本项。移交的视觉检查全部通过后才可勾选并进入T24D，不能只凭自动测试放行或留到最终T24才发现；安全URL条件未满足时保留未完成状态，不绕过安全限制。
+
+- [ ] **T24D 统一已有返回入口为左箭头控件**
+  - 依赖：T24C、T05。
+  - R：无；PRD：§2.1(1-3,8)、§9、§11 M5；追加来源：需求方2026-09-08走查第2项。
+  - 交付范围：①新增components/BackNavigation.tsx共享一个本地SVG和Link/button展示，保留实际元素语义；②在AuxiliaryPageReturn、ProjectPage、EpisodeWorkspacePage正常/错误/无来源分支替换原文本外观；③styles.css统一40×40/20×20图标、focus/hover及两主题；④aria-label/title继续使用原目的地名称，非法来源提示保留。源代码检索其余相同返回文案若无实际导航入口不修改；不动路由决策、目标/state/replace，不添加navigate(-1)。替换前git blame，报告准确移除的可见文字及新可访问名称。
+  - 计划测试层级：不新增自动测试。
+  - 追溯行：`C011 统一后退图标与目标保持`、`C011 导航来源返回与剧集唯一入口`。
+  - 验收方式与命令：`npm --prefix frontend run test -- src/features/navigation/returnLocation.test.ts`；G（Task=T24D）；`rg -n '返回项目首页|返回项目|返回刚才页面' frontend/src`人工核对每项作为名称/title保留，不能要求零匹配。真实浏览器两主题检查40px尺寸、焦点、Link Enter与button Enter/Space、原目标/replace/search/hash及无来源/非法来源/已删实体；不新增低影响图标的镜像测试，实际交互补足接线。
+  - 验收归属：AC-29、AC-02/03；图标统一不表示返回行为统一为历史后退。
+
+- [ ] **T24E 修复资产勾选行与通用表单样式冲突**
+  - 依赖：T24D、T12。
+  - R：R8（参考候选上限/警示保持）；PRD：§3.2/§3.3（绑定编辑修订与级联）、§3.4 R8、§9、§11 M5；追加来源：需求方2026-09-08走查第3项。仅对齐样式本身R：无；R8行为不变。
+  - 交付范围：①styles.css将文字输入样式限定于实际文本/数值输入，避免checkbox/radio/file继承文本框padding/min-height；②修复`.form-grid label`与`.shot-asset-option`的specificity，按spec §3.4设置18px框、8px间隔、40px可点击行及多行第一行对齐；③检查并修复同因影响的Director参考候选/镜头勾选行；④仅在布局必须时调整ShotsPage/DirectorPage的label文字容器class，不改事件、draft.asset_ids、API、上限/禁用/保存逻辑。不得大范围!important覆盖、定高裁字或拆散label关联。
+  - 计划测试层级：不新增自动测试。
+  - 追溯行：`C011 资产勾选行对齐`、`C011 既有功能入口与状态呈现不变`。
+  - 验收方式与命令：`npm --prefix frontend run build`；G（Task=T24E）；真实浏览器两主题四视口测checkbox与首行Range行盒中心差≤1px，检查长中文/英文名换行和输入框/上传控件未退化；分别点击checkbox、名称及Space各一次，观察选中集合和一次保存PATCH body/正式GET回读与原合同一致，取消/未保存行为不变；参考候选上限和R8提示保持。布局不新增jsdom几何断言，以实际计算样式/坐标/网络记录验收。
+  - 验收归属：AC-30；现有fixture不能提供长名称时仅经本轮隔离库正式资产编辑API准备输入，不新增驱动或生产特判。
+
+- [ ] **T24F 增宽导演台镜头并保持共同时间比例**
+  - 依赖：T24E、T13。
+  - R：R5、R5a、R8（原选择约束保持）；PRD：§3.4、§9（一带两轨一板）、§11 M5；追加来源：需求方2026-09-08走查第4项。宽度计算本身R：无；选择/连续/同场景规则保持不变。
+  - 交付范围：①新增features/director/directorTrackLayout.ts仅计算spec §3.5的共同最小宽度，输入沿用现有已验证正duration_est，空数组单独处理；②DirectorPage把同一布局宽度施加于三个轨道共同内容，保留projection.gridTemplateColumns与span/gap/选择接线；③styles.css取消本区域仅760px压缩的约束，保证最短列192px、gap8px、局部滚动与焦点可见，metadata/原因换行可读；④新增独立features/director/directorTrackLayout.test.ts覆盖空/单列/不等时长/多列/小数时长计算，既有directorModel及其测试不改。禁止独立列钳制/等宽/时间轴缩放控件或扩大为虚拟化改造。
+  - 计划测试层级：纯函数。
+  - 追溯行：`C011 导演台轨道可读宽度与比例`、`C011 既有功能入口与状态呈现不变`。
+  - 验收方式与命令：`npm --prefix frontend run test -- src/features/director/directorTrackLayout.test.ts`；`npm --prefix frontend run test -- src/features/director`；G（Task=T24F）。真实浏览器两主题四视口/200%下测最短列≥192px、三轨边界误差≤1px、duration比例及Clip跨列间隙；横向滚动/键盘聚焦远端控件，观察根无溢出、主题切换scrollLeft与选择保持；原选择/预检/创建/选Clip操作仍使用原合同。宽度纯函数测试不冒称真实CSS grid对齐。
+  - 验收归属：AC-31；与theme在途状态保持联检AC-28，最终全页结论在T24收口。
+
+- [ ] **T24 完成全站响应式视觉与功能保留验收**
+  - 依赖：T05-T15、T23、T24A、T24B、T24C、T24D、T24E、T24F。需求方2026-09-08追加后须对最终实现重新验收，不能沿用旧暗色走查作为整体通过。
   - R：R1、R2、R3、R4、R5、R5a、R6、R7、R8、R9、R10、R11、R12；PRD：§2.1、§3.1-§3.5、§5、§9、§11 M5。
   - 交付范围：不夹带代码或装置改动；使用T03普通生产后端/fixture逐页执行spec §3视口矩阵、§4.1每项功能入口、AC-02..09/19/22。检查四类生成按钮的现有请求接线时单独使用T04受控handler模式并明确不证明实际生成；普通模式不得触发未授权GPU流水线。未满足项记录为失败并停在本task。
-  - 计划测试层级：不新增自动测试。
-  - 追溯行：`C011 导航来源返回与剧集唯一入口`；`C011 全站视觉与响应式可访问性`；`C011 既有功能入口与状态呈现不变`；`C011 全局异常空态与媒体错误呈现`；`C011 全局浏览器功能与视觉验收`。
-  - 验收方式与命令：人工浏览器四视口+200%缩放、Tab/Enter/Space、reduced-motion与计算对比度；记录每页/每功能实际检查结果、截图及method/path/body。`npm --prefix frontend run test -- src/features/director`；G。自建自动浏览器脚本若尚无前置task，不可临时补进此task。
-  - 验收归属：AC-05..08/22全页结论在这里收口；不得只交首页截图就勾全站。
+  - 计划测试层级：不新增自动测试；任务系统 mock；跨进程/资源生命周期。前者用于视觉，后两者用于受控生成接线。
+  - 追溯行：`C011 导航来源返回与剧集唯一入口`；`C011 全站视觉与响应式可访问性`；`C011 既有功能入口与状态呈现不变`；`C011 全局异常空态与媒体错误呈现`；`C011 全局浏览器功能与视觉验收`；`C011 验收装置与生产通路归属`；`C011 明暗主题与偏好存储`；`C011 统一后退图标与目标保持`；`C011 资产勾选行对齐`；`C011 导演台轨道可读宽度与比例`。
+  - 验收方式与命令：明暗两主题分别执行四视口+原生200%缩放、Tab/Enter/Space、动态reduced-motion与计算对比度；逐页逐状态记录实际结果、截图及method/path/body，并覆盖AC-26..31。先运行`npm --prefix frontend run test -- src/features/theme`、`npm --prefix frontend run test -- src/features/director`，再G。自建自动浏览器脚本若尚无前置task，不可临时补进此task。
+  - 验收归属：AC-05..08/22与AC-26..31全页结论在这里收口；不得只交首页或单一主题截图就勾全站。至少记录8类页面（首页/项目/剧本/资产/分镜/导演台/设置/任务中心）×2主题×4视口共64个基础页面组合，另记录空/错/DEBUG/候选/状态变体、每主题原生200%和动态reduced-motion。不是只凑截图数：每格含根溢出/入口/文字焦点可读性结果及证据；任一失败不勾选。四类生成按钮在T04受控模式每主题各验一次，普通模式不触发GPU；全页保存/删除/选用等按原§4.1合同。
+
+  **2026-09-08 Astra 对 T24 部分验收与补验路径的裁决：**
+
+  1. T23已完成，不阻塞进入T24；T24当前未完成，禁止进入T25。commit `68ca536c169491b2eb030f8d83a265dfd7fe78aa` 仅证明文档曾提交，不证明门槛全过；保留历史commit，不reset/amend掩盖。当前checkbox保持未勾，追溯/NOTES追加更正说明普通证据有效但非整项通过；按既有文档修正授权单独提交状态更正，不把更正commit称作T24完成，不夹带未验收代码。
+  2. 保留普通四视口/键盘/来源/对比度/局部滚动和G日志作为对应切片证据。720×450不是原生200%；CSS静态规则不能证明动态reduced-motion；409且无task_id/barrier不能证明生成按钮成功接线。新批次verify成功不覆盖旧DEBUG失败。旧通过证据仅在对应源码与配置不变且清楚标注模式/批次时沿用；配置变化影响的项目必须在新批次补验。
+  3. 先完成T24A，随后四类生成按钮分别走真实页面→正式REST校验/入队→生产队列→受控handler：生成资产、生成分镜、资产图片、片段视频。每类保存实际method/path/body/202/task_id与同id的BARRIER_REACHED、REST/独立DB记录；分镜沿用原impact确认，其他前置按现有UI/API合同满足。实际创建数据/文件的生成handler被替代，不能以受控done冒称真实产物；不改模板校验、不直插Task跳过按钮、不在普通模式触发GPU。
+  4. 使用现有computer-use技能的node_repl + @oai/sky操作专用Chrome/Edge验收页面：通过浏览器菜单选原生200%并截图确认，再执行spec §3逐页布局/可达性检查；通过DevTools Rendering内置媒体模拟切换no-preference→reduce→no-preference，记录matchMedia与实际位移/动画样式及可操作性，结束恢复原设置。使用内置功能不算新建驱动，不需要开发浏览器zoom API；不能用CSS zoom、页面脚本替换matchMedia或viewport等效图代替。若当前执行任务无法加载工具或操作目标，保存真实错误后保持对应AC阻塞，不删除要求。
+  5. T24四类受控handler接线的证据归“任务系统 mock；跨进程/资源生命周期”，普通视觉部分仍为“不新增自动测试”；沿用 `C011 既有功能入口与状态呈现不变`、`C011 全局浏览器功能与视觉验收`，并记录 `C011 验收装置与生产通路归属`。不新增自动测试文件，不修改生产/既有测试/配置或夹带驱动；需要装置实现变化先单列前置任务，本裁决仅增加运行配置准备T24A。
+  6. 补验命令为原Director定向命令与 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T24 -EvidenceLabel <补验唯一标签>`，完整pytest另用新仅迁移库；保留原G成功及后续失败的时间顺序。全部缺项与原要求齐全才回填整项、勾T24并提交。DECISIONS候选无需新增：浏览器内置控制是验收手段，人工模板是现有PRD §7/§12.2与D-014边界下的隔离配置，不变更跨change产品约定。
 
 - [ ] **T25 完成范围追溯与回归审计**
-  - 依赖：T24。
+  - 依赖：T24A、T24B、T24C、T24D、T24E、T24F全部完成，且最终双主题T24全部验收通过。T25编号保留，执行顺序延后；不能用旧T24提交/单主题G跳过追加任务。
   - R：无；PRD：§0、§5 通用、§9、§11 M5。
-  - 交付范围：核对所有AC/追溯/指定用例和人工记录；保护基线既有测试，允许新增独立测试文件；核对后端生产、schema/migration/workflow/template零变化、无新增业务、无未列装置、无旧日志伪装新结果。只修正文档事实，不修代码或重跑失败到绿。
+  - 交付范围：核对全部31条AC/追溯/指定用例和最终双主题人工记录；保护基线既有测试，仅允许AGENTS.md明确授权的C011 T05 do_POST窄修正和新增独立测试文件；核对后端生产、schema/migration/workflow/template零变化、无新增业务、无未列装置、无旧暗色证据伪装追加需求结果。只修正文档事实，不修代码或重跑失败到绿。
   - 计划测试层级：不新增自动测试。
   - 追溯行：`C011 范围回归与文档提交一致性`。
-  - 验收方式与命令：G；`git diff --check`；`git diff --name-status 1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`；`git diff 1ef70e5d5fad245d6e38e1472eaa16ffb523aa59 -- backend/app backend/alembic backend/workflows` 应为空；`git status --short`；人工按基线逐一核对既有test无M/D、新增用例逐行回填；`rg -n '^\| C011 .*待填' openspec/TRACEABILITY.md` 应无匹配。
+  - 验收方式与命令：G；`git diff --check`；`git diff --name-status 1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`；`git diff 1ef70e5d5fad245d6e38e1472eaa16ffb523aa59 -- backend/app backend/alembic backend/workflows` 应为空；`git status --short`；人工按基线逐一核对既有test仅允许授权do_POST范围M、其他无M/D、新增用例逐行回填（含本次4条新追溯行）；`rg -n '^\| C011 .*待填' openspec/TRACEABILITY.md` 应无匹配。
   - 验收归属：AC-01/23；范围依据允许文件集，不要求整个change diff为空。
 
 ## 固定收尾任务

@@ -33,6 +33,7 @@
   --radius-card: 18px;
   --radius-pill: 999px;
   --shadow-panel: 0 18px 48px rgb(0 0 0 / 22%);
+  --shadow-panel-hover: 0 22px 56px rgb(0 0 0 / 26%);
 
   background: var(--color-background);
   color: var(--color-text);
@@ -41,6 +42,42 @@
     BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="light"] {
+  --color-background: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f7f4ff;
+  --color-surface-strong: #ede9fe;
+  --color-surface-input: #ffffff;
+  --color-nav: #faf8ff;
+  --color-border: #ddd6e9;
+  --color-border-strong: #80738f;
+  --color-text: #21182f;
+  --color-text-muted: #655b73;
+  --color-primary: #7c3aed;
+  --color-primary-foreground: #ffffff;
+  --color-primary-ring: #6d28d9;
+  --color-accent-purple: #6d28d9;
+  --color-neutral-surface: #f3f0f7;
+  --color-neutral-text: #51455f;
+  --color-info-surface: #e0f2fe;
+  --color-info: #075985;
+  --color-success-surface: #dcfce7;
+  --color-success: #166534;
+  --color-success-border: #15803d;
+  --color-warning-surface: #fef3c7;
+  --color-warning: #854d0e;
+  --color-danger-surface: #fee2e2;
+  --color-danger: #991b1b;
+  --color-danger-border: #b91c1c;
+  --color-scene-purple: #ede9fe;
+  --color-scene-green: #dcfce7;
+  --color-scene-pink: #fce7f3;
+  --color-scene-teal: #ccfbf1;
+  --shadow-panel: 0 12px 32px rgb(46 16 101 / 8%);
+  --shadow-panel-hover: var(--shadow-panel);
+  color-scheme: light;
 }
 
 * {
@@ -77,6 +114,48 @@ a {
   padding: 16px clamp(16px, 4vw, 28px);
   position: relative;
   z-index: 1;
+}
+
+.app-header-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.theme-switch {
+  align-items: center;
+  background: var(--color-nav);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 4px;
+}
+
+.theme-switch button {
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+.theme-switch button[aria-pressed="true"] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.theme-switch-notice {
+  color: var(--color-danger);
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+  padding: 0 8px 4px;
 }
 
 .backend-status {
@@ -200,7 +279,7 @@ nav {
 .panel:hover,
 .entity-card:hover {
   border-color: var(--color-border-strong);
-  box-shadow: 0 22px 56px rgb(0 0 0 / 26%);
+  box-shadow: var(--shadow-panel-hover);
   transform: translateY(-2px);
 }
 
@@ -272,11 +351,6 @@ button:hover:not(:disabled),
 .button-link:hover {
   border-color: var(--color-primary);
   transform: translateY(-1px);
-}
-
-button[type="submit"]:hover:not(:disabled),
-.button-link:hover {
-  filter: brightness(1.06);
 }
 
 button:active:not(:disabled),
@@ -908,7 +982,8 @@ button:disabled {
 }
 
 .asset-debug pre {
-  background: var(--color-text);
+  background: var(--color-surface-strong);
+  color: var(--color-text);
   border-radius: 8px;
   margin: 0;
   max-width: 100%;
@@ -1736,6 +1811,16 @@ button:disabled {
     align-items: flex-start;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .app-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .theme-switch {
+    align-self: flex-start;
   }
 
   nav {
