@@ -347,14 +347,37 @@ button[type="submit"],
   padding: 10px 14px;
 }
 
+.back-navigation {
+  align-items: center;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-control);
+  color: var(--color-primary-foreground);
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  height: 40px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0;
+  width: 40px;
+}
+
+.back-navigation svg {
+  height: 20px;
+  width: 20px;
+}
+
 button:hover:not(:disabled),
-.button-link:hover {
+.button-link:hover,
+.back-navigation:hover {
   border-color: var(--color-primary);
   transform: translateY(-1px);
 }
 
 button:active:not(:disabled),
-.button-link:active {
+.button-link:active,
+.back-navigation:active {
   transform: translateY(0);
 }
 
@@ -1908,7 +1931,8 @@ button:disabled {
   .panel:hover,
   .entity-card:hover,
   button:hover:not(:disabled),
-  .button-link:hover {
+  .button-link:hover,
+  .back-navigation:hover {
     transform: none;
   }
 }

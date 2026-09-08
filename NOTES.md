@@ -163,3 +163,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-08 C011 T24B 静态审计与新G：`styles.css` 亮色令牌/组件消费/焦点/reduced-motion检查通过；修正DEBUG预格式文本的主题前景/背景后，前端126 passed、完整pytest 348 passed，Alembic与git diff check均exit=0，证据见`.work/c011/T24B-static-audit-20260908_2.log`与`.work/c011/T24B-t24bstatic20260908-test.log`。
 - 2026-09-08 C011 T24C 自动测试/G已通过；正式浏览器批次53103/5203启动后，CUA仅列出内置IAB，Chrome/Edge均返回不可用，未执行视觉检查；进程清理后归属进程数为0，失败记录见`.work/c011/T24C-browser-control-failure-20260908_130719.log`。
 - 2026-09-08 C011 T24C 新普通批次后端53104/前端5204、数据库`ai_drama_studio_c011_t03_ui_20260908_110151_34220`；IAB正式按钮双主题、同源刷新/新标签恢复、320px矩阵/键盘/状态保持及实际截图/计算样式记录于`.work/c011/T24C-browser-acceptance-20260908_131806.log`；IAB未提供原生200%/动态reduced-motion/localStorage直接读数，Chrome/Edge失败证据保留。
+- 2026-09-08 C011 T24D 新普通 fixture 后端8014、隔离 Vite 5183、数据库`ai_drama_studio_c011_t03_ui_20260908_141708_30844`；fixture prepare/verify 与迁移退出码均为0，vLLM health 为 unhealthy、ComfyUI healthy。
+- 2026-09-08 C011 T24D 首次 BackNavigation 构建因联合类型收窄失败，失败日志保留；修正为 `props.to !== undefined` 后 build 与 `returnLocation.test.ts` 各退出0，未修改既有测试。
+- 2026-09-08 C011 T24D G 前端22 files/136 tests、build67 modules、Alembic upgrade/current/check、完整 backend `348 passed in 143.96s`、git diff check 均退出0；IAB 动态非法 Router state 因公开 evaluate 不暴露 history 未验证，证据见`.work/c011/T24D-browser-acceptance-20260908_142513.log`。

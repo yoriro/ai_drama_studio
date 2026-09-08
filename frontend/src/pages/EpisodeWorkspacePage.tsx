@@ -20,6 +20,7 @@ import {
 import type { TaskEvent } from "../api/tasks";
 import type { Episode, Project } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
+import { BackNavigation } from "../components/BackNavigation";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
 import { getAuxiliaryNavigationState } from "../features/navigation/returnLocation";
@@ -181,7 +182,7 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
       <>
         <PageTitle>集工作区</PageTitle>
         <ApiErrorMessage error={loadError ?? new Error("剧集不存在")} />
-        <Link to="/">返回项目首页</Link>
+        <BackNavigation label="返回项目首页" to="/" />
       </>
     );
   }
@@ -193,9 +194,10 @@ export function EpisodeWorkspacePage({ activeTab }: EpisodeWorkspacePageProps) {
         {context.project.name} · 第 {context.episode.seq} 集 · {context.episode.title}
       </p>
       <p className="workspace-return">
-        <Link className="button-link" to={`/projects/${context.project.id}`}>
-          返回项目
-        </Link>
+        <BackNavigation
+          label="返回项目"
+          to={`/projects/${context.project.id}`}
+        />
       </p>
       <nav aria-label="集工作区选项卡" className="workspace-tabs">
         {tabs.map((tab) => (

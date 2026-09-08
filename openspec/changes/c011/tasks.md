@@ -321,14 +321,14 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/theme/theme.test.ts src/features/theme/themeWiring.test.tsx`；`npm --prefix frontend run build`；G（Task=T24C）。人工真实按钮切换、刷新/同origin新标签、320px键盘操作并对照data-theme/color-scheme/theme-color/aria-pressed；在明暗两主题逐页检查§4全部组件、表单/状态/错误/DEBUG/预检/媒体空态，并记录实际合成背景对比度满足§3.2阈值、320px根scrollWidth不超过clientWidth、媒体无反色。使用正式主题按钮，不通过DevTools临时改根属性模拟功能；进入浏览器前须满足spec §7.4的安全URL确认条件。自动用例以原页面实际请求账本核对零额外mutation/WS，不手填期望账本。各页面草稿/镜头Clip选择/筛选独立场景，不构造同页不可达状态；在途生成选择现有允许提交的页面。
   - 验收归属：AC-26/27/28及AC-05/07双主题视觉切片；使用既有DOM装置，无新验收驱动。mock存储异常证据与真实浏览器正常存储分别说明；媒体生成/真实GPU不在本项。移交的视觉检查全部通过后才可勾选并进入T24D，不能只凭自动测试放行或留到最终T24才发现；安全URL条件未满足时保留未完成状态，不绕过安全限制。
 
-- [ ] **T24D 统一已有返回入口为左箭头控件**
+- [x] **T24D 统一已有返回入口为左箭头控件**
   - 依赖：T24C、T05。
   - R：无；PRD：§2.1(1-3,8)、§9、§11 M5；追加来源：需求方2026-09-08走查第2项。
   - 交付范围：①新增components/BackNavigation.tsx共享一个本地SVG和Link/button展示，保留实际元素语义；②在AuxiliaryPageReturn、ProjectPage、EpisodeWorkspacePage正常/错误/无来源分支替换原文本外观；③styles.css统一40×40/20×20图标、focus/hover及两主题；④aria-label/title继续使用原目的地名称，非法来源提示保留。源代码检索其余相同返回文案若无实际导航入口不修改；不动路由决策、目标/state/replace，不添加navigate(-1)。替换前git blame，报告准确移除的可见文字及新可访问名称。
   - 计划测试层级：不新增自动测试。
   - 追溯行：`C011 统一后退图标与目标保持`、`C011 导航来源返回与剧集唯一入口`。
-  - 验收方式与命令：`npm --prefix frontend run test -- src/features/navigation/returnLocation.test.ts`；G（Task=T24D）；`rg -n '返回项目首页|返回项目|返回刚才页面' frontend/src`人工核对每项作为名称/title保留，不能要求零匹配。真实浏览器两主题检查40px尺寸、焦点、Link Enter与button Enter/Space、原目标/replace/search/hash及无来源/非法来源/已删实体；不新增低影响图标的镜像测试，实际交互补足接线。
-  - 验收归属：AC-29、AC-02/03；图标统一不表示返回行为统一为历史后退。
+  - 验收方式与命令：`npm --prefix frontend run test -- src/features/navigation/returnLocation.test.ts`；G（Task=T24D）；`rg -n '返回项目首页|返回项目|返回刚才页面' frontend/src`人工核对每项作为名称/title保留，不能要求零匹配。真实浏览器两主题检查40px尺寸、焦点、Link Enter与button Enter/Space、原目标/replace/search/hash及无来源/已删实体；不新增低影响图标的镜像测试，实际交互补足接线。非空非法Router state分支按spec §9的2026-09-08裁决采用组合证据：上述既有非法输入测试通过；用`git diff <T24D实施前记录的实际基线> -- frontend/src/features/navigation/returnLocation.ts frontend/src/components/AuxiliaryPageReturn.tsx`审计判定/提示/目标/replace不变，人工完整读取BackNavigation.tsx与对应CSS确认Link props透传和无非法分支专属渲染；补齐同一共享Link的两主题真实尺寸/名称/焦点/键盘及辅助返回replace证据。基线须引用实际记录，不杜撰commit；记录这三部分各自能证明的范围，不声称IAB动态注入已完成。
+  - 验收归属：AC-29、AC-02/03；图标统一不表示返回行为统一为历史后退。原history不可用证据保留，不以query returnTo或无state冒充非法分支；不新增注入脚本、生产调试入口或测试文件。组合证据全部齐备且其余本项验收通过后可回填追溯、勾选并按原依赖进入T24E；判定逻辑/导航语义变化或存在非法分支专属样式时本裁决不适用。最终T24对该分支沿用同一证据方法，其他浏览器门槛不变。
 
 - [ ] **T24E 修复资产勾选行与通用表单样式冲突**
   - 依赖：T24D、T12。

@@ -10,6 +10,7 @@ import {
 } from "../api";
 import type { Episode, Project } from "../api";
 import { ApiErrorMessage } from "../components/ApiErrorMessage";
+import { BackNavigation } from "../components/BackNavigation";
 import { EmptyState } from "../components/EmptyState";
 import { PageTitle } from "../components/PageTitle";
 
@@ -147,9 +148,7 @@ export function ProjectPage() {
     <>
       <PageTitle>项目详情</PageTitle>
       <p className="project-home-link">
-        <Link className="button-link" to="/">
-          返回项目首页
-        </Link>
+        <BackNavigation label="返回项目首页" to="/" />
       </p>
       <p className="project-meta">项目 ID：{project.id} · 风格 ID：{project.style_id}</p>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
