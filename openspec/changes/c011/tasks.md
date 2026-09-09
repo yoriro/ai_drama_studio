@@ -359,7 +359,7 @@
   - 验收方式与命令：`git diff -- frontend/src/styles.css`；`rg -n -- 'data-theme|--color-|--shadow-|color-scheme|filter:|#[0-9a-fA-F]{3,8}|oklch\(|rgba?\(|@media|focus' frontend/src/styles.css`；人工逐项对照§3.1/§3.3的token值、作用域和§4组件消费选择器，记录每项对应规则、无对应暗色硬编码/媒体反色、响应式与焦点规则保留。`npm --prefix frontend run build`；G（Task=T24B）。检索命中颜色定义本身不是失败，须区分主题定义与组件硬编码；不新建检验脚本或镜像测试。已有G只有在确认其后实现/依赖/装置没有变动且原生退出码完整时才可沿用并引用原证据，不能把文档调整称为重跑通过；发生相关改动后执行新批次G。
   - 验收归属：仅CSS交付与回归证据，不是AC-26或AC-05/07的渲染通过。双主题真实组件、实际合成背景对比度和320px根溢出检查完整移交T24C，在T24D前完成；最终T24仍全量检查。原DevTools安全停止证据保留，不改写其结果。静态审计和build/G均通过后才可勾选本项；本次裁决不代执行者勾选。
 
-- [ ] **T24C 接线主题切换、偏好存储与页面状态保持**
+- [x] **T24C 接线主题切换、偏好存储与页面状态保持**
   - 依赖：T24B、T02。
   - R：无；PRD：§9、§11 M5；追加来源：需求方2026-09-08走查第1项。仅浏览器外观偏好，不新增后端设置项。
   - 交付范围：①新增features/theme/theme.ts，单一实现dark/light解析、根属性/theme-color应用及localStorage读写的明确错误语义；②main.tsx在首次React挂载前调用一次初始化，index.html同步暗色默认theme-color，禁止重复bootstrap；③新增components/ThemeSwitch.tsx并由AppShell接线可访问的两个按钮及存储提示，styles.css补控件布局；④新增独立features/theme/theme.test.ts覆盖无/合法/非法值与存储异常的规定结果；⑤新增独立features/theme/themeWiring.test.tsx，jsdom挂载实际AppRoutes/AppShell/主题控件和实际页面，mock仅HTTP/WS边界，验证草稿/选择/筛选保持、在途生成请求精确一次及响应处理；⑥收口从T24B移交的双主题渲染检查，若发现与§3.1/§3.3不符的主题颜色、焦点或窄屏主题控件布局，只在styles.css内修正并重新验证，不提前实施T24D-F。不得修改既有测试，不给路由/页面增加theme key，不请求主题API，不新建全局状态框架。
