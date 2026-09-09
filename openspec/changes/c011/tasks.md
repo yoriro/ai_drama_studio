@@ -290,7 +290,7 @@
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskObservation.test.tsx` 退出码0，1 file/5 tests passed，原始输出见 `.work/c011/T18-rerun-current-20260909.log`。测试继续验证生产TasksPage/观察协调器在DOM与传输mock中的socket-first、事件缓冲/去重、终态替代、过滤/重连/卸载边界；真实跨进程通路仍引用T22/T23，不以本定向测试冒称。
 
-- [ ] **T19 接入任务详情与严格错误呈现**
+- [x] **T19 接入任务详情与严格错误呈现**
   - 依赖：T15、T18。
   - R：无；PRD：§2.1(8)、§5 任务、§9、§11 M5。
   - 交付范围：TasksPage 可展开具体 task 正式详情，完整时间/错误与 request_id 展示；接线 parseTaskResponse/parseTaskEventResponse 的可见失败路径，状态/进度/ID/extra字段不能强转；协议错误关闭该 socket、观察重连成功前错误不消失。新增 `frontend/src/features/tasks/taskBoundary.test.tsx`，挂载真实页面。
@@ -298,6 +298,8 @@
   - 追溯行：`C011 任务公开边界与可见协议错误`。
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx`；G；按 AC-11/18 注入长错误/null时间/取消时间、未知enum/越界progress/非safeID/extra payload/畸形JSON及422/500，断言DOM原文、非法ID零详情GET、没有空列表伪成功。
   - 验收归属：AC-11/18 完整；既有 api/tasks parser 的合法合同不放宽。
+
+  **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx` 退出码0，1 file/14 tests passed，原始输出见 `.work/c011/T19-rerun-current-20260909.log`。该挂载生产TasksPage测试继续保留详情字段、错误正文、非法输入/协议错误可见与无伪成功断言；未修改既有测试。
 
 - [ ] **T20 接入单任务取消基本交互**
   - 依赖：T19。
