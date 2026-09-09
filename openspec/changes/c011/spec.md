@@ -480,7 +480,7 @@ T38仍缺完整异常矩阵、八个按钮任务各自的独立只读数据库�
 |---|---|
 | B11；AC-12/13/14；[并发] | 真正展开queued详情GET在途，cancel网络错误或409后，取消前GET迟到返回queued不能结束确认；最新权威读取完成前再次激活仍只有1次无body POST。原错误保留，每task最多一个在途详情GET，旧读完成后补必要新读取 |
 | B12；AC-12/13/14；[并发] | cancel已返回合法canceled或running+cancel_requested_at，后续权威详情GET失败：原错误与待同步说明可见，取消保护保持、POST为1。既有详情重读/重连等正式通路取得最新状态后按其恢复，不增加轮询或重发mutation。列表GET正常成功、详情持续失败且没有新WS事件/重连/用户重读时，失败不得通过列表刷新再次触发详情GET；独立探针`probe-cancel-confirmation-loop.py`验证该无自触发读取循环切片 |
-| B13；AC-11/15/16；[并发] | 已展开详情后切换仍匹配task的过滤条件，实际打开新socket；task在连接间隙终结。新列表与仍展开详情的status/progress/finished_at/error_msg/取消时间等于最新GET，零mutation；不要求刷新所有未展开缓存 |
+| B13；AC-11/15/16；[并发] | 已展开详情后切换仍匹配task的过滤条件，实际打开新socket；task在连接间隙终结。新列表与仍展开详情的status/progress/finished_at/error_msg/取消时间等于最新GET，零mutation；不要求刷新所有未展开缓存。task从结果消失时清除展开身份，重现时保持收起；用户再次显式展开须读取当前详情，不能把消失前ready缓存当最新GET，独立`probe-filter-reopen.py`覆盖此切片 |
 | B14；AC-09；[常规] | ShotsPage与DirectorPage的changed均逐字显示“已变更（changed）”，normal无角标；选择、禁用、R8警示及几何不变 |
 | B15；AC-19/22/23；[外部输入] | 八类页面逐项记录可达加载/空态/读取失败/动作失败，媒体页另记媒体失败；每页动作失败有本页草稿/导航/原message及恢复证据，不可达组合写具体原因及替代观测；资产页失败不能替代其他页，G不能替代人工矩阵 |
 

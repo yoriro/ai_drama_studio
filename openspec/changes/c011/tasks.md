@@ -576,7 +576,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 计划测试层级：任务系统 mock。
   - 追溯行：`C011 任务中心 REST/WS 同步与过滤竞态`；`C011 任务公开边界与可见协议错误`。
   - 验收：真实点击查看详情后切仍匹配的type/limit，打开新socket，任务在间隙成为done/failed/canceled；逐一定位列表与展开详情的字段，精确检查状态/progress/finished_at/error/取消时间、GET次数及零mutation。旧请求不得写新查询，关闭详情/消失资源不能留下幽灵展开。
-  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskFilterDetailRebuild.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-task-observation.py`；`python -X utf8 .work/c011/probe-cancel-read-order.py`；`git diff --check`。两探针均须exit0；不改探针或既有测试。完整G仍归T39。
+  - 追加验收：实际ready详情切limit后同步、用户收起后重建连接不重开/不多发详情GET；任务消失后以新终态重现时保持收起，用户再次显式展开取得新GET与完整最新字段。后者由本任务尚未提交的独立回归覆盖，并运行`python -X utf8 .work/c011/probe-filter-reopen.py`，T39最终输入也复验；不要求自动刷新所有未展开缓存。
+  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskFilterDetailRebuild.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-task-observation.py`；`python -X utf8 .work/c011/probe-cancel-read-order.py`；`git diff --check`。上述探针均须exit0；不改探针或既有测试。完整G仍归T39。
 
 - [ ] **T43 完成导演台changed统一呈现**
   - 依赖：T42；B14；AC-09。
