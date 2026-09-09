@@ -565,7 +565,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 计划测试层级：任务系统 mock。
   - 追溯行：`C011 任务取消交互与终态竞争`；`C011 任务取消错误与资源消失重建`。
   - 验收：POST分别返回canceled、running+cancel_requested_at，取消前旧GET迟到、取消后新GET失败；当前任务继续不可取消，原错误及待同步可见，再次激活POST仍1；既有正式重读成功后详情/列表对应状态与时间一致。终态/取消意图不能被旧响应改回可取消状态。
-  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelConfirmationFailure.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`git diff --check`。不跑G；失败日志留存。
+  - 追加验收：列表正常立即返回、权威详情持续失败，没有外部新事件时详情请求不自触发循环；原错误、取消保护及单次POST保持。本次独立探针已在未提交初稿观测到list=5/detail=5，必须在本任务新回归文件中覆盖根因，不能让列表永久挂起遮蔽该分支。
+  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelConfirmationFailure.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-cancel-confirmation-loop.py`；`git diff --check`。不跑G；失败日志留存。该追加探针在T39最终输入再复验一次，与原四探针共同记录，不增加完整G次数。
 
 - [ ] **T42 重建过滤切换后保留的展开详情**
   - 依赖：T41；B13；AC-11/15/16。
