@@ -175,3 +175,8 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-08 C011 T24A：受控服务使用新库`ai_drama_studio_c011_t24a_controlled_20260908_180251`、端口52428、独立DATA_DIR且启动前`DEBUG_PROMPTS=true`；fixture prepare/verify、正式四次模板PATCH 200、集合GET逐字回读、独立current_database与DEBUG字段检查均exit 0。
 - 2026-09-08 C011 T24A：Alembic必须在`backend` CWD运行；仓库根目录调用缺少script_location，重复拼接backend路径也失败；两次命令构造/证据查询失败均保留在`.work/c011/`，未改生产代码、迁移或重发PATCH。
 - 2026-09-08 C011 T24A G：`T24A-t24aconfig20260908-test.log`记录前端142 passed、build 68 modules、全新full迁移库upgrade/current/check exit 0、完整backend `348 passed in 236.78s`、diff check exit 0。
+- 2026-09-09 C011 T24最终普通IAB矩阵实际覆盖8类页面×2主题×4 CSS视口共64格；根/body无水平溢出，原生桌面200%与动态reduced-motion仍未验证，原始证据见`.work/c011/T24-final-browser-matrix-20260908.log`。
+- 2026-09-09 C011 T24 reduced-motion源码审计确认`styles.css:1944`的reduce规则覆盖现有悬浮位移、缩短transition并限制animation iteration；动态媒体切换未验证，证据见`.work/c011/T24-reduced-motion-static-audit-20260909.log`。
+- 2026-09-09 C011 T25基线审计相对`1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`的`backend/app`、`backend/alembic`、`backend/workflows`为空，C011追溯行17行且无待填项，证据见`.work/c011/T25-scope-audit-20260909.log`。
+- 2026-09-09 C011 T25 G使用新库`ai_drama_studio_c011_t25_full_20260909_102444_34840`，前端142 passed、build 68 modules、完整backend `348 passed in 237.54s`、Alembic与git diff check均exit 0，证据见`.work/c011/T25-t25scopefinal20260909_1015-test.log`。
+- 2026-09-09 C011 T26 G使用新库`ai_drama_studio_c011_t26_full_20260909_103418_6744`，前端142 passed、build 68 modules、完整backend `348 passed in 235.98s`、Alembic与git diff check均exit 0，证据见`.work/c011/T26-t26notesfinal20260909_1100-test.log`。
