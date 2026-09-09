@@ -25,7 +25,7 @@
 - **G**：在仓库根运行 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task Txx`（Txx 换为本项编号）。T01 必须先交付此装置；各项调用内部逐条执行 `npm --prefix frontend run test`、`npm --prefix frontend run build`，在新建、仅迁移的 PostgreSQL/独立 DATA_DIR 中以 backend 为 cwd 执行 `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`，最后 `git diff --check`。每步原生退出码为0才继续；stdout中“passed”不能替代已结束进程和真实退出码。
 - 定向 backend 命令也由T01装置以新隔离库运行；装置提供 `-Task Txx -TargetPytest tests/...` 参数。定向后完整pytest使用**另一个**新建仅迁移库，不能复用已有Task的浏览器库。前端定向命令在本项明列。
 - 浏览器 ordinary、受控任务、pytest 三类环境分离；通过环境变量显式选择，不改用户 `backend/.env`。现场选择并记录可用端口；若Vite固定代理8000被用户进程占用，单独的验收Vite配置放.work并启动隔离端口，不能停用户进程或修改生产业务地址。启动自有后台进程使用 Hidden 窗口。
-- 浏览器能力须用公开API发现：在当前工具文档允许的已选browser上执行`await browser.capabilities.list()`，再以`await browser.capabilities.get("viewport")`取得能力并读取其`documentation()`；不能用对象JSON序列化结果`{}`或不存在的`tab.playwright.viewport`推断能力缺失。2026-09-08 T24F裁决现场只读确认IAB列出visibility/viewport，viewport正式接口为`set({width,height})`和`reset()`。Luna按当前任务分别设置320×800、390×844、768×1024、1440×900，每次读取实际页面尺寸、截图与任务规定的布局/交互结果，结束恢复override；能力可调用的证据不等于项目四视口验收通过。原错误记录保留，可在既有自主修复范围内纠正调用并补验，无需新增脚本。原生200%是独立门槛，viewport、devicePixelRatio=2均不能替代；若当前无可用原生控制，先完成其余可验证项，再明确列出剩余人工补验条件和本轮实际隔离页面地址，不反复重跑G或猜测隐藏API，也不勾选尚缺200%的任务。
+- 浏览器能力须用公开API发现：在当前工具文档允许的已选browser上执行`await browser.capabilities.list()`，再以`await browser.capabilities.get("viewport")`取得能力并读取其`documentation()`；不能用对象JSON序列化结果`{}`或不存在的`tab.playwright.viewport`推断能力缺失。2026-09-08 T24F裁决现场只读确认IAB列出visibility/viewport，viewport正式接口为`set({width,height})`和`reset()`。Luna按当前任务分别设置320×800、390×844、768×1024、1440×900，每次读取实际页面尺寸、截图与任务规定的布局/交互结果，结束恢复override；能力可调用的证据不等于项目四视口验收通过。原错误记录保留，可在既有自主修复范围内纠正调用并补验，无需新增脚本。原生200%与viewport、devicePixelRatio=2的证据仍须区分；T24全页原生200%和动态reduced-motion按2026-09-09 spec §7.4裁决不再阻塞，记录未验证范围，不反复重跑G或猜测隐藏API。T24F已有人工作证保持原归属。
 - 自建脚本/fixture不提交。装置需记录实际命令与原始证据；文中没有可用地址、数据库或测试通过的预设结论。依赖门槛见spec“外部依赖”。
 - 计划测试层级仅使用题设五种名称；同时涉及取消与跨进程的任务同时列“任务系统 mock”和“跨进程/资源生命周期”。前端使用任务事件/取消的DOM mock不冒称后端集成，反之跨进程API测试不冒称点击了React控件。
 - 表达“某AC切片”意味着本task仅验收明确列出的页面/职责；AC全量收口在T23/T24/T25，不能提前声称整条AC完成。
@@ -349,21 +349,21 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/director/directorTrackLayout.test.ts`；`npm --prefix frontend run test -- src/features/director`；G（Task=T24F）。真实浏览器两主题四视口/200%下测最短列≥192px、三轨边界误差≤1px、duration比例及Clip跨列间隙；横向滚动/键盘聚焦远端控件，观察根无溢出、主题切换scrollLeft与选择保持；原选择/预检/创建/选Clip操作仍使用原合同。宽度纯函数测试不冒称真实CSS grid对齐。
   - 验收归属：AC-31；与theme在途状态保持联检AC-28，最终全页结论在T24收口。
 
-- [ ] **T24 完成全站响应式视觉与功能保留验收**
+- [x] **T24 完成全站响应式视觉与功能保留验收**
   - 依赖：T05-T15、T23、T24A、T24B、T24C、T24D、T24E、T24F。需求方2026-09-08追加后须对最终实现重新验收，不能沿用旧暗色走查作为整体通过。
   - R：R1、R2、R3、R4、R5、R5a、R6、R7、R8、R9、R10、R11、R12；PRD：§2.1、§3.1-§3.5、§5、§9、§11 M5。
   - 交付范围：不夹带代码或装置改动；使用T03普通生产后端/fixture逐页执行spec §3视口矩阵、§4.1每项功能入口、AC-02..09/19/22。检查四类生成按钮的现有请求接线时单独使用T04受控handler模式并明确不证明实际生成；普通模式不得触发未授权GPU流水线。未满足项记录为失败并停在本task。
   - 计划测试层级：不新增自动测试；任务系统 mock；跨进程/资源生命周期。前者用于视觉，后两者用于受控生成接线。
   - 追溯行：`C011 导航来源返回与剧集唯一入口`；`C011 全站视觉与响应式可访问性`；`C011 既有功能入口与状态呈现不变`；`C011 全局异常空态与媒体错误呈现`；`C011 全局浏览器功能与视觉验收`；`C011 验收装置与生产通路归属`；`C011 明暗主题与偏好存储`；`C011 统一后退图标与目标保持`；`C011 资产勾选行对齐`；`C011 导演台轨道可读宽度与比例`。
-  - 验收方式与命令：明暗两主题分别执行四视口+原生200%缩放、Tab/Enter/Space、动态reduced-motion与计算对比度；逐页逐状态记录实际结果、截图及method/path/body，并覆盖AC-26..31。先运行`npm --prefix frontend run test -- src/features/theme`、`npm --prefix frontend run test -- src/features/director`，再G。自建自动浏览器脚本若尚无前置task，不可临时补进此task。
-  - 验收归属：AC-05..08/22与AC-26..31全页结论在这里收口；不得只交首页或单一主题截图就勾全站。至少记录8类页面（首页/项目/剧本/资产/分镜/导演台/设置/任务中心）×2主题×4视口共64个基础页面组合，另记录空/错/DEBUG/候选/状态变体、每主题原生200%和动态reduced-motion。不是只凑截图数：每格含根溢出/入口/文字焦点可读性结果及证据；任一失败不勾选。四类生成按钮在T04受控模式每主题各验一次，普通模式不触发GPU；全页保存/删除/选用等按原§4.1合同。
+  - 验收方式与命令：明暗两主题分别执行四视口、Tab/Enter/Space与计算对比度；另执行`rg -n -A 30 -B 3 'prefers-reduced-motion' frontend/src/styles.css`和`rg -n 'transform:|animation:|animation-|transition:' frontend/src/styles.css`，人工逐项核对reduce规则覆盖所有现有悬浮位移、保留禁用循环装饰动画与缩短过渡的规则，记录位置/覆盖清单而非只判字符串存在；逐页逐状态记录实际结果、截图及method/path/body，并覆盖AC-26..31。先运行`npm --prefix frontend run test -- src/features/theme`、`npm --prefix frontend run test -- src/features/director`，再G。自建自动浏览器脚本若尚无前置task，不可临时补进此task。
+  - 验收归属：AC-05..08/22与AC-26..31全页结论在这里收口；不得只交首页或单一主题截图就勾全站。至少记录8类页面（首页/项目/剧本/资产/分镜/导演台/设置/任务中心）×2主题×4视口共64个基础页面组合，另记录空/错/DEBUG/候选/状态变体；全页原生200%、动态reduced-motion按spec §7.4明确记为未验证且本次不阻塞，不能填为通过。不是只凑截图数：每格含根溢出/入口/文字焦点可读性结果及证据；任一失败不勾选。四类生成按钮在T04受控模式每主题各验一次，普通模式不触发GPU；全页保存/删除/选用等按原§4.1合同。
 
   **2026-09-08 Astra 对 T24 部分验收与补验路径的裁决：**
 
   1. T23已完成，不阻塞进入T24；T24当前未完成，禁止进入T25。commit `68ca536c169491b2eb030f8d83a265dfd7fe78aa` 仅证明文档曾提交，不证明门槛全过；保留历史commit，不reset/amend掩盖。当前checkbox保持未勾，追溯/NOTES追加更正说明普通证据有效但非整项通过；按既有文档修正授权单独提交状态更正，不把更正commit称作T24完成，不夹带未验收代码。
   2. 保留普通四视口/键盘/来源/对比度/局部滚动和G日志作为对应切片证据。720×450不是原生200%；CSS静态规则不能证明动态reduced-motion；409且无task_id/barrier不能证明生成按钮成功接线。新批次verify成功不覆盖旧DEBUG失败。旧通过证据仅在对应源码与配置不变且清楚标注模式/批次时沿用；配置变化影响的项目必须在新批次补验。
   3. 先完成T24A，随后四类生成按钮分别走真实页面→正式REST校验/入队→生产队列→受控handler：生成资产、生成分镜、资产图片、片段视频。每类保存实际method/path/body/202/task_id与同id的BARRIER_REACHED、REST/独立DB记录；分镜沿用原impact确认，其他前置按现有UI/API合同满足。实际创建数据/文件的生成handler被替代，不能以受控done冒称真实产物；不改模板校验、不直插Task跳过按钮、不在普通模式触发GPU。
-  4. 使用现有computer-use技能的node_repl + @oai/sky操作专用Chrome/Edge验收页面：通过浏览器菜单选原生200%并截图确认，再执行spec §3逐页布局/可达性检查；通过DevTools Rendering内置媒体模拟切换no-preference→reduce→no-preference，记录matchMedia与实际位移/动画样式及可操作性，结束恢复原设置。使用内置功能不算新建驱动，不需要开发浏览器zoom API；不能用CSS zoom、页面脚本替换matchMedia或viewport等效图代替。若当前执行任务无法加载工具或操作目标，保存真实错误后保持对应AC阻塞，不删除要求。
+  4. **2026-09-09更正，替代本项原有原生200%/动态reduced-motion补验阻断要求：** 按spec §7.4与更新后的AC-06/07执行。保留两主题四视口、键盘、对比度、功能和受控生成门槛；reduce改用本项明列的源码审计，保留生产样式。全页原生200%与动态媒体响应明确记录未验证、本次不阻塞，不再要求为它们恢复原生浏览器或新增驱动；不把viewport/DPR/静态规则冒称动态通过，不删除原失败证据。完成其余全部验收且追溯明确列出这两项范围限制后，才可勾选T24并进入T25。本次规划修改不代执行者勾选、不自动认定其他门槛通过；不修改既有测试或C012范围。
   5. T24四类受控handler接线的证据归“任务系统 mock；跨进程/资源生命周期”，普通视觉部分仍为“不新增自动测试”；沿用 `C011 既有功能入口与状态呈现不变`、`C011 全局浏览器功能与视觉验收`，并记录 `C011 验收装置与生产通路归属`。不新增自动测试文件，不修改生产/既有测试/配置或夹带驱动；需要装置实现变化先单列前置任务，本裁决仅增加运行配置准备T24A。
   6. 补验命令为原Director定向命令与 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T24 -EvidenceLabel <补验唯一标签>`，完整pytest另用新仅迁移库；保留原G成功及后续失败的时间顺序。全部缺项与原要求齐全才回填整项、勾T24并提交。DECISIONS候选无需新增：浏览器内置控制是验收手段，人工模板是现有PRD §7/§12.2与D-014边界下的隔离配置，不变更跨change产品约定。
 
