@@ -614,6 +614,19 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
 
 ## 固定收尾任务
 
+<!-- 下列修复前置于固定收尾；收尾checkbox仍为本文件最后三项。 -->
+
+- [ ] **T45 失效连接重建前的收起详情缓存**
+  - 依赖：T40–T44A已交付，当前T23失败；B16；AC-11/15，取消建缓存关联AC-12/13。本项→当前T23受影响重验→T44/T38/T39及其余退回项核对→Astra复审→T25→T26–T28。
+  - R：无；PRD：§2.1(8)、§5任务、§6.1、§9、§11 M5；spec §6、§10.8。
+  - 交付：生产范围仅`frontend/src/features/tasks/taskObservation.ts`，沿现有connect/详情状态边界失效旧连接的ready详情，显式展开经正式detail GET取得当前值；不自动读取所有收起任务、不增加持久缓存/版本字段/轮询、无mutation重放。新增独立`frontend/src/features/tasks/taskClosedDetailReconnect.test.tsx`；不修改已存在测试或Astra探针。
+  - 计划测试层级：任务系统 mock。
+  - 追溯行：`C011 任务中心 REST/WS 同步与过滤竞态`；`C011 任务公开边界与可见协议错误`；`C011 任务取消交互与终态竞争`；`C011 范围回归与文档提交一致性`。
+  - 验收一：真实TasksPage展开running→收起→自然断线或类型过滤重建→新列表failed；两种入口均保持收起且详情GET仍1，显式重开后GET精确2，status/progress/error_msg/finished_at/cancel_requested_at逐字段等于新响应，POST为0。
+  - 验收二：用户未展开目标，实际cancel POST一次合法running+取消时间并完成确认GET；另一个任务正展开。断线后目标变failed，重连只自动重建当前展开任务；显式展开目标时新增一次当前GET，原取消不重发、错误/时间完整、列表与详情一致。取消前/后的迟到请求防重逻辑仍由既有用例与七探针验证。
+  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskClosedDetailReconnect.test.tsx`（先取得未修复失败）；修复后同命令、`npm --prefix frontend run test`、`npm --prefix frontend run build`、`git diff --check`；Astra运行既定六探针加`python -X utf8 .work/c011/probe-closed-detail-reconnect.py`。全部通过后回填准确describe/it/参数ID，提交本项并报告。
+  - 收口回归：本项仅改前端。最终前端test/build与七探针必须覆盖本项；已执行`T39-astrafinal20260909loop-test.log`中的backend完整pytest348/迁移结果，在backend实现、测试、依赖、运行配置与装置均未变化的核对下复用。报告明确前端新结果与后端同输入复用，不把旧G整体声称覆盖新前端，也不机械重跑未受影响pytest；若核对发现相关输入改变则补其检查。
+
 - [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - 编号/依赖：T26；依赖T25。
   - R：无；PRD：§11 M5。
