@@ -1,5 +1,20 @@
 # 测试追溯表
 
+**C011 2026-09-09 第二轮复审当前状态：未完成。** 本段优先于历史完成回填；依据`8f3c4bd`及`.work/c011/review-reaudit-20260909.md`。31条AC/17条主行不变。原G前端160/后端348通过只证明其原套件；`probe-cancel-read-order-20260909-161111.stdout.log`四场景失败，B11–B13未修；B14文案、B15全页异常证据待补。原日志/提交不删除。
+
+| 现有准确追溯行 | 本轮待补分支与任务（先登记范围，未预填成功或用例ID） |
+|---|---|
+| `C011 任务取消交互与终态竞争` | T40/B11取消失败+取消前详情迟到；T41/B12成功后权威读取失败；各独立新增任务系统mock回归，POST=1及最新读取前保护 |
+| `C011 任务取消错误与资源消失重建` | T40/T41原错误归属、待同步、恢复与禁止重复取消 |
+| `C011 任务中心 REST/WS 同步与过滤竞态` | T42/B13过滤触发真实新socket后，仍展开详情的最新字段重建；独立新增任务系统mock回归 |
+| `C011 任务公开边界与可见协议错误` | T42详情字段/错误与列表一致，不以旧ready缓存冒充最新GET |
+| `C011 既有功能入口与状态呈现不变` | T43/B14两页changed原文与normal无角标；T14重验 |
+| `C011 全局异常空态与媒体错误呈现` | T44/B15八类页面逐项异常矩阵与不适用理由；T15/T38重验 |
+| `C011 全局浏览器功能与视觉验收` | T44、T23/T24受影响路径及精确复用记录 |
+| `C011 范围回归与文档提交一致性` | T39新修复后的探针/G、T25及T26–T28；Astra独立复审通过前不宣称C011完成 |
+
+本表是现有行的修复覆盖登记，不新增主追溯行；实际新增测试名称、参数身份、原始证据与commit在执行后回填。
+
 C011 T37 实际回填（2026-09-09）：仅修改 `.work/c011/task_runtime.py`，在既有受控服务入口包装生产 ASGI 应用；包装逐段保存实际 HTTP method/path、原始 body bytes（base64无损记录并区分 `no-body`、`empty-json`、含 confirm_token 的 JSON）、响应 status/body 与 task_id，按原消息一次重放给原 ASGI，WS/生产路由/TaskQueue/EventBus/数据库通路未替换。独立 self-check 的两次技术失败原样保留：`.work/c011/T37-selfcheck-command-20260909_1600.log` exit 1（观测队列先读到 `/openapi.json`，method/path 未配对）；`.work/c011/T37-selfcheck-command-20260909_1605.log` exit 1（正式视频路由按原合同返回409，夹具缺少启用参考槽位）。修复观测配对和自检夹具后，`.work/c011/T37-selfcheck-command-20260909_1610.log` exit 0，证据 `.work/c011/T37-selfcheck-20260909-125827-36808.log` 记录正式 `generate-assets`/`generate-shots/impact`/`generate-shots`/`generate-image`/`generate-video` 请求：无 body、无 body、服务签发 token JSON、`{}`、`{}`；各入队响应与被动记录 response bytes/status/task_id 相同，各 task 通过真实 queue barrier、受控 handler、WS 同 id 事件、独立只读 DB 对照；serve exit=0、driver engine dispose、端口关闭。自检仍不宣称真实GPU/媒体产物。T37 G `.work/c011/T37-repair20260909_1620-test.log`：前端30 files/160 tests、build68 modules、全新仅迁移库 Alembic upgrade/current/check exit 0、完整 pytest `348 passed in 258.54s`、git diff check exit 0、RESULT PASS。对应行：`C011 验收装置与生产通路归属`、`C011 既有功能入口与状态呈现不变`。
 
 C011 T38 实际回填（2026-09-09）：无生产代码、迁移或既有测试改动；普通批次与受控批次分别执行 `ui_fixture.py verify`，均 exit 0；受控库在进程启动前设置 `DEBUG_PROMPTS=true`，四个人工验收模板经正式设置 API PATCH 200、集合 GET 逐字读回，证据见 `.work/c011/T38-controlled-template-api-20260909_1320.log`。新 IAB 标签页 `http://127.0.0.1:52732/` 通过公开 CUA 真实页面完成两主题各四按钮：亮色任务 #1/#2/#3/#4、暗色任务 #5/#6/#7/#8；资产、分镜、图片、视频的正式入口与 UI task 状态均有记录，分镜保留 impact/确认（非空 impact 展示删除片段5/视频2；空 impact 返回0并直接提交）。任务 #1–#7 的 barrier 行与 release 可从本批 PTY 输出确认；任务 #8 的 release、UI/REST终态可确认，但其新 raw `OBSERVED_HTTP`/`BARRIER_REACHED` 行在媒体响应字节导致的 PTY 截断中未恢复，未伪造。独立 DB 身份只在 fixture verify 阶段证明，未保存每个按钮任务的 post-action 独立 DB 只读回读；完整限制见 `.work/c011/T38-browser-acceptance-20260909_1320.log`。截图和 AX 树由公开 CUA 调用实际输出。受控 handler 只证明页面→正式 REST→TaskQueue→WS/DB→受控边界，不宣称 GPU/业务媒体成功。T38 G `.work/c011/T38-repair20260909_2020-test.log`：前端30 files/160 tests、全新仅迁移库 Alembic upgrade/current/check exit 0、完整 pytest `348 passed in 339.10s`、git diff check exit 0、RESULT PASS。对应行：`C011 既有功能入口与状态呈现不变`、`C011 全局异常空态与媒体错误呈现`、`C011 验收装置与生产通路归属`、`C011 全局浏览器功能与视觉验收`。

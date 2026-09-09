@@ -1,5 +1,17 @@
 # C011 执行任务
 
+### 2026-09-09 第二轮修复派发（当前优先，需求方授权Astra/Luna循环完成）
+
+依据spec §10.7及`.work/c011/review-reaudit-20260909.md`，`8f3c4bd`尚未完成，B11–B15必须修复/补证。Astra已先更新spec与八组现有追溯行的待补分支，再编写下列T40–T44；仍31条AC、17条主追溯行。旧已完成声明只保留历史切片效力，不覆盖本段。
+
+执行顺序：T40→T41→T42→T43→T44；每项先实施、完成本项定向验收、报告并提交，再执行下一项，Astra可在报告后暂停并退回。当前已知B11–B15失败已获修复授权，不必再问用户；不改既有测试，不改Astra探针，不循环无变化跑到绿。Luna负责明确范围内的实现、新增独立测试、真实证据、对应追溯回填与checkbox；Astra负责spec/task裁决及独立复审。双方共享工作树，不回退/夹带其他人改动；用户AGENTS与.work不提交。
+
+T40–T44后，T39运行四条探针：`python -X utf8 .work/c011/probe-task-observation.py`、`python -X utf8 .work/c011/probe-cancel-read-order.py`、`python -X utf8 .work/c011/probe-runtime.py`、`python -X utf8 .work/c011/probe-template-contract.py`，各实际exit0；运行一次`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T39 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`完整G。不为T40–T44扩展G启动器Task参数；它们直接执行明列的npm/人工检查。旧审查G不能覆盖即将改变的实现；后续无相关变更不重复G。
+
+恢复未勾：T14/T15/T18/T19/T20/T21/T23/T24/T25/T30/T32/T38/T39及固定T26–T28。T40–T44与本轮G取得后，按原项依赖复核这些切片并逐项回填；可引用本轮已执行且同输入的定向结果，不重复跑同命令。T23补受影响TasksPage真实路径；T24补changed与异常矩阵，其他未变双主题/四视口/八按钮切片注明精确来源与适用基线，不机械全部重做。T25前交Astra独立复审；复审通过才T25→T26→T27→T28。
+
+Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、实际测试用例ID/命令/原始结果、操作→观测值、复用与未验证范围；最后出完整六段完成报告。遇到新的明确实现缺陷先诊断并向Astra报告，不把常规缺陷自动升级为用户产品决定；行为歧义、既有测试变更、安全阻断及真实外部依赖门槛仍不得擅自越过。本轮授权提交已验收的本change文件，不归档、不推送、不执行C012。
+
 ### 2026-09-09 Astra 审查修复派发（需求方已授权）
 
 本轮针对审查基线 `b4750e4ad7a8785e8ff3e965848526436aae94c3` 的B01–B10退回修复，依据spec §10与 `.work/c011/review-20260909.md`。本段优先于历史“已全部完成”结论；原始成功/失败日志与提交历史保留，不reset/amend。spec仍为31条AC，追溯仍为17条，先更新spec与追溯待补状态后才编写T29–T39。
@@ -241,7 +253,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/director`；G；人工四视口比较三轨列与 duration 比例、滚动对齐；按 §4.1 Director 清单操作原 preview/create、设置、槽位、take/current/delete，记录每项入口和请求不变。
   - 验收归属：AC-05/06/07/08 的导演台切片；不声称真实视频生成链路在本 task 重新验收。
 
-- [x] **T14 统一既有新鲜态与生成态展示**
+- [ ] **T14 统一既有新鲜态与生成态展示**
   - 依赖：T10、T11、T12、T13。
   - R：R8、R12；PRD：§2.1(4,6,7)、§3.2、§3.3、§3.4、§9、§11 M5。
   - 交付范围：最小共享状态文案/Badge，仅消费已知状态；新增独立 `frontend/src/features/status/statusPresentation.test.ts`，把 Shots/Director 的标签统一到 spec §4.2，并保持剧本/资产旧剧本原文、R8 黄色、R12 已删原文。不把业务 freshness 判定迁入通用组件。
@@ -250,7 +262,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/status/statusPresentation.test.ts`；G；穷举 normal/changed、五种生成态×fresh/stale 和 null/旧/当前 revision 展示，人工确认 generating+stale 共存且 stale 本身不禁用。
   - 验收归属：AC-09 完整；纯函数只证明文案/状态投影，页面集成由人工与 T24 补足。
 
-- [x] **T15 统一全局加载错误空态与媒体失败展示**
+- [ ] **T15 统一全局加载错误空态与媒体失败展示**
   - 依赖：T08、T09、T10、T11、T12、T13。
   - R：无；PRD：§2.1、§5 通用、§9、§11 M5。
   - 交付范围：整理 ApiErrorMessage/EmptyState 及各页呈现接线：主错误直显原 message、code 另列；loading/error/empty 区分，长错误换行；现有媒体 onError 在真实页面可见。保留原业务表单和动作，缺数据不渲染假卡片，不增加自动重试或业务 fallback。
@@ -279,7 +291,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskList.test.ts`；G；普通浏览器选控件并核对实际 GET、匹配集合/数量/组别/空态。同步在普通顺序下可用，竞态完整验收单列 T18。
   - 验收归属：AC-10 的控件/分组/窗口说明完整；T18 前不能宣称 AC-16 完成。
 
-- [x] **T18 落实任务中心列表与详情的 WS 权威同步**
+- [ ] **T18 落实任务中心列表与详情的 WS 权威同步**
   - 依赖：T02、T17。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5；D-008。
   - 交付范围：把 TasksPage 已有同步按需整理到 features/tasks，实际页面消费同一协调器。明确初连/重连缓冲、过滤代次/socket身份、未知详情去重、terminal替代读取、列表窗口补足、过期请求不写状态、最新失败可见、卸载清理与无轮询。新增独立挂载 TasksPage 的 `frontend/src/features/tasks/taskObservation.test.tsx`；不用测试副本替代生产 action/parser。
@@ -290,7 +302,7 @@
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskObservation.test.tsx` 退出码0，1 file/5 tests passed，原始输出见 `.work/c011/T18-rerun-current-20260909.log`。测试继续验证生产TasksPage/观察协调器在DOM与传输mock中的socket-first、事件缓冲/去重、终态替代、过滤/重连/卸载边界；真实跨进程通路仍引用T22/T23，不以本定向测试冒称。
 
-- [x] **T19 接入任务详情与严格错误呈现**
+- [ ] **T19 接入任务详情与严格错误呈现**
   - 依赖：T15、T18。
   - R：无；PRD：§2.1(8)、§5 任务、§9、§11 M5。
   - 交付范围：TasksPage 可展开具体 task 正式详情，完整时间/错误与 request_id 展示；接线 parseTaskResponse/parseTaskEventResponse 的可见失败路径，状态/进度/ID/extra字段不能强转；协议错误关闭该 socket、观察重连成功前错误不消失。新增 `frontend/src/features/tasks/taskBoundary.test.tsx`，挂载真实页面。
@@ -301,7 +313,7 @@
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx` 退出码0，1 file/14 tests passed，原始输出见 `.work/c011/T19-rerun-current-20260909.log`。该挂载生产TasksPage测试继续保留详情字段、错误正文、非法输入/协议错误可见与无伪成功断言；未修改既有测试。
 
-- [x] **T20 接入单任务取消基本交互**
+- [ ] **T20 接入单任务取消基本交互**
   - 依赖：T19。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5。
   - 交付范围：新增复用 requestJson/parser 的 cancelTask helper（无 body POST），在 TasksPage 实际按钮接线；每task in-flight、queued/running/已请求/终态按钮状态与等待文案；取消成功后权威读取详情和当前窗口，确认前无成功提示。新增独立 `frontend/src/features/tasks/taskCancel.test.tsx`。
@@ -312,7 +324,7 @@
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx` 退出码0，1 file/3 tests passed，原始输出见 `.work/c011/T20-rerun-current-20260909.log`。保留生产cancelTask/TasksPage的单次无body POST、取消中状态、权威详情/列表读取及多任务隔离断言；竞争场景仍单列T21。
 
-- [x] **T21 封闭取消竞争错误与当前页面隔离**
+- [ ] **T21 封闭取消竞争错误与当前页面隔离**
   - 依赖：T20。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5；D-008。
   - 交付范围：落实取消与done竞争、迟到200 running、404/409权威刷新与资源消失、超时未知结果、筛选A/B/展开B/卸载identity。操作错误不被后台GET清除；未知结果确认前禁止再次提交，仅显式刷新或观察重建。新增独立 `frontend/src/features/tasks/taskCancelRaces.test.tsx`，保持T20既有用例不变。
@@ -332,7 +344,7 @@
   - 验收方式与命令：`python -m pytest -q tests/task_system/test_c011_task_observation.py`（cwd=backend，新隔离定向库）；G；逐task记录barrier reached/released、POST/REST/WS/DB值和子进程退出；AC-21期望全部满足。mock指handler/外部服务，跨进程指实际后端与客户端。
   - 验收归属：AC-21；这是定向生产状态观察测试，不是M6重启/全资源生命周期验收，不证明Comfy实际中断。
 
-- [x] **T23 完成任务中心真实浏览器受控走查**
+- [ ] **T23 完成任务中心真实浏览器受控走查**
   - 依赖：T04、T21、T22。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5。
   - 交付范围：不改代码；浏览器连接T04受控任务运行时，使用真实TasksPage、生产HTTP/WS和PostgreSQL，完成过滤历史、取消、等待/终态、完整错误、重连、返回来源。记录与普通生产handler的差异，不把浏览器有一条running当成真实Comfy queue_running证据。
@@ -395,7 +407,7 @@
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/director/directorTrackLayout.test.ts`；`npm --prefix frontend run test -- src/features/director`；G（Task=T24F）。真实浏览器两主题四视口/200%下测最短列≥192px、三轨边界误差≤1px、duration比例及Clip跨列间隙；横向滚动/键盘聚焦远端控件，观察根无溢出、主题切换scrollLeft与选择保持；原选择/预检/创建/选Clip操作仍使用原合同。宽度纯函数测试不冒称真实CSS grid对齐。
   - 验收归属：AC-31；与theme在途状态保持联检AC-28，最终全页结论在T24收口。
 
-- [x] **T24 完成全站响应式视觉与功能保留验收**
+- [ ] **T24 完成全站响应式视觉与功能保留验收**
   - 依赖：T29–T39修复及原退回任务重验完成；T05-T15、T23、T24A、T24B、T24C、T24D、T24E、T24F。需求方2026-09-08追加后须对最终实现重新验收，不能沿用旧暗色走查作为整体通过。
   - R：R1、R2、R3、R4、R5、R5a、R6、R7、R8、R9、R10、R11、R12；PRD：§2.1、§3.1-§3.5、§5、§9、§11 M5。
   - 交付范围：不夹带代码或装置改动；使用T03普通生产后端/fixture逐页执行spec §3视口矩阵、§4.1每项功能入口、AC-02..09/19/22。检查四类生成按钮的现有请求接线时单独使用T04受控handler模式并明确不证明实际生成；普通模式不得触发未授权GPU流水线。未满足项记录为失败并停在本task。
@@ -413,7 +425,7 @@
   5. T24四类受控handler接线的证据归“任务系统 mock；跨进程/资源生命周期”，普通视觉部分仍为“不新增自动测试”；沿用 `C011 既有功能入口与状态呈现不变`、`C011 全局浏览器功能与视觉验收`，并记录 `C011 验收装置与生产通路归属`。不新增自动测试文件，不修改生产/既有测试/配置或夹带驱动；需要装置实现变化先单列前置任务，本裁决仅增加运行配置准备T24A。
   6. 补验命令为原Director定向命令与 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T24 -EvidenceLabel <补验唯一标签>`，完整pytest另用新仅迁移库；保留原G成功及后续失败的时间顺序。全部缺项与原要求齐全才回填整项、勾T24并提交。DECISIONS候选无需新增：浏览器内置控制是验收手段，人工模板是现有PRD §7/§12.2与D-014边界下的隔离配置，不变更跨change产品约定。
 
-- [x] **T25 完成范围追溯与回归审计**
+- [ ] **T25 完成范围追溯与回归审计**
   - 依赖：T24A、T24B、T24C、T24D、T24E、T24F全部完成，且最终双主题T24全部验收通过。T25编号保留，执行顺序延后；不能用旧T24提交/单主题G跳过追加任务。
   - R：无；PRD：§0、§5 通用、§9、§11 M5。
   - 交付范围：核对全部31条AC/追溯/指定用例和最终双主题人工记录；保护基线既有测试，仅允许AGENTS.md明确授权的C011 T05 do_POST窄修正和新增独立测试文件；核对后端生产、schema/migration/workflow/template零变化、无新增业务、无未列装置、无旧暗色证据伪装追加需求结果。只修正文档事实，不修代码或重跑失败到绿。
@@ -434,7 +446,7 @@
   - 验收：挂载实际TasksPage；对同task在途cancel分别切status/type/limit且仍匹配，再鼠标/键盘激活：POST精确1且无body；另一task可独立取消；迟到404/409/网络错误归属不变、离开页不污染。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelFilterOwnership.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T29 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [x] **T30 让取消确认使用取消后的权威详情**
+- [ ] **T30 让取消确认使用取消后的权威详情**
   - 依赖：T29完成；问题/验收：B02；AC-12/13。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§6.4、§9、§11 M5。
   - 交付：使取消前已发出的详情请求不能消费取消确认、解除提交保护；旧请求完成后合并或补发必要的最新读取，继续维持每task最多一个在途GET；不直接凭取消响应伪造终态。 生产文件限frontend/src/features/tasks/taskObservation.ts；独立新增`frontend/src/features/tasks/taskCancelAuthority.test.tsx`实现下述回归，不修改既有测试。
@@ -452,7 +464,7 @@
   - 验收：先running事件后GET done：status=done、progress=1、finished_at精确；反向先GET后terminal事件且旧GET迟到：terminal不回退；断言必要GET数量、无mutation重放、无提前成功通知。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskDetailEventOrder.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T31 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [x] **T32 重连重建已展开任务详情**
+- [ ] **T32 重连重建已展开任务详情**
   - 依赖：T31完成；问题/验收：B04；AC-11/15。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§9、§11 M5。
   - 交付：重连后使仍展开的详情从正式GET恢复到最新状态，清楚处理旧缓存与读取失败；保持断线旧数据可见和1/2/5/10秒重连，不添加轮询。 生产文件限frontend/src/features/tasks/taskObservation.ts、必要的frontend/src/pages/TasksPage.tsx详情接线；独立新增`frontend/src/features/tasks/taskDetailReconnect.test.tsx`实现下述回归，不修改既有测试。
@@ -507,7 +519,7 @@
   - 命令：`python -X utf8 .work/c011/task_runtime.py self-check`（新隔离批次）；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T37 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。自检只验证装置通路，不冒称四按钮的浏览器验证。
   - 2026-09-09补充退回：当前PassiveRequestObserver捕获所有HTTP（包括media响应）并输出完整response_body_b64，超出spec §10.2的四类生成/impact范围，导致PTY大输出淹没关键证据；replay_receive在缓存耗尽时合成http.disconnect也不符合原ASGI透传合同。仅在本既有.work装置修复：非目标请求直接交原应用，命中请求仅旁路观测实际receive/send且不合成事件，保持字节/次数/异常传播；原始stdout/stderr须在进程运行时完整落盘，控制台只读所需短行，不能事后删证据或用输出截断冒充采集。复用标准进程输出重定向与既有控制通路，不新增生产代码、依赖、第二套启动器或HTTP端点。先self-check证明生成body/响应一次透传、非目标媒体正常读取且不打印其正文、真实disconnect不被提前合成、shutdown/端口释放，再G；通过才重新勾选进入T38。
 
-- [x] **T38 补齐双主题四按钮与逐页异常矩阵**
+- [ ] **T38 补齐双主题四按钮与逐页异常矩阵**
   - 依赖：T37；问题/验收：B08、AC-08/19/22；B06已修复。
   - R：R1、R2、R3、R4、R5、R5a、R6、R7、R8、R9、R10、R11、R12（只核对原功能合同不变）；PRD：§3.1–§3.5、§5、§9、§11 M5。
   - 交付：仅浏览器操作与证据/追溯；不在本项夹带实现或装置修改。明暗主题分别经真实页面点击四按钮，合计8次受控生成，分镜保留impact确认；每次记录实际body/202/task_id、同id barrier/release、UI与REST/独立DB终态。记录受控handler不产真实GPU媒体。
@@ -519,7 +531,7 @@
   - 2026-09-09完成证据：普通批次 `.work/c011/T38-ordinary-browser-20260909_143450.log` 记录 spec §4.1 各类页面的正常/空态、后端停止后的逐页读取失败、资产动作失败、媒体失败与恢复；受控批次 `.work/c011/T38-controlled-browser-20260909_1505.log` 记录亮/暗主题下四类按钮各两次真实入队，分镜 impact 确认，以及每个 task 的实际 body/202/task_id/barrier/release/UI 终态；8份 `T38-controlled-20260909_1505-taskN-db-readback.log`、`.work/c011/T38-controlled-20260909_1505-terminal-readback.log` 保留独立数据库与 REST 对照。两个批次 fixture verify、模板 API 失败及修复、服务清理证据均保留原始日志；受控handler不宣称真实GPU/M6媒体生成。
   - 本项按最新验收频率裁决未新跑 G；阶段完整回归归 T39。追溯四行已回填 T38 证据后勾选本项。
 
-- [x] **T39 完成逐用例追溯和审查探针复验**
+- [ ] **T39 完成逐用例追溯和审查探针复验**
   - 依赖：T38；问题/验收：B01–B10、AC-23；此项通过仍须重新执行T23/T24/T25及固定收尾。
   - R：无；PRD：§0、§9、§11 M5。
   - 交付：只回填openspec/TRACEABILITY.md及tasks.md的实际事实；枚举基线后所有新增测试，回填文件＋describe/it完整名称（参数用例标实际参数）或pytest node ID；尤其statusPresentation、theme/themeWiring及T29–T36新增用例。每个用例至少归属一个现有追溯行；既有/新增文件不改，审查原报告与探针不改。
@@ -534,9 +546,56 @@
   - G复用核验：T37成功G `.work/c011/T37-t37apparatus20260909_142315-test.log` 的受测代码到当前HEAD在backend/frontend、测试和运行时装置范围无差异；该G已真实记录前端30 files/160 tests、build68 modules、Alembic upgrade/current/check exit 0、完整pytest `348 passed in 392.73s`、git diff check exit 0。T38仅文档提交，故按最新频率规则引用该同输入G，未重复执行 `run_checks.ps1 -Task T39`；`AGENTS.md`和`.work`未提交。
 
 
+## 第二轮审查修复任务（优先按开头派发顺序执行）
+
+- [ ] **T40 保持取消失败后的权威读取边界**
+  - 依赖：本轮三份文档已提交；B11；AC-12/13/14。
+  - R：无；PRD：§2.1(8)、§5任务、§6.1、§6.4、§9、§11 M5；DECISIONS D-008。
+  - 交付：只修改`frontend/src/features/tasks/taskObservation.ts`必要的cancel失败协调/详情请求先后判断；独立新增`frontend/src/features/tasks/taskCancelFailureReadOrder.test.tsx`，不修改任何既有测试。取消前GET不消费取消后确认，保留task身份/原错误和单在途详情限制。
+  - 计划测试层级：任务系统 mock。
+  - 追溯行：`C011 任务取消交互与终态竞争`；`C011 任务取消错误与资源消失重建`。
+  - 验收：实际TasksPage先展开queued、详情悬而未决，再取消分别网络错误/409；释放旧queued响应，在新详情/list尚未回时真实再次激活，POST精确1且无body；旧读之后必要新读发生，新权威canceled/done/请求取消时间呈现、原message保留。断言请求实际顺序/次数，不只检查错误存在。
+  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelFailureReadOrder.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`git diff --check`。本项不跑G，完整组合探针在T42及T39；其他未修问题不能冒称通过。
+
+- [ ] **T41 保持取消成功后读取失败的确认保护**
+  - 依赖：T40；B12；AC-12/13/14。
+  - R：无；PRD：§2.1(8)、§5任务、§6.1、§6.4、§9、§11 M5；D-008。
+  - 交付：只修改`frontend/src/features/tasks/taskObservation.ts`必要的确认失败/恢复状态；独立新增`frontend/src/features/tasks/taskCancelConfirmationFailure.test.tsx`。真实取消已成功但权威读取失败时保留错误、待同步与防重发；沿现有详情重读/重连通路恢复，不添轮询或mutation重试。
+  - 计划测试层级：任务系统 mock。
+  - 追溯行：`C011 任务取消交互与终态竞争`；`C011 任务取消错误与资源消失重建`。
+  - 验收：POST分别返回canceled、running+cancel_requested_at，取消前旧GET迟到、取消后新GET失败；当前任务继续不可取消，原错误及待同步可见，再次激活POST仍1；既有正式重读成功后详情/列表对应状态与时间一致。终态/取消意图不能被旧响应改回可取消状态。
+  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelConfirmationFailure.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`git diff --check`。不跑G；失败日志留存。
+
+- [ ] **T42 重建过滤切换后保留的展开详情**
+  - 依赖：T41；B13；AC-11/15/16。
+  - R：无；PRD：§2.1(8)、§5任务、§6.1、§9、§11 M5；D-008。
+  - 交付：只修改`frontend/src/features/tasks/taskObservation.ts`必要的过滤/连接重建接线；如真实展开身份接线确有必要，可修改`frontend/src/pages/TasksPage.tsx`对应部分并说明。独立新增`frontend/src/features/tasks/taskFilterDetailRebuild.test.tsx`；不刷新无关未展开缓存、不添版本/轮询/全局状态层。
+  - 计划测试层级：任务系统 mock。
+  - 追溯行：`C011 任务中心 REST/WS 同步与过滤竞态`；`C011 任务公开边界与可见协议错误`。
+  - 验收：真实点击查看详情后切仍匹配的type/limit，打开新socket，任务在间隙成为done/failed/canceled；逐一定位列表与展开详情的字段，精确检查状态/progress/finished_at/error/取消时间、GET次数及零mutation。旧请求不得写新查询，关闭详情/消失资源不能留下幽灵展开。
+  - 命令：`npm --prefix frontend run test -- src/features/tasks/taskFilterDetailRebuild.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-task-observation.py`；`python -X utf8 .work/c011/probe-cancel-read-order.py`；`git diff --check`。两探针均须exit0；不改探针或既有测试。完整G仍归T39。
+
+- [ ] **T43 完成导演台changed统一呈现**
+  - 依赖：T42；B14；AC-09。
+  - R：无；PRD：§9、§11 M5；文案取spec §4.2。
+  - 交付：仅`frontend/src/pages/DirectorPage.tsx`的Shot changed展示接线，复用已有`presentShotStatus`或等价最小文案接线，保留布局/选择/禁用/状态判定；不增加通用Badge抽象或测试文件。
+  - 计划测试层级：不新增自动测试。
+  - 追溯行：`C011 既有功能入口与状态呈现不变`。
+  - 验收：两主题正式页面Shots/Director中changed原文精确为“已变更（changed）”，normal无角标；实际操作选择/查看与状态/轨道不变。CSS/纯文案不适合镜像测试，真实浏览器是本项替代验收。
+  - 命令：`npm --prefix frontend run test -- src/features/status src/features/director`；`npm --prefix frontend run build`；用既有普通隔离fixture实际走查，记录完整URL/主题/镜头ID/实际DOM文字；`git diff --check`。不跑G、不触发普通模式生成。
+
+- [ ] **T44 补齐八类页面异常验收矩阵**
+  - 依赖：T43；B15；AC-19/22/23。复用T03/T04/T37已有装置，不新增验收驱动或生产代码。
+  - R：无；PRD：§2.1、§5通用错误体、§9、§11 M5；spec §4.1/§6/§10.2。
+  - 交付：只补真实浏览器/原始请求/恢复记录及追溯；列八页×加载/空态/读失败/动作失败/媒体失败的逐格证据或确切不可达理由。至少覆盖首页创建/编辑、项目建集/编辑、剧本保存、资产修改、分镜保存、导演台修改、设置保存的本页失败；任务页保留真实取消失败/恢复证据。使用合法输入与自有隔离服务制造失败，不操作用户数据或真实GPU。
+  - 计划测试层级：不新增自动测试；任务页涉及取消时仍使用既有“任务系统 mock”和“跨进程/资源生命周期”证据，不以不新增自动测试豁免竞态。
+  - 追溯行：`C011 全局异常空态与媒体错误呈现`；`C011 全局浏览器功能与视觉验收`；`C011 范围回归与文档提交一致性`；任务页关联`C011 任务取消错误与资源消失重建`。
+  - 验收：每格写完整URL、输入/动作、观测message/code、草稿原值/现值、导航、无成功伪装/无mutation重放与服务恢复。只引用真正相同切片的既有日志；不拿别页、正常截图或G补数。T38已有八按钮独立DB/请求证据可在输入未变时复用。逐格缺项仍未完成；普通loading与无数据必须记录，未观察到不能写通过。
+  - 命令：各新批次`python -X utf8 .work/c011/ui_fixture.py verify`（按既有显式环境）；任务逻辑定向`npm --prefix frontend run test -- src/features/tasks`可引用本轮同输入T42；真实浏览器逐页人工检查；`git diff --check`。不新跑G，后续T39统一运行四探针与完整G。若当前装置不能提供必须的观测，向Astra报告具体缺格与能力，不自行伪造或造第二套装置。
+
 ## 固定收尾任务
 
-- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - 编号/依赖：T26；依赖T25。
   - R：无；PRD：§11 M5。
   - 交付范围：只记录本change已实际验证的命令、环境事实和坑；没有新增事实就不改NOTES，在完成报告写「无」。当前规划轮不提前写实施事实。
@@ -544,7 +603,7 @@
   - 追溯行：`C011 范围回归与文档提交一致性`。
   - 验收方式与命令：`git diff -- NOTES.md`，逐条对照原始日志；`git diff --check`；引用 T25 核对的完整回归，不重跑 G。AC-23，不把历史端口/通过数写成当前结果。
 
-- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - 编号/依赖：T27；依赖T26。
   - R：无；PRD：§11 M5。
   - 交付范围：只在完成报告列出确有跨change价值的候选与依据；没有则「无」。不因该checkbox自行编辑DECISIONS。可评估来源返回的路由state边界是否值得记录，不能把未验收计划当既成决策。
@@ -552,7 +611,7 @@
   - 追溯行：`C011 范围回归与文档提交一致性`。
   - 验收方式与命令：人工核对候选与已验收证据；`git diff -- DECISIONS.md` 应为空；`git diff --check`；引用 T25 核对的完整回归，不重跑 G。AC-23。
 
-- [x] change 文档与 commit 状态一致
+- [ ] change 文档与 commit 状态一致
   - 编号/依赖：T28；依赖T27。
   - R：无；PRD：§11 M5。
   - 交付范围：完成报告逐项列AC、真实命令/结果、浏览器与mock证据差异、删除项、未验证/阻塞、NOTES与DECISIONS候选；只有全部通过才勾选。按授权提交范围核对，不纳入.work，不自行归档或推送。
