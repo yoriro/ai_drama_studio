@@ -447,14 +447,14 @@
   - 验收：挂载实际AppRoutes与结构化project404；原message、40px共享箭头名称/title返回项目首页同时存在，激活一次到/且无mutation；两主题实际浏览器验证共享控件、Enter/焦点；非法辅助来源继续使用既定组合证据。
   - 命令：`npm --prefix frontend run test -- src/features/navigation/projectReturnError.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T34 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T35 恢复首页与工作页的既定标题字号范围**
+- [ ] **T35 恢复标题字号并修复首页表单窄屏溢出**
   - 依赖：T34；问题/验收：B07、AC-05/06/07。
   - R：无；PRD：§9、§11 M5；字号取spec §3.1，不新增产品决定。
-  - 交付：仅PageTitle.tsx、HomePage.tsx及styles.css所需的页面角色标识与字号选择器；首页48–80px、工作页28–40px。其他调用保留标题语义与内容，不改业务请求。
+  - 交付：①保留PageTitle.tsx、HomePage.tsx及styles.css的页面角色/字号修复，首页48–80px、工作页28–40px；②按spec §10.4在自有隔离环境复现合法长风格名下首页表单溢出，确认原生select、label及grid收缩通路；③仅在上述文件内修复既有首页表单标记与form-grid/label/文本数字input/select/textarea的必要宽度/网格约束，验证共享消费者。三项逐项列证据，不能夹带其他布局重构、数据截断、业务字段/校验/请求变化；checkbox/file既有合同保留。此前“只许标题选择器”范围由本条明确替代。
   - 计划测试层级：不新增自动测试。
   - 追溯行：`C011 全站视觉与响应式可访问性`。
-  - 验收：两主题四视口逐页读取h1计算font-size、根clientWidth/scrollWidth与焦点可达性；首页/工作页精确落入各自范围、根无溢出，至少记录320和1440边界。以真实浏览器补足，不能用clamp算式替代实际布局。
-  - 命令：`npm --prefix frontend run build`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T35 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`；人工按上项记录实际URL/主题/视口/字号。
+  - 验收：先记录原失败和隔离复现的长中文/连续英文风格名、真实选项/选中值、计算grid轨道与表单边界；不得写入或停止用户5173/8000环境。修复后两主题四视口逐页读取h1计算font-size、根clientWidth/scrollWidth与焦点可达性；首页/工作页落入各自字号范围，根无溢出且控件不超容器，至少完整记录320和1440边界。相同长内容必须仍存在并能键盘选择、提交值不变；检查共享form-grid消费者、T24E checkbox18px/label40px/file控件与Director局部滚动不受影响。禁用根overflow隐藏、删长内容、缩小标题或改变视口来掩盖失败。保留旧日志，不新增浏览器驱动或CSS镜像测试。
+  - 命令：按T03既有装置准备普通新隔离批次并执行`python -X utf8 .work/c011/ui_fixture.py verify`；正式风格/项目API仅操作本批次fixture；`npm --prefix frontend run build`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T35 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`；人工按上项记录实际URL/库身份/主题/视口/字号/表单几何及功能结果。旧build只证明当时标题代码可构建，CSS新修改后重新build/G。所有验收通过再勾T35、提交并自动继续T36；本条已授权的布局根因修复无需再次请示。
 
 - [ ] **T36 补齐主题切换保持意见与导演选择的自动证据**
   - 依赖：T35；问题/验收：B08、AC-28。
