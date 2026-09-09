@@ -402,7 +402,7 @@
   - 验收：挂载实际TasksPage；对同task在途cancel分别切status/type/limit且仍匹配，再鼠标/键盘激活：POST精确1且无body；另一task可独立取消；迟到404/409/网络错误归属不变、离开页不污染。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelFilterOwnership.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T29 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T30 让取消确认使用取消后的权威详情**
+- [x] **T30 让取消确认使用取消后的权威详情**
   - 依赖：T29完成；问题/验收：B02；AC-12/13。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§6.4、§9、§11 M5。
   - 交付：使取消前已发出的详情请求不能消费取消确认、解除提交保护；旧请求完成后合并或补发必要的最新读取，继续维持每task最多一个在途GET；不直接凭取消响应伪造终态。 生产文件限frontend/src/features/tasks/taskObservation.ts；独立新增`frontend/src/features/tasks/taskCancelAuthority.test.tsx`实现下述回归，不修改既有测试。

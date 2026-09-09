@@ -87,6 +87,8 @@ interface DetailRequest {
   explicitRequested: boolean;
   listRefreshRequested: boolean;
   terminalRefreshRequested: boolean;
+  authorityRequest: boolean;
+  authorityRefreshRequested: boolean;
 }
 
 function defaultSocket(): TaskObservationSocket {
@@ -539,6 +541,9 @@ class TaskObservation implements TaskObservationController {
     if (pending !== undefined) {
       pending.explicitRequested ||= explicitRequested;
       pending.listRefreshRequested ||= listRefreshRequested;
+      if (this.cancelConfirmations.has(taskId)) {
+        pending.authorityRefreshRequested = true;
+      }
       if (terminalRefresh) {
         pending.terminalRefreshRequested = true;
       }
@@ -553,6 +558,8 @@ class TaskObservation implements TaskObservationController {
       explicitRequested,
       listRefreshRequested,
       terminalRefreshRequested: false,
+      authorityRequest: this.cancelConfirmations.has(taskId),
+      authorityRefreshRequested: false,
     };
     this.detailRequests.set(taskId, request);
     void Promise.resolve()
@@ -566,7 +573,10 @@ class TaskObservation implements TaskObservationController {
         if (this.state.detailError?.taskId === taskId) {
           this.state.detailError = null;
         }
-        if (this.cancelConfirmations.delete(taskId)) {
+        if (
+          request.authorityRequest &&
+          this.cancelConfirmations.delete(taskId)
+        ) {
           this.cancelRequests.delete(taskId);
           const cancelStates = { ...this.state.cancelStates };
           delete cancelStates[taskId];
@@ -610,7 +620,10 @@ class TaskObservation implements TaskObservationController {
           ...this.state.taskDetails,
           [taskId]: { phase: "error", task: null, error },
         };
-        if (this.cancelConfirmations.delete(taskId)) {
+        if (
+          request.authorityRequest &&
+          this.cancelConfirmations.delete(taskId)
+        ) {
           this.cancelRequests.delete(taskId);
           this.state.cancelStates = {
             ...this.state.cancelStates,
@@ -635,7 +648,13 @@ class TaskObservation implements TaskObservationController {
           return;
         }
         this.detailRequests.delete(taskId);
-        if (request.terminalRefreshRequested && !this.disposed) {
+        if (
+          request.authorityRefreshRequested &&
+          this.cancelConfirmations.has(taskId) &&
+          !this.disposed
+        ) {
+          this.requestTaskDetail(taskId, false, true, true);
+        } else if (request.terminalRefreshRequested && !this.disposed) {
           this.requestTaskDetail(
             taskId,
             true,
