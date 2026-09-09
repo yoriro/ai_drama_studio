@@ -312,7 +312,7 @@
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx` 退出码0，1 file/3 tests passed，原始输出见 `.work/c011/T20-rerun-current-20260909.log`。保留生产cancelTask/TasksPage的单次无body POST、取消中状态、权威详情/列表读取及多任务隔离断言；竞争场景仍单列T21。
 
-- [ ] **T21 封闭取消竞争错误与当前页面隔离**
+- [x] **T21 封闭取消竞争错误与当前页面隔离**
   - 依赖：T20。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5；D-008。
   - 交付范围：落实取消与done竞争、迟到200 running、404/409权威刷新与资源消失、超时未知结果、筛选A/B/展开B/卸载identity。操作错误不被后台GET清除；未知结果确认前禁止再次提交，仅显式刷新或观察重建。新增独立 `frontend/src/features/tasks/taskCancelRaces.test.tsx`，保持T20既有用例不变。
@@ -320,6 +320,8 @@
   - 追溯行：`C011 任务取消交互与终态竞争`；`C011 任务取消错误与资源消失重建`。
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelRaces.test.tsx`；G；deferred控制AC-13/14两种胜方与迟到响应，实际DOM/action链证明POST一次、正确task归属、GET次数/路径、无success notice、消失清详情且不污染B。
   - 验收归属：AC-13/14 完整；不修改后端竞争裁决或改既有测试换绿。
+
+  **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskCancelRaces.test.tsx` 退出码0，1 file/6 tests passed，原始输出见 `.work/c011/T21-rerun-current-20260909.log`。该生产TasksPage测试继续覆盖终态WS胜方、迟到响应、404/409权威刷新、未知结果、筛选/展开/卸载身份隔离及无重放；未修改既有测试。
 
 - [x] **T22 验证跨进程取消与观察一致性**
   - 依赖：T04、T21。
