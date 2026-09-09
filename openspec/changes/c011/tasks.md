@@ -176,7 +176,7 @@
   - 验收方式与命令：`rg -n '进入集工作区' frontend/src` 应无匹配（rg exit 1 为预期）；G；人工鼠标和键盘进入正确集，取消/确认编辑删除仍按原语义，点击操作不进入集。
   - 验收归属：AC-04；低影响重复展示删除不新增自动测试，替代方式为上述真实操作。
 
-- [ ] **T07 统一视觉变量与应用壳**
+- [x] **T07 统一视觉变量与应用壳**
   - 依赖：T03、T05。
   - R：无；PRD：§2.1、§9、§11 M5。
   - 交付范围：在 styles.css 定义并消费 spec §3 token，改 AppShell/PageTitle/BackendStatus 的排版、导航、玻璃面板、CTA、焦点与 reduced-motion。保留品牌和健康诊断语义。集中替换对应旧色值，禁止为了主 CTA 数量隐藏原功能；各页业务区域在后续明确 task 收口。
@@ -184,6 +184,8 @@
   - 追溯行：`C011 全站视觉与响应式可访问性`。
   - 验收方式与命令：G；在四个视口人工检查 header/背景/标题/health/导航的计算样式、无远程字体请求、对比度、换行和键盘焦点；输出每个视口截图。
   - 验收归属：AC-05/06/07 的壳与共享基础样式部分；本 task 不勾全页验收完成。
+
+  **2026-09-09重验：** 当前T07受测文件在T35实现提交后无变化；`.work/c011/T07-current-scope-audit-20260909.log`记录token/焦点/响应式/reduced-motion/字体规则静态核对与`git diff --check`均exit 0。T35 `.work/c011/T35-isolated-browser-acceptance-20260909.log`精确覆盖当前壳的两主题四视口计算样式、根clientWidth=scrollWidth、键盘焦点、无远程字体与实际截图；T37 `.work/c011/T37-t37apparatus20260909_142315-test.log`按最新频率规则覆盖当前代码的前端/build/Alembic/backend/diff G，未重复同输入G。原失败日志保留，未扩大为全页AC验收。
 
 - [x] **T08 整理项目首页和剧集列表视觉**
   - 依赖：T06、T07。
