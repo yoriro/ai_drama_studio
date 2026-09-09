@@ -55,6 +55,7 @@ import {
 import {
   presentClipFreshness,
   presentClipGenerationState,
+  presentShotStatus,
 } from "../features/status/statusPresentation";
 import type { Task, TaskEvent } from "../api/tasks";
 
@@ -917,6 +918,7 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
                   const eligibility = selection.eligibility.find(
                     (item) => item.shotId === projectedShot.shot.id,
                   )!;
+                  const shotStatus = presentShotStatus(projectedShot.shot.status);
                   return (
                     <div className="director-shot-cell" key={projectedShot.shot.id}>
                       <label className="director-shot-checkbox">
@@ -931,8 +933,8 @@ export function DirectorPage({ projectId, episodeId }: DirectorPageProps) {
                       <span className="director-shot-meta">
                         {projectedShot.shot.shot_type} · {projectedShot.shot.duration_est} 秒
                       </span>
-                      {projectedShot.shot.status === "changed" && (
-                        <span className="director-shot-changed">changed</span>
+                      {shotStatus !== null && (
+                        <span className="director-shot-changed">{shotStatus.label}</span>
                       )}
                       {eligibility.reason !== null && (
                         <span className="director-shot-reason">{eligibility.reason}</span>

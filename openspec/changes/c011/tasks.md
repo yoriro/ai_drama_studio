@@ -580,7 +580,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskFilterDetailRebuild.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-task-observation.py`；`python -X utf8 .work/c011/probe-cancel-read-order.py`；`git diff --check`。上述探针均须exit0；不改探针或既有测试。完整G仍归T39。
   - 2026-09-09完成：`taskObservation.ts`在查询重建前保留当前展开身份，使仍在结果中的任务由新列表后正式详情GET重建；最新列表移除当前展开任务时仅清其详情缓存/同任务详情错误，`TasksPage`同步清除展开身份；未刷新无关缓存、未增加轮询/重试。新增`frontend/src/features/tasks/taskFilterDetailRebuild.test.tsx`的6项独立回归覆盖done/failed/canceled间隙终态、ready详情切limit、消失重现后显式重开、收起后重建不重开；定向6 tests、`probe-task-observation.py` 14/14、`probe-cancel-read-order.py` 4/4、`probe-filter-reopen.py` 1/1、前端全量33 files/171 tests、build 68 modules、diff check均exit 0，原始输出分别保留于`.work/c011/T42-test.log`、`.work/c011/T42-probe-*.log`、`.work/c011/T42-validation-20260909.log`。修复前定向失败与独立重开探针失败证据保留于`.work/c011/T42-pre-fix-failure-20260909.log`、`.work/c011/T42-pre-fix-coverage-failure-20260909.log`及原始`probe-filter-reopen-20260909-172609.*`；不跑G。
 
-- [ ] **T43 完成导演台changed统一呈现**
+- [x] **T43 完成导演台changed统一呈现**
   - 依赖：T42；B14；AC-09。
   - R：无；PRD：§9、§11 M5；文案取spec §4.2。
   - 交付：仅`frontend/src/pages/DirectorPage.tsx`的Shot changed展示接线，复用已有`presentShotStatus`或等价最小文案接线，保留布局/选择/禁用/状态判定；不增加通用Badge抽象或测试文件。
@@ -588,6 +588,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 追溯行：`C011 既有功能入口与状态呈现不变`。
   - 验收：两主题正式页面Shots/Director中changed原文精确为“已变更（changed）”，normal无角标；实际操作选择/查看与状态/轨道不变。CSS/纯文案不适合镜像测试，真实浏览器是本项替代验收。
   - 命令：`npm --prefix frontend run test -- src/features/status src/features/director`；`npm --prefix frontend run build`；用既有普通隔离fixture实际走查，记录完整URL/主题/镜头ID/实际DOM文字；`git diff --check`。不跑G、不触发普通模式生成。
+  - 2026-09-09完成：仅将`DirectorPage.tsx`的changed文本接到既有`presentShotStatus(...).label`，保留原`.director-shot-changed`样式、normal空标签、选择/禁用/R8/轨道。定向14 files/79 tests、build 68 modules、diff check均exit 0；真实IAB tab 57在`http://127.0.0.1:52429`项目2/集1的Shots与Director亮/暗主题均观察Shot 4/14为“已变更（changed）”、normal Shot 1无角标；实际选择镜头17后切换两主题，选择、预检可用和3轨保持，未提交mutation。原始浏览器记录`.work/c011/T43-browser-acceptance-20260909.log`，定向/构建日志`.work/c011/T43-test.log`、`.work/c011/T43-build.log`；不跑G。
 
 - [ ] **T44 补齐八类页面异常验收矩阵**
   - 依赖：T43；B15；AC-19/22/23。复用T03/T04/T37已有装置，不新增验收驱动或生产代码。
