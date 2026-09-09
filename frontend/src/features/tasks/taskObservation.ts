@@ -84,6 +84,7 @@ interface ListRequest {
 
 interface DetailRequest {
   epoch: number;
+  eventRevision: number;
   explicitRequested: boolean;
   listRefreshRequested: boolean;
   terminalRefreshRequested: boolean;
@@ -190,6 +191,7 @@ class TaskObservation implements TaskObservationController {
   private knownTaskIds = new Set<number>();
   private bufferedEvents: TaskEvent[] = [];
   private latestEvents = new Map<number, TaskEvent>();
+  private latestEventRevisions = new Map<number, number>();
   private readonly detailRequests = new Map<number, DetailRequest>();
   private readonly detailLoaded = new Set<number>();
   private readonly cancelRequests = new Map<number, object>();
@@ -368,6 +370,7 @@ class TaskObservation implements TaskObservationController {
     this.bufferedEvents = [];
     this.knownTaskIds = new Set(this.state.tasks.map((task) => task.id));
     this.latestEvents.clear();
+    this.latestEventRevisions.clear();
     this.detailRequests.clear();
     this.detailLoaded.clear();
     this.refreshScheduled = false;
@@ -493,6 +496,7 @@ class TaskObservation implements TaskObservationController {
     }
     this.eventRevision += 1;
     this.latestEvents.set(event.task_id, event);
+    this.latestEventRevisions.set(event.task_id, this.eventRevision);
     const current = this.state.tasks.find((task) => task.id === event.task_id);
     const isKnown = this.knownTaskIds.has(event.task_id);
     if (current !== undefined) {
@@ -555,6 +559,7 @@ class TaskObservation implements TaskObservationController {
 
     const request: DetailRequest = {
       epoch: this.socketEpoch,
+      eventRevision: this.eventRevision,
       explicitRequested,
       listRefreshRequested,
       terminalRefreshRequested: false,
@@ -591,7 +596,12 @@ class TaskObservation implements TaskObservationController {
             };
           }
         }
-        const event = this.latestEvents.get(taskId);
+        const latestEventRevision = this.latestEventRevisions.get(taskId);
+        const event =
+          latestEventRevision !== undefined &&
+          latestEventRevision > request.eventRevision
+            ? this.latestEvents.get(taskId)
+            : undefined;
         const merged = mergeTaskWithEvent(task, event);
         this.state.taskDetails = {
           ...this.state.taskDetails,

@@ -411,7 +411,7 @@
   - 验收：deferred先发详情再cancel，旧queued详情迟到；在最新读取前再次激活时POST仍1、确认状态仍在；后续真实读取分别返回canceled和running+cancel_requested_at，DOM与权威值逐字段相等；读取失败可见。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelAuthority.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T30 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T31 按事件与读取先后合并任务详情**
+- [x] **T31 按事件与读取先后合并任务详情**
   - 依赖：T30完成；问题/验收：B03；AC-13/17。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§9、§11 M5。
   - 交付：修复旧cached event覆盖后发REST终态；沿D-008现有revision/request身份实现，不添加服务端版本、时间容差或永久事件账本。 生产文件限frontend/src/features/tasks/taskObservation.ts；独立新增`frontend/src/features/tasks/taskDetailEventOrder.test.tsx`实现下述回归，不修改既有测试。
