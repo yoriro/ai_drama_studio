@@ -180,3 +180,7 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-09 C011 T25基线审计相对`1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`的`backend/app`、`backend/alembic`、`backend/workflows`为空，C011追溯行17行且无待填项，证据见`.work/c011/T25-scope-audit-20260909.log`。
 - 2026-09-09 C011 T25 G使用新库`ai_drama_studio_c011_t25_full_20260909_102444_34840`，前端142 passed、build 68 modules、完整backend `348 passed in 237.54s`、Alembic与git diff check均exit 0，证据见`.work/c011/T25-t25scopefinal20260909_1015-test.log`。
 - 2026-09-09 C011 T26 G使用新库`ai_drama_studio_c011_t26_full_20260909_103418_6744`，前端142 passed、build 68 modules、完整backend `348 passed in 235.98s`、Alembic与git diff check均exit 0，证据见`.work/c011/T26-t26notesfinal20260909_1100-test.log`。
+- 2026-09-09 C011 T23 当前IAB批次使用后端53021、前端52021、数据库`ai_drama_studio_c011_probe_20260909_150722_36700`，初始独立读取143条混合任务，证据见`.work/c011/T23-current-browser-20260909.log`。
+- 2026-09-09 C011 T23 官方入队#144/#145后真实页面取消与屏障放行终态均与独立DB读回一致；服务显式shutdown退出码0，四个验收端口无监听，证据见`T23-current-browser-20260909.log`与`T23-cleanup-20260909.log`。
+- 2026-09-09 C011 T24 当前主题定向套件13 tests、Director套件72 tests均exit 0，reduced-motion源码审计记录动态媒体响应未验证，证据见`.work/c011/T24-final-revalidation-20260909.log`与`T24-reduced-motion-static-audit-20260909.log`。
+- 2026-09-09 C011 T25 基线审计确认`backend/app`、`backend/alembic`、`backend/workflows`相对`1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`无diff，AC合同31条、C011主追溯17行，证据见`.work/c011/T25-final-scope-audit-20260909.log`。
