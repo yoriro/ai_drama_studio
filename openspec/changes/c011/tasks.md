@@ -465,7 +465,7 @@
   - 验收：各自可达场景切亮/暗后草稿/选择保持、Director轨道scrollLeft保留、URL/history不变、mutation/WS新增数=0；已有在途生成用例继续精确一次提交并消费原响应。jsdom的scrollLeft只证明属性保持，几何/滚到远端仍用T24F/T24浏览器记录。
   - 命令：`npm --prefix frontend run test -- src/features/theme`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T36 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`；回填每个真实用例ID，不仅写测试数量。
 
-- [x] **T37 先交付受控生成请求正文的被动观测**
+- [ ] **T37 先交付受控生成请求正文的被动观测**
   - 依赖：T36；问题/验收：B08、AC-08/20/25，装置合同见spec §10.2。
   - R：无；PRD：§5「任务」及生成端点、§6.1、§11 M5；只交付证据通路。
   - 交付：仅调整`.work/c011/task_runtime.py`受控服务入口与其既有self-check，按spec §10.2记录实际method/path/body/status/task_id；原ASGI应用接收正文一次，原响应不替换；不新增生产源码、test endpoint、事件通道、依赖或浏览器驱动。G现有正则已支持T29–T39，禁止为此重复修改启动器。
@@ -473,6 +473,7 @@
   - 追溯行：`C011 验收装置与生产通路归属`；`C011 既有功能入口与状态呈现不变`。
   - 验收：独立HTTP客户端经包装入口发送实际无body、{}和含原服务签发confirm_token的请求，日志与发送字节相同、各请求仅一次、原正式响应一致；Task仍来自正式路由/队列，独立只读DB/生产WS对应同id；handler仍标受控；shutdown exit=0且自有端口关闭。
   - 命令：`python -X utf8 .work/c011/task_runtime.py self-check`（新隔离批次）；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T37 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。自检只验证装置通路，不冒称四按钮的浏览器验证。
+  - 2026-09-09补充退回：当前PassiveRequestObserver捕获所有HTTP（包括media响应）并输出完整response_body_b64，超出spec §10.2的四类生成/impact范围，导致PTY大输出淹没关键证据；replay_receive在缓存耗尽时合成http.disconnect也不符合原ASGI透传合同。仅在本既有.work装置修复：非目标请求直接交原应用，命中请求仅旁路观测实际receive/send且不合成事件，保持字节/次数/异常传播；原始stdout/stderr须在进程运行时完整落盘，控制台只读所需短行，不能事后删证据或用输出截断冒充采集。复用标准进程输出重定向与既有控制通路，不新增生产代码、依赖、第二套启动器或HTTP端点。先self-check证明生成body/响应一次透传、非目标媒体正常读取且不打印其正文、真实disconnect不被提前合成、shutdown/端口释放，再G；通过才重新勾选进入T38。
 
 - [ ] **T38 补齐双主题四按钮与逐页异常矩阵**
   - 依赖：T37；问题/验收：B08、AC-08/19/22；B06已修复。
@@ -482,6 +483,7 @@
   - 追溯行：`C011 既有功能入口与状态呈现不变`；`C011 全局异常空态与媒体错误呈现`；`C011 全局浏览器功能与视觉验收`；`C011 验收装置与生产通路归属`。
   - 验收：依spec §4.1八类页面逐项记录加载/空数据/读取失败/动作失败；媒体页另有媒体失败。使用T03普通隔离fixture及spec §10.2已授权失败制造方式，草稿原文保留、错误原文可见、导航可达、没有成功媒体替代；每格给操作→观测值→期望，确不可达组合注明具体理由及替代观测。普通模式不触发GPU。补验后恢复自有服务/临时媒体并验证，无用户资源改动。
   - 命令：普通与受控环境分别执行`python -X utf8 .work/c011/ui_fixture.py verify`；按T24A原正式API步骤安装§7.4逐字人工模板并GET回读，复用已验收T37观测；人工完成上述矩阵；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T38 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。新的浏览器验收不以旧亮色日志补数。
+  - 2026-09-09恢复顺序：先完成本次T37装置修复，再继续T38；`739ecd4`只是部分证据提交，不改变本项未完成状态。先只读寻找旧批次完整原始文件及独立DB中#1–#8的当前状态，能恢复的证据标明实际采集时间，不能冒称当时同步回读；找不到的#4/#8入队body/barrier不能用T37其他task的{}记录替代。装置改变后受影响链路用全新受控批次重新做双主题8次按钮，每task保存同批次实际请求/202/id/barrier/release/REST/UI/独立只读DB；普通隔离环境补全八类页面可达的异常矩阵，不用正常截图或G替代。旧失败批次不重放业务Task，不覆盖日志。T38全部通过前不得正式执行T39或任何收尾；前次越过依赖的探针只归预诊断。
 
 - [ ] **T39 完成逐用例追溯和审查探针复验**
   - 依赖：T38；问题/验收：B01–B10、AC-23；此项通过仍须重新执行T23/T24/T25及固定收尾。
@@ -492,6 +494,7 @@
   - 验收：逐项B01–B10给修复commit/回归用例/原失败和新通过日志；31条AC全部有可核验归属；六处探针缺陷各有独立回归。前端审查探针14场景failed=[]/exit=0；跨进程probe真实RESULT PASS/exit=0、资源退出。探针若因夹具/工具变化无法证明合同，保留结果向Astra说明，不自行改断言；不得把审查报告中的六处旧失败改写成通过。
   - 命令：`git diff --name-status b4750e4`、`git diff --check`；`rg -n 'describe|it\\(|it.each|def test_' frontend/src/features backend/tests -g '*test*'`用于人工逐用例核对；`python -X utf8 .work/c011/probe-task-observation.py`；`python -X utf8 .work/c011/probe-runtime.py`（全新隔离批次，人工模板证明边界仍按报告说明）；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T39 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。
   - 提交核验：`git ls-tree -r --name-only HEAD openspec/changes/c011`必须含spec.md/tasks.md；工作树/提交各自真实报告，AGENTS既有改动及.work不纳入。本轮规划提交先解决B10的spec缺文件，T28最终再证明全部修复后的状态。
+  - 2026-09-09探针裁决：Astra已将probe-task-observation.py唯一重连场景由直接loadTaskDetail改为挂载真实TasksPage并点击查看详情，使生产页面调用setExpandedTask；期望detail=done不变并加强读取次数/完成时间/无POST断言。新原始输出`probe-task-observation-20260909-141633.stdout.log`为14场景failed=[]/exit=0，实际页面重连回归4用例也通过。旧132904失败保留，其原因是探针漏模拟展开身份，不是据此要求生产代码刷新所有未展开缓存。此诊断不代表T39正式完成，不授权Luna修改探针/既有测试；等T38完成后按原命令执行两发探针与G，并按既有顺序重验T23/T24/T25、最后T26–T28。
 
 
 ## 固定收尾任务

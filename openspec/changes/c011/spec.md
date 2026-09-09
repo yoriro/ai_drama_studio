@@ -449,3 +449,13 @@ T35原始日志 `.work/c011/T35-browser-acceptance-20260909.log` 记录：IAB在
 修复后两主题四视口重复相同合法长内容场景：根scrollWidth不大于clientWidth，表单控件边界位于其容器内，标题仍满足首页48–80px/工作页28–40px；键盘可选择真实风格且值不被截断改写，项目创建/编辑的字段合同不变。另检查共享form-grid消费者与checkbox18px/label40px、file控件及Director局部轨道滚动，不能通过根overflow-x:hidden/clip、裁掉控件、删除长内容、缩小标题或改变viewport规避。纯CSS布局使用真实浏览器验收，不新增镜像自动测试；完整build/G仍须运行。
 
 T35保持未完成直到上述与原验收全部通过，再按既有派发进入T36及后续任务。这是当前任务内已授权的明确布局修复，不必再次请示是否可以修CSS；产品语义冲突、安全阻断或需要超出这些文件/职责时仍须报告。本次不改全页原生200%/动态reduced-motion既定未验证但不阻塞的裁决，也不新增DECISIONS候选。
+
+### 10.5 T39 探针与 T37/T38 证据补全裁决（2026-09-09）
+
+在实施HEAD `739ecd4` 上，旧 `probe-task-observation-20260909-132904.stdout.log` 唯一失败为重连后列表done/详情running。Astra核对T32当前生产代码确认：真实TasksPage展开动作先setExpandedTask(taskId)，再loadTaskDetail；旧探针只做后者，没有登记当前展开身份，因此不再代表原定“已展开页面重连”的触发。Astra仅修改一次性诊断脚本的该场景，改为挂载真实TasksPage、点击查看详情、同页断线/重连；detail=done期望保留，并新增列表/详情状态、进度、完成时间、展开标志、GET次数、连接数与零POST断言，其他13场景不改。新日志 `probe-task-observation-20260909-141633.stdout.log` 实际14场景通过，重连list=done/detail=done、detailGET=2/listGET=2/sockets=2/posts=0；实际仓库taskDetailReconnect.test.tsx四用例复跑通过。此为Astra的独立诊断修正，未改生产或既有测试，旧报告/日志保留，不把旧失败涂改为通过。
+
+该结果只排除此发探针对B04的误报，不代表整个T39或C011通过，也不增加“所有未展开缓存必须自动刷新”的产品语义。Luna继续只读审查探针，不自行变更断言；需要适配的装置问题按证据报告，不通过兼容旧探针调用方式修改生产行为。
+
+T38仍缺完整异常矩阵、八个按钮任务各自的独立只读数据库结果，以及部分同task请求/body/barrier原始记录。T37另存在直接相关装置缺陷：PassiveRequestObserver未限制目标请求，捕获并base64输出媒体响应，且缓存receive耗尽后合成http.disconnect；这不满足§10.2限定观测范围和原ASGI透传要求。先重新打开T37，在原.work装置内恢复限定范围、真实receive/send透传和原始stdout/stderr运行时落盘，再恢复T38。非目标请求包括media直接走原应用，不拷贝其响应正文作为观测日志；目标请求的完整body/status/task_id仍不得截断、推测或替代。此项只修正验收装置，不改生产事件/存储/进程通路，handler/client的受控替代边界仍按§10.2；不用T37的其他task记录证明T38实际按钮已产生相同body。
+
+当前T38未完成时运行T39属于依赖顺序偏离，保留为预诊断，不作为正式任务验收。先T37→T38完整通过，再T39→原退回任务/T23/T24/T25→T26–T28。可以只读恢复旧原始文件和旧库当前状态；晚取的DB结果必须标真实时间，不能冒称当时读取。无法恢复的观测和装置变化影响的链路使用新隔离批次重新验收，不重放旧failed Task、不修改旧日志。当前裁决沿用AC-11/15/20/22/23/25与现有追溯行，无新AC或仓库测试，没有待决产品语义，也不新增DECISIONS条目。
