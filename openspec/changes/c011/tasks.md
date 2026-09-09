@@ -138,7 +138,7 @@
   5. 上述修复与审计完成后允许一次新 T04 自检：`python .work/c011/task_runtime.py --help`，随后 `python .work/c011/task_runtime.py self-check`，使用新的隔离库、DATA_DIR、证据批次和本轮自有进程；保留旧失败资源。记录 HTTP OpenAPI 核对、独立 WS 握手与匹配 task_id 的事件、barrier、REST/DB 对照、engine 释放、子进程退出及真实原生退出码。自检通过后运行 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T04 -EvidenceLabel <本轮唯一标签>`；完整 pytest 使用另一个新建仅迁移库。任一正式门槛再次失败即停止，不连续改动/重跑到绿。
   6. 仍归“跨进程/资源生命周期”，R：无；PRD：§2.1(8)、§5 任务、§6.1、§11 M5；沿用 AC-20 与 `C011 验收装置与生产通路归属`，覆盖行已存在，不新增测试文件或提前回填通过。全部通过才勾 T04并依既有授权提交本项文档/追溯；不提交 .work、不夹带前端依赖等其他 task 改动、不进入 T05。报告命令、原始输出、退出码及未验证边界。
 
-- [ ] **T05 实现设置与任务中心的来源返回**
+- [x] **T05 实现设置与任务中心的来源返回**
   - 依赖：T02、T03。
   - R：无；PRD：§2.1(1-3,8)、§9、§11 M5。
   - 交付范围：新增最小 navigation 来源决策与独立纯函数用例 `frontend/src/features/navigation/returnLocation.test.ts`；在 AppShell 及所有现有指向 /settings、/tasks 的页内链接接线。来源放路由 state；辅助页继承、replace 返回、刷新/无来源/非法来源行为严格按 spec §2.1。目标错误页保留首页链接；不引入草稿保存或最近页持久仓库。
