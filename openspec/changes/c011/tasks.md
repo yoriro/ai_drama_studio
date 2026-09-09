@@ -493,7 +493,7 @@
   - 命令：`python -X utf8 .work/c011/task_runtime.py self-check`（新隔离批次）；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T37 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。自检只验证装置通路，不冒称四按钮的浏览器验证。
   - 2026-09-09补充退回：当前PassiveRequestObserver捕获所有HTTP（包括media响应）并输出完整response_body_b64，超出spec §10.2的四类生成/impact范围，导致PTY大输出淹没关键证据；replay_receive在缓存耗尽时合成http.disconnect也不符合原ASGI透传合同。仅在本既有.work装置修复：非目标请求直接交原应用，命中请求仅旁路观测实际receive/send且不合成事件，保持字节/次数/异常传播；原始stdout/stderr须在进程运行时完整落盘，控制台只读所需短行，不能事后删证据或用输出截断冒充采集。复用标准进程输出重定向与既有控制通路，不新增生产代码、依赖、第二套启动器或HTTP端点。先self-check证明生成body/响应一次透传、非目标媒体正常读取且不打印其正文、真实disconnect不被提前合成、shutdown/端口释放，再G；通过才重新勾选进入T38。
 
-- [ ] **T38 补齐双主题四按钮与逐页异常矩阵**
+- [x] **T38 补齐双主题四按钮与逐页异常矩阵**
   - 依赖：T37；问题/验收：B08、AC-08/19/22；B06已修复。
   - R：R1、R2、R3、R4、R5、R5a、R6、R7、R8、R9、R10、R11、R12（只核对原功能合同不变）；PRD：§3.1–§3.5、§5、§9、§11 M5。
   - 交付：仅浏览器操作与证据/追溯；不在本项夹带实现或装置修改。明暗主题分别经真实页面点击四按钮，合计8次受控生成，分镜保留impact确认；每次记录实际body/202/task_id、同id barrier/release、UI与REST/独立DB终态。记录受控handler不产真实GPU媒体。
@@ -502,6 +502,8 @@
   - 验收：依spec §4.1八类页面逐项记录加载/空数据/读取失败/动作失败；媒体页另有媒体失败。使用T03普通隔离fixture及spec §10.2已授权失败制造方式，草稿原文保留、错误原文可见、导航可达、没有成功媒体替代；每格给操作→观测值→期望，确不可达组合注明具体理由及替代观测。普通模式不触发GPU。补验后恢复自有服务/临时媒体并验证，无用户资源改动。
   - 命令：普通与受控环境分别执行`python -X utf8 .work/c011/ui_fixture.py verify`；按T24A原正式API步骤安装§7.4逐字人工模板并GET回读，复用已验收T37观测；人工完成上述矩阵；`git diff --check`。本项不新跑 G，完整回归归 T39；新的浏览器验收不以旧亮色日志补数。
   - 2026-09-09恢复顺序：先完成本次T37装置修复，再继续T38；`739ecd4`只是部分证据提交，不改变本项未完成状态。先只读寻找旧批次完整原始文件及独立DB中#1–#8的当前状态，能恢复的证据标明实际采集时间，不能冒称当时同步回读；找不到的#4/#8入队body/barrier不能用T37其他task的{}记录替代。装置改变后受影响链路用全新受控批次重新做双主题8次按钮，每task保存同批次实际请求/202/id/barrier/release/REST/UI/独立只读DB；普通隔离环境补全八类页面可达的异常矩阵，不用正常截图或G替代。旧失败批次不重放业务Task，不覆盖日志。T38全部通过前不得正式执行T39或任何收尾；前次越过依赖的探针只归预诊断。
+  - 2026-09-09完成证据：普通批次 `.work/c011/T38-ordinary-browser-20260909_143450.log` 记录 spec §4.1 各类页面的正常/空态、后端停止后的逐页读取失败、资产动作失败、媒体失败与恢复；受控批次 `.work/c011/T38-controlled-browser-20260909_1505.log` 记录亮/暗主题下四类按钮各两次真实入队，分镜 impact 确认，以及每个 task 的实际 body/202/task_id/barrier/release/UI 终态；8份 `T38-controlled-20260909_1505-taskN-db-readback.log`、`.work/c011/T38-controlled-20260909_1505-terminal-readback.log` 保留独立数据库与 REST 对照。两个批次 fixture verify、模板 API 失败及修复、服务清理证据均保留原始日志；受控handler不宣称真实GPU/M6媒体生成。
+  - 本项按最新验收频率裁决未新跑 G；阶段完整回归归 T39。追溯四行已回填 T38 证据后勾选本项。
 
 - [ ] **T39 完成逐用例追溯和审查探针复验**
   - 依赖：T38；问题/验收：B01–B10、AC-23；此项通过仍须重新执行T23/T24/T25及固定收尾。
