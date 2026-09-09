@@ -599,7 +599,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收：每格写完整URL、输入/动作、观测message/code、草稿原值/现值、导航、无成功伪装/无mutation重放与服务恢复。只引用真正相同切片的既有日志；不拿别页、正常截图或G补数。T38已有八按钮独立DB/请求证据可在输入未变时复用。逐格缺项仍未完成；普通loading与无数据必须记录，未观察到不能写通过。
   - 恢复观察：自有服务只启动一次，保留同一PID的stdout/stderr及端口/API状态；1.2秒或2.2秒后的单次无监听采样不是本任务规定的失败期限，不能将其升级为新门槛。沿既有T03就绪语义确认该进程未退出且`/openapi.json`返回200，再核对原DB/DATA_DIR后继续；正常就绪等待不是重放业务mutation。真正退出、既有等待耗尽或身份不符仍保留失败并诊断，不以重复启动掩盖。可用多个实际标签预加载剩余表单，在一次停止/恢复中逐格验证以减少无意义停启；每页证据仍独立。
   - 2026-09-09调用修复授权：`T44-fixture-final-verify.log`已记录恢复后端漏传`DEBUG_PROMPTS=true`造成的正式verify失败。只修正自有后端启动调用，必须在子进程启动前同时恢复原`DATABASE_URL`、`DATA_DIR`、`DEBUG_PROMPTS=true`；不能仅向verify客户端传变量。保留失败输出与受影响记录，以新标签重新verify并补验依赖DEBUG的切片；其他真实草稿/错误/URL观测注明其实际环境，不冒称已满足DEBUG门槛。这类根因明确、保持既定配置的调用修复在当前任务内完成后继续，不要求用户再次许可；禁止无输入变化的重复试跑、业务mutation自动重放或修改生产/测试/校验断言。
-  - 命令：各新批次`python -X utf8 .work/c011/ui_fixture.py verify`（按既有显式环境）；任务逻辑定向`npm --prefix frontend run test -- src/features/tasks`可引用本轮同输入T42；真实浏览器逐页人工检查；`git diff --check`。不新跑G，后续T39统一运行四探针与完整G。若当前装置不能提供必须的观测，向Astra报告具体缺格与能力，不自行伪造或造第二套装置。
+  - 命令：带人工媒体fixture的新/恢复批次执行`python -X utf8 .work/c011/ui_fixture.py verify`（按既有显式环境）。首页无项目/设置无风格另用仅迁移空库和普通后端：运行现有`alembic upgrade head`、`alembic current`、`alembic check`，独立`SELECT current_database()`核对实际库名，正式`GET /api/projects`、`GET /api/styles`均精确`[]`，`GET /api/prompt-templates`仍含四固定key，再由真实浏览器观察空态和设置链接；按spec §10.7不对空库运行要求人工资产存在的verify，不另写驱动。任务逻辑定向`npm --prefix frontend run test -- src/features/tasks`可引用本轮同输入T42；真实浏览器逐页人工检查；`git diff --check`。不新跑G，后续T39统一运行顶部六探针与完整G。若当前装置不能提供必须的观测，向Astra报告具体缺格与能力，不自行伪造或造第二套装置。
 
 ## 固定收尾任务
 
