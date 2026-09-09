@@ -505,7 +505,7 @@
   - 2026-09-09完成证据：普通批次 `.work/c011/T38-ordinary-browser-20260909_143450.log` 记录 spec §4.1 各类页面的正常/空态、后端停止后的逐页读取失败、资产动作失败、媒体失败与恢复；受控批次 `.work/c011/T38-controlled-browser-20260909_1505.log` 记录亮/暗主题下四类按钮各两次真实入队，分镜 impact 确认，以及每个 task 的实际 body/202/task_id/barrier/release/UI 终态；8份 `T38-controlled-20260909_1505-taskN-db-readback.log`、`.work/c011/T38-controlled-20260909_1505-terminal-readback.log` 保留独立数据库与 REST 对照。两个批次 fixture verify、模板 API 失败及修复、服务清理证据均保留原始日志；受控handler不宣称真实GPU/M6媒体生成。
   - 本项按最新验收频率裁决未新跑 G；阶段完整回归归 T39。追溯四行已回填 T38 证据后勾选本项。
 
-- [ ] **T39 完成逐用例追溯和审查探针复验**
+- [x] **T39 完成逐用例追溯和审查探针复验**
   - 依赖：T38；问题/验收：B01–B10、AC-23；此项通过仍须重新执行T23/T24/T25及固定收尾。
   - R：无；PRD：§0、§9、§11 M5。
   - 交付：只回填openspec/TRACEABILITY.md及tasks.md的实际事实；枚举基线后所有新增测试，回填文件＋describe/it完整名称（参数用例标实际参数）或pytest node ID；尤其statusPresentation、theme/themeWiring及T29–T36新增用例。每个用例至少归属一个现有追溯行；既有/新增文件不改，审查原报告与探针不改。
@@ -516,6 +516,8 @@
   - G 复用核验：本项上述 G 命令只在没有同受测输入的有效成功结果时执行；按开头规则逐项记录核验依据，不因 T37 曾通过就直接略过。两发正式探针仍须在 T38 完成后执行。
   - 提交核验：`git ls-tree -r --name-only HEAD openspec/changes/c011`必须含spec.md/tasks.md；工作树/提交各自真实报告，AGENTS既有改动及.work不纳入。本轮规划提交先解决B10的spec缺文件，T28最终再证明全部修复后的状态。
   - 2026-09-09探针裁决：Astra已将probe-task-observation.py唯一重连场景由直接loadTaskDetail改为挂载真实TasksPage并点击查看详情，使生产页面调用setExpandedTask；期望detail=done不变并加强读取次数/完成时间/无POST断言。新原始输出`probe-task-observation-20260909-141633.stdout.log`为14场景failed=[]/exit=0，实际页面重连回归4用例也通过。旧132904失败保留，其原因是探针漏模拟展开身份，不是据此要求生产代码刷新所有未展开缓存。此诊断不代表T39正式完成，不授权Luna修改探针/既有测试；等T38完成后按原命令执行两发探针与G，并按既有顺序重验T23/T24/T25、最后T26–T28。
+  - 2026-09-09完成证据：已在T38提交 `06fb3ef` 后正式运行 `python -X utf8 .work/c011/probe-task-observation.py`（14场景、`failed=[]`、exit 0）和 `python -X utf8 .work/c011/probe-runtime.py`（全新库 `ai_drama_studio_c011_probe_20260909_150722_36700`、migration/prepare/verify/模板API/REST+WS+独立DB/关闭与端口检查均通过、exit 0）；完整原始文件与退出事实见 `.work/c011/T39-audit-20260909.log` 及对应 `probe-*` 日志。已核对 spec 唯一31条AC和17条C011追溯行、T29–T36新增测试文件及 describe/it/参数身份；对应B01–B10修复commit/原失败/新通过日志仍保留在追溯表。
+  - G复用核验：T37成功G `.work/c011/T37-t37apparatus20260909_142315-test.log` 的受测代码到当前HEAD在backend/frontend、测试和运行时装置范围无差异；该G已真实记录前端30 files/160 tests、build68 modules、Alembic upgrade/current/check exit 0、完整pytest `348 passed in 392.73s`、git diff check exit 0。T38仅文档提交，故按最新频率规则引用该同输入G，未重复执行 `run_checks.ps1 -Task T39`；`AGENTS.md`和`.work`未提交。
 
 
 ## 固定收尾任务
