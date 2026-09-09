@@ -548,7 +548,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
 
 ## 第二轮审查修复任务（优先按开头派发顺序执行）
 
-- [ ] **T40 保持取消失败后的权威读取边界**
+- [x] **T40 保持取消失败后的权威读取边界**
   - 依赖：本轮三份文档已提交；B11；AC-12/13/14。
   - R：无；PRD：§2.1(8)、§5任务、§6.1、§6.4、§9、§11 M5；DECISIONS D-008。
   - 交付：只修改`frontend/src/features/tasks/taskObservation.ts`必要的cancel失败协调/详情请求先后判断；独立新增`frontend/src/features/tasks/taskCancelFailureReadOrder.test.tsx`，不修改任何既有测试。取消前GET不消费取消后确认，保留task身份/原错误和单在途详情限制。
@@ -556,6 +556,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 追溯行：`C011 任务取消交互与终态竞争`；`C011 任务取消错误与资源消失重建`。
   - 验收：实际TasksPage先展开queued、详情悬而未决，再取消分别网络错误/409；释放旧queued响应，在新详情/list尚未回时真实再次激活，POST精确1且无body；旧读之后必要新读发生，新权威canceled/done/请求取消时间呈现、原message保留。断言请求实际顺序/次数，不只检查错误存在。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelFailureReadOrder.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`git diff --check`。本项不跑G，完整组合探针在T42及T39；其他未修问题不能冒称通过。
+  - 2026-09-09完成：新增回归覆盖网络错误与409冲突下的旧queued详情迟到、旧读后补发详情、原错误保持、真实取消按钮再次激活不产生第二次无body POST；定向2 tests、前端全量162 tests、build 68 modules及diff check均exit 0。证据见`.work/c011/T40-pre-fix-failure-20260909.log`与`.work/c011/T40-validation-20260909.log`。
 
 - [ ] **T41 保持取消成功后读取失败的确认保护**
   - 依赖：T40；B12；AC-12/13/14。

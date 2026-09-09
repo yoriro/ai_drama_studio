@@ -92,6 +92,7 @@ interface DetailRequest {
   terminalRefreshRequested: boolean;
   authorityRequest: boolean;
   authorityRefreshRequested: boolean;
+  cancelReconciliationRefreshRequested: boolean;
   remoteCancelIntentRefreshRequested: boolean;
 }
 
@@ -349,6 +350,12 @@ class TaskObservation implements TaskObservationController {
           }
           this.cancelReconciliations.set(taskId, request);
           const status = error instanceof ApiError ? error.status : null;
+          if (status !== 404) {
+            const pendingDetail = this.detailRequests.get(taskId);
+            if (pendingDetail !== undefined) {
+              pendingDetail.cancelReconciliationRefreshRequested = true;
+            }
+          }
           const phase = status === 404 || status === 409 ? "error" : "unknown";
           this.state.cancelStates = {
             ...this.state.cancelStates,
@@ -603,6 +610,7 @@ class TaskObservation implements TaskObservationController {
       terminalRefreshRequested: false,
       authorityRequest: this.cancelConfirmations.has(taskId),
       authorityRefreshRequested: false,
+      cancelReconciliationRefreshRequested: false,
       remoteCancelIntentRefreshRequested: false,
     };
     this.detailRequests.set(taskId, request);
@@ -625,7 +633,10 @@ class TaskObservation implements TaskObservationController {
           const cancelStates = { ...this.state.cancelStates };
           delete cancelStates[taskId];
           this.state.cancelStates = cancelStates;
-        } else if (this.cancelReconciliations.delete(taskId)) {
+        } else if (
+          !request.cancelReconciliationRefreshRequested &&
+          this.cancelReconciliations.delete(taskId)
+        ) {
           this.cancelRequests.delete(taskId);
           const cancelState = this.state.cancelStates[taskId];
           if (cancelState !== undefined) {
@@ -711,6 +722,12 @@ class TaskObservation implements TaskObservationController {
         if (
           request.authorityRefreshRequested &&
           this.cancelConfirmations.has(taskId) &&
+          !this.disposed
+        ) {
+          this.requestTaskDetail(taskId, false, true, true);
+        } else if (
+          request.cancelReconciliationRefreshRequested &&
+          this.cancelReconciliations.has(taskId) &&
           !this.disposed
         ) {
           this.requestTaskDetail(taskId, false, true, true);
