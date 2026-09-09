@@ -693,15 +693,14 @@ class TaskObservation implements TaskObservationController {
         };
         if (
           request.authorityRequest &&
-          this.cancelConfirmations.delete(taskId)
+          this.cancelConfirmations.has(taskId)
         ) {
-          this.cancelRequests.delete(taskId);
           this.state.cancelStates = {
             ...this.state.cancelStates,
             [taskId]: {
-              phase: "error",
+              phase: "unknown",
               error,
-              authorityPending: false,
+              authorityPending: true,
             },
           };
         }
@@ -709,7 +708,7 @@ class TaskObservation implements TaskObservationController {
         if (protocol) {
           this.handleSocketProtocolErrorForCurrentSocket(error);
         }
-        if (request.listRefreshRequested) {
+        if (request.listRefreshRequested && !request.authorityRequest) {
           this.requestListRefresh();
         }
       },

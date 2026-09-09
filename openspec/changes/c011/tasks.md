@@ -558,7 +558,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelFailureReadOrder.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`git diff --check`。本项不跑G，完整组合探针在T42及T39；其他未修问题不能冒称通过。
   - 2026-09-09完成：新增回归覆盖网络错误与409冲突下的旧queued详情迟到、旧读后补发详情、原错误保持、真实取消按钮再次激活不产生第二次无body POST；定向2 tests、前端全量162 tests、build 68 modules及diff check均exit 0。证据见`.work/c011/T40-pre-fix-failure-20260909.log`与`.work/c011/T40-validation-20260909.log`。
 
-- [ ] **T41 保持取消成功后读取失败的确认保护**
+- [x] **T41 保持取消成功后读取失败的确认保护**
   - 依赖：T40；B12；AC-12/13/14。
   - R：无；PRD：§2.1(8)、§5任务、§6.1、§6.4、§9、§11 M5；D-008。
   - 交付：只修改`frontend/src/features/tasks/taskObservation.ts`必要的确认失败/恢复状态；独立新增`frontend/src/features/tasks/taskCancelConfirmationFailure.test.tsx`。真实取消已成功但权威读取失败时保留错误、待同步与防重发；沿现有详情重读/重连通路恢复，不添轮询或mutation重试。
@@ -567,6 +567,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收：POST分别返回canceled、running+cancel_requested_at，取消前旧GET迟到、取消后新GET失败；当前任务继续不可取消，原错误及待同步可见，再次激活POST仍1；既有正式重读成功后详情/列表对应状态与时间一致。终态/取消意图不能被旧响应改回可取消状态。
   - 追加验收：列表正常立即返回、权威详情持续失败，没有外部新事件时详情请求不自触发循环；原错误、取消保护及单次POST保持。本次独立探针已在未提交初稿观测到list=5/detail=5，必须在本任务新回归文件中覆盖根因，不能让列表永久挂起遮蔽该分支。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelConfirmationFailure.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-cancel-confirmation-loop.py`；`git diff --check`。不跑G；失败日志留存。该追加探针在T39最终输入再复验一次，与原四探针共同记录，不增加完整G次数。
+  - 2026-09-09完成：新增回归覆盖canceled与running+cancel_requested_at两种POST成功形态、取消前旧详情迟到、权威详情失败后的原错误/待同步/防重发，以及列表立即成功时详情失败不自触发读取循环；生产修复仅保留confirmation/cancel protection并抑制authority failure的列表刷新。定向3 tests、`probe-cancel-confirmation-loop.py`、前端全量32 files/165 tests、build 68 modules及diff check均exit 0；初次新增测试查询缺陷、修复前行为失败、并发全量挂起和串行中断证据均保留于`.work/c011/`。不跑G。
 
 - [ ] **T42 重建过滤切换后保留的展开详情**
   - 依赖：T41；B13；AC-11/15/16。
