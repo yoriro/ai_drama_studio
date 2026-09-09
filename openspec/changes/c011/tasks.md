@@ -332,7 +332,7 @@
   - 验收方式与命令：`python -m pytest -q tests/task_system/test_c011_task_observation.py`（cwd=backend，新隔离定向库）；G；逐task记录barrier reached/released、POST/REST/WS/DB值和子进程退出；AC-21期望全部满足。mock指handler/外部服务，跨进程指实际后端与客户端。
   - 验收归属：AC-21；这是定向生产状态观察测试，不是M6重启/全资源生命周期验收，不证明Comfy实际中断。
 
-- [ ] **T23 完成任务中心真实浏览器受控走查**
+- [x] **T23 完成任务中心真实浏览器受控走查**
   - 依赖：T04、T21、T22。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5。
   - 交付范围：不改代码；浏览器连接T04受控任务运行时，使用真实TasksPage、生产HTTP/WS和PostgreSQL，完成过滤历史、取消、等待/终态、完整错误、重连、返回来源。记录与普通生产handler的差异，不把浏览器有一条running当成真实Comfy queue_running证据。
