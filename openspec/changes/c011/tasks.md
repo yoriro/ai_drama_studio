@@ -6,7 +6,7 @@
 
 执行顺序：T40→T41→T42→T43→T44；每项先实施、完成本项定向验收、报告并提交，再执行下一项，Astra可在报告后暂停并退回。当前已知B11–B15失败已获修复授权，不必再问用户；不改既有测试，不改Astra探针，不循环无变化跑到绿。Luna负责明确范围内的实现、新增独立测试、真实证据、对应追溯回填与checkbox；Astra负责spec/task裁决及独立复审。双方共享工作树，不回退/夹带其他人改动；用户AGENTS与.work不提交。
 
-T40–T44后，T39运行四条探针：`python -X utf8 .work/c011/probe-task-observation.py`、`python -X utf8 .work/c011/probe-cancel-read-order.py`、`python -X utf8 .work/c011/probe-runtime.py`、`python -X utf8 .work/c011/probe-template-contract.py`，各实际exit0；运行一次`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T39 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`完整G。不为T40–T44扩展G启动器Task参数；它们直接执行明列的npm/人工检查。旧审查G不能覆盖即将改变的实现；后续无相关变更不重复G。
+T40–T44后，T39运行六条探针：`python -X utf8 .work/c011/probe-task-observation.py`、`python -X utf8 .work/c011/probe-cancel-read-order.py`、`python -X utf8 .work/c011/probe-runtime.py`、`python -X utf8 .work/c011/probe-template-contract.py`、`python -X utf8 .work/c011/probe-cancel-confirmation-loop.py`、`python -X utf8 .work/c011/probe-filter-reopen.py`，各实际exit0；运行一次`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T39 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`完整G。本轮由Astra统一执行最终探针/G并提供实际日志与退出码，Luna核对同一受测输入后回填T39，不再重复运行。前三项修复的已通过前端检查不能替代本次G。不为T40–T44扩展G启动器Task参数；它们直接执行明列的npm/人工检查。旧审查G不能覆盖即将改变的实现；后续无相关变更不重复G。
 
 恢复未勾：T14/T15/T18/T19/T20/T21/T23/T24/T25/T30/T32/T38/T39及固定T26–T28。T40–T44与本轮G取得后，按原项依赖复核这些切片并逐项回填；可引用本轮已执行且同输入的定向结果，不重复跑同命令。T23补受影响TasksPage真实路径；T24补changed与异常矩阵，其他未变双主题/四视口/八按钮切片注明精确来源与适用基线，不机械全部重做。T25前交Astra独立复审；复审通过才T25→T26→T27→T28。
 
