@@ -157,6 +157,8 @@
 
   **2026-09-07 T05 build 尚未启动的执行补充：** `.work/c011/T05-scopefix-build-launcher-error-20260907_140000.log` 记录 PowerShell 字符串实例误用 `.concat()`，导致日志路径为空，Tee-Object 参数绑定失败，`PROCESS_RESULT=BUILD_NOT_STARTED`。其中 `EXIT_CODE=0` 不能归属未启动的 npm，也不能作为构建证据。保留该日志。授权执行尚未启动的原定 build，不新建启动器：在仓库根通过终端工具直接执行 `& npm.cmd --prefix frontend run build`，紧接着保存 `$buildExitCode = $LASTEXITCODE`，输出该值并以 `exit $buildExitCode` 结束本次命令；保留工具原始输出和已结束进程的退出码，不用临时 Tee-Object 管道或日志文件名包装阻挡命令。后续完整 G 继续使用既有装置持久化证据。build 实际非零则停止；通过后依上一裁决继续定向测试、浏览器与新批次 G。本补充不追认此前 build 成功，不修改产品 spec、不扩大生产修复范围。
 
+  - 2026-09-09重验：当前HEAD的 `returnLocation.test.ts` 为5 tests passed/exit 0，作用域审计与命令失败记录见 `.work/c011/T05-scope-audit-20260909.log`，原T05真实浏览器记录在相关AssetCard/ScriptEditor与配置未变化条件下精确复用；T34/T38的当前共享入口/页面证据另行引用。T39阶段完整G `.work/c011/T37-t37apparatus20260909_142315-test.log`覆盖当前受测代码的frontend/build/Alembic/backend/diff检查，未重复同输入G。
+
   **2026-09-07 需求方授权 T05 回归门槛中的 C009 stub 屏障窄修正：**
 
   - 证据与范围：G 的 `.work/c011/T05-t05scopefix20260907_1410-full-pytest.stdout.log` 记录 `1 failed, 345 passed in 138.73s`，退出码文件为1；相对C010归档基线backend无diff。既有 `/prompt` stub 先 set 屏障、再发送响应、最后 finally 记录 submit，WS线程有机会先记录ws。C011 T01/T02旧日志分别记录346 passed，不能证明该竞态不存在。当前失败保留，不能靠无修复重复跑绿消除。
