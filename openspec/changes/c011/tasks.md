@@ -301,7 +301,7 @@
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx` 退出码0，1 file/14 tests passed，原始输出见 `.work/c011/T19-rerun-current-20260909.log`。该挂载生产TasksPage测试继续保留详情字段、错误正文、非法输入/协议错误可见与无伪成功断言；未修改既有测试。
 
-- [ ] **T20 接入单任务取消基本交互**
+- [x] **T20 接入单任务取消基本交互**
   - 依赖：T19。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5。
   - 交付范围：新增复用 requestJson/parser 的 cancelTask helper（无 body POST），在 TasksPage 实际按钮接线；每task in-flight、queued/running/已请求/终态按钮状态与等待文案；取消成功后权威读取详情和当前窗口，确认前无成功提示。新增独立 `frontend/src/features/tasks/taskCancel.test.tsx`。
@@ -309,6 +309,8 @@
   - 追溯行：`C011 任务取消交互与终态竞争`。
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx`；G；按AC-12遍历状态、鼠标/键盘双击和多task隔离；断言真实helper收到的method/path/body、POST=1、200 running仍显示等待且没有canceled假状态。
   - 验收归属：AC-12 完整；竞争/失败不夹带为未列出的修复，后续T21独立验收。
+
+  **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx` 退出码0，1 file/3 tests passed，原始输出见 `.work/c011/T20-rerun-current-20260909.log`。保留生产cancelTask/TasksPage的单次无body POST、取消中状态、权威详情/列表读取及多任务隔离断言；竞争场景仍单列T21。
 
 - [ ] **T21 封闭取消竞争错误与当前页面隔离**
   - 依赖：T20。
