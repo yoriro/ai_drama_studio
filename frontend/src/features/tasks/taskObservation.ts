@@ -4,6 +4,7 @@ import { openTaskWebSocket, parseTaskEvent } from "../../api/ws";
 import { ApiError, ApiProtocolError } from "../../api/client";
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000] as const;
+const CANCEL_REQUESTED_EVENT_MESSAGE = "已请求取消";
 
 export interface TaskObservationSocket {
   onopen: ((event: Event) => void) | null;
@@ -91,6 +92,7 @@ interface DetailRequest {
   terminalRefreshRequested: boolean;
   authorityRequest: boolean;
   authorityRefreshRequested: boolean;
+  remoteCancelIntentRefreshRequested: boolean;
 }
 
 function defaultSocket(): TaskObservationSocket {
@@ -198,6 +200,7 @@ class TaskObservation implements TaskObservationController {
   private readonly cancelRequests = new Map<number, object>();
   private readonly cancelConfirmations = new Set<number>();
   private readonly cancelReconciliations = new Map<number, object>();
+  private readonly remoteCancelIntentPending = new Set<number>();
   private expandedTaskId: number | null = null;
   private refreshExpandedDetailOnReconnect = false;
   private refreshScheduled = false;
@@ -258,6 +261,7 @@ class TaskObservation implements TaskObservationController {
     this.cancelRequests.clear();
     this.cancelConfirmations.clear();
     this.cancelReconciliations.clear();
+    this.remoteCancelIntentPending.clear();
     this.socketEpoch += 1;
     const socket = this.socket;
     this.socket = null;
@@ -520,6 +524,23 @@ class TaskObservation implements TaskObservationController {
           (task) => task.id !== event.task_id,
         );
       }
+      if (
+        event.status === "running" &&
+        event.message === CANCEL_REQUESTED_EVENT_MESSAGE &&
+        !this.cancelRequests.has(event.task_id) &&
+        !this.cancelConfirmations.has(event.task_id) &&
+        !this.cancelReconciliations.has(event.task_id)
+      ) {
+        this.remoteCancelIntentPending.add(event.task_id);
+        this.state.cancelStates = {
+          ...this.state.cancelStates,
+          [event.task_id]: {
+            phase: "confirming",
+            error: null,
+            authorityPending: true,
+          },
+        };
+      }
       this.emit();
     }
 
@@ -540,6 +561,11 @@ class TaskObservation implements TaskObservationController {
     if (isTerminalStatus(event.status)) {
       this.requestTaskDetail(event.task_id, true, false, true);
       this.requestListRefresh();
+    } else if (
+      event.status === "running" &&
+      event.message === CANCEL_REQUESTED_EVENT_MESSAGE
+    ) {
+      this.requestTaskDetail(event.task_id, false, true, false, true);
     }
   }
 
@@ -548,6 +574,7 @@ class TaskObservation implements TaskObservationController {
     terminalRefresh: boolean,
     explicitRequested: boolean,
     listRefreshRequested: boolean,
+    remoteCancelIntentRequested = false,
   ): void {
     const pending = this.detailRequests.get(taskId);
     if (pending !== undefined) {
@@ -558,6 +585,9 @@ class TaskObservation implements TaskObservationController {
       }
       if (terminalRefresh) {
         pending.terminalRefreshRequested = true;
+      }
+      if (remoteCancelIntentRequested) {
+        pending.remoteCancelIntentRefreshRequested = true;
       }
       return;
     }
@@ -573,6 +603,7 @@ class TaskObservation implements TaskObservationController {
       terminalRefreshRequested: false,
       authorityRequest: this.cancelConfirmations.has(taskId),
       authorityRefreshRequested: false,
+      remoteCancelIntentRefreshRequested: false,
     };
     this.detailRequests.set(taskId, request);
     void Promise.resolve()
@@ -611,6 +642,17 @@ class TaskObservation implements TaskObservationController {
             ? this.latestEvents.get(taskId)
             : undefined;
         const merged = mergeTaskWithEvent(task, event);
+        if (
+          merged.cancel_requested_at !== null &&
+          this.remoteCancelIntentPending.delete(taskId)
+        ) {
+          const cancelStates = { ...this.state.cancelStates };
+          const cancelState = cancelStates[taskId];
+          if (cancelState?.phase === "confirming" && cancelState.authorityPending) {
+            delete cancelStates[taskId];
+            this.state.cancelStates = cancelStates;
+          }
+        }
         this.state.taskDetails = {
           ...this.state.taskDetails,
           [taskId]: { phase: "ready", task: merged, error: null },
@@ -672,6 +714,11 @@ class TaskObservation implements TaskObservationController {
           !this.disposed
         ) {
           this.requestTaskDetail(taskId, false, true, true);
+        } else if (
+          request.remoteCancelIntentRefreshRequested &&
+          !this.disposed
+        ) {
+          this.requestTaskDetail(taskId, false, true, false, true);
         } else if (request.terminalRefreshRequested && !this.disposed) {
           this.requestTaskDetail(
             taskId,

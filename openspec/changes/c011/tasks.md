@@ -429,7 +429,7 @@
   - 验收：不卸载实际页面：展开running→WS断开→服务端done/failed/canceled→重连；列表与详情的status/progress/finished_at/error_msg/cancel_requested_at逐字段相等，null时间对应字段显示—、非空时间含时区；长多行错误原文可见；没有重复POST。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskDetailReconnect.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T32 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T33 补读远端首次取消意图**
+- [x] **T33 补读远端首次取消意图**
   - 依赖：T32完成；问题/验收：B05；AC-12/17。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§6.4、§9、§11 M5。
   - 交付：已知running任务收到生产已请求取消事件时补读最新详情，补齐取消时间；取消意图不是terminal，沿既有parser/公开事件合同判定，不改后端。 生产文件限frontend/src/features/tasks/taskObservation.ts；独立新增`frontend/src/features/tasks/taskCancelIntentObservation.test.tsx`实现下述回归，不修改既有测试。
