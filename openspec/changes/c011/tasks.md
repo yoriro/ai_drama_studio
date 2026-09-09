@@ -590,8 +590,16 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 命令：`npm --prefix frontend run test -- src/features/status src/features/director`；`npm --prefix frontend run build`；用既有普通隔离fixture实际走查，记录完整URL/主题/镜头ID/实际DOM文字；`git diff --check`。不跑G、不触发普通模式生成。
   - 2026-09-09完成：仅将`DirectorPage.tsx`的changed文本接到既有`presentShotStatus(...).label`，保留原`.director-shot-changed`样式、normal空标签、选择/禁用/R8/轨道。定向14 files/79 tests、build 68 modules、diff check均exit 0；真实IAB tab 57在`http://127.0.0.1:52429`项目2/集1的Shots与Director亮/暗主题均观察Shot 4/14为“已变更（changed）”、normal Shot 1无角标；实际选择镜头17后切换两主题，选择、预检可用和3轨保持，未提交mutation。原始浏览器记录`.work/c011/T43-browser-acceptance-20260909.log`，定向/构建日志`.work/c011/T43-test.log`、`.work/c011/T43-build.log`；不跑G。
 
-- [x] **T44 补齐八类页面异常验收矩阵**
-  - 依赖：T43；B15；AC-19/22/23。复用T03/T04/T37已有装置，不新增验收驱动或生产代码。
+- [ ] **T44A 交付导演台在途失败的隔离行锁装置**
+  - 依赖：T43；为T44导演台切片前置，保留历史T44尝试，不倒填完成顺序。
+  - R：无；PRD：§5通用错误体、§6.1、§9、§11 M5；spec §10.7；AC-19/22/23。
+  - 交付：恢复原工具记录中的 `.work/c011/hold_clip_lock.py` 并保留源码；只用已安装asyncpg与PostgreSQL原生事务对自有隔离库指定Clip持锁，明确输出实际库名、backend PID、目标id和锁已获取。关闭输入或停止该装置进程即释放连接/回滚，无数据写入，无通用框架，不改生产与测试。旧脚本删除及调用失败如实记录。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：`C011 验收装置与生产通路归属`；`C011 全局异常空态与媒体错误呈现`；`C011 范围回归与文档提交一致性`。
+  - 验收：`python -X utf8 .work/c011/hold_clip_lock.py` 使用显式隔离环境；独立只读连接核对实际库名/目标原字段。独立事务以NOWAIT尝试同一行锁须得到PostgreSQL 55P03；停止持锁进程后同一只读回读字段不变、新事务可取得该锁且回滚、原连接在pg_stat_activity消失、装置进程退出。可用现有python/asyncpg一次性命令，不另造自检驱动；命令、原始stdout/stderr与真实退出状态留存。通过后报告并提交仅文档，装置留在.work不提交，不跑G。
+
+- [ ] **T44 补齐八类页面异常验收矩阵**
+  - 依赖：T43、T44A；B15；AC-19/22/23。除明确列出的T44A外复用T03/T04/T37已有装置，不新增验收驱动或生产代码。
   - R：无；PRD：§2.1、§5通用错误体、§9、§11 M5；spec §4.1/§6/§10.2。
   - 交付：只补真实浏览器/原始请求/恢复记录及追溯；列八页×加载/空态/读失败/动作失败/媒体失败的逐格证据或确切不可达理由。至少覆盖首页创建/编辑、项目建集/编辑、剧本保存、资产修改、分镜保存、导演台修改、设置保存的本页失败；任务页保留真实取消失败/恢复证据。使用合法输入与自有隔离服务制造失败，不操作用户数据或真实GPU。
   - 计划测试层级：不新增自动测试；任务页涉及取消时仍使用既有“任务系统 mock”和“跨进程/资源生命周期”证据，不以不新增自动测试豁免竞态。
