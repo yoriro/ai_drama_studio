@@ -70,6 +70,16 @@ export function TasksPage() {
     );
   }, [statusFilter, taskLimit, typeFilter]);
 
+  useEffect(() => {
+    if (
+      expandedTaskId !== null &&
+      !observation.tasks.some((task) => task.id === expandedTaskId)
+    ) {
+      setExpandedTaskId(null);
+      observationController.current?.setExpandedTask(null);
+    }
+  }, [expandedTaskId, observation.tasks]);
+
   const taskGroups = groupTasksByStatus(observation.tasks);
 
   function toggleTaskDetail(taskId: number): void {

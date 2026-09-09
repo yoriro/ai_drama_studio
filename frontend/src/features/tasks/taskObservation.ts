@@ -237,6 +237,7 @@ class TaskObservation implements TaskObservationController {
       this.reconnectTimer = null;
     }
     const socket = this.socket;
+    this.refreshExpandedDetailOnReconnect = this.expandedTaskId !== null;
     this.socket = null;
     if (socket !== null) {
       socket.close();
@@ -853,6 +854,16 @@ class TaskObservation implements TaskObservationController {
         }
         this.state.cancelStates = cancelStates;
         this.state.taskDetails = taskDetails;
+        if (
+          this.expandedTaskId !== null &&
+          !tasks.some((task) => task.id === this.expandedTaskId)
+        ) {
+          delete taskDetails[this.expandedTaskId];
+          if (this.state.detailError?.taskId === this.expandedTaskId) {
+            this.state.detailError = null;
+          }
+          this.state.taskDetails = taskDetails;
+        }
         const bufferedEvents = this.bufferedEvents.splice(0);
         this.emit();
         for (const taskId of this.cancelConfirmations) {

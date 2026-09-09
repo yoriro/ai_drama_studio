@@ -569,7 +569,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelConfirmationFailure.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-cancel-confirmation-loop.py`；`git diff --check`。不跑G；失败日志留存。该追加探针在T39最终输入再复验一次，与原四探针共同记录，不增加完整G次数。
   - 2026-09-09完成：新增回归覆盖canceled与running+cancel_requested_at两种POST成功形态、取消前旧详情迟到、权威详情失败后的原错误/待同步/防重发，以及列表立即成功时详情失败不自触发读取循环；生产修复仅保留confirmation/cancel protection并抑制authority failure的列表刷新。定向3 tests、`probe-cancel-confirmation-loop.py`、前端全量32 files/165 tests、build 68 modules及diff check均exit 0；初次新增测试查询缺陷、修复前行为失败、并发全量挂起和串行中断证据均保留于`.work/c011/`。不跑G。
 
-- [ ] **T42 重建过滤切换后保留的展开详情**
+- [x] **T42 重建过滤切换后保留的展开详情**
   - 依赖：T41；B13；AC-11/15/16。
   - R：无；PRD：§2.1(8)、§5任务、§6.1、§9、§11 M5；D-008。
   - 交付：只修改`frontend/src/features/tasks/taskObservation.ts`必要的过滤/连接重建接线；如真实展开身份接线确有必要，可修改`frontend/src/pages/TasksPage.tsx`对应部分并说明。独立新增`frontend/src/features/tasks/taskFilterDetailRebuild.test.tsx`；不刷新无关未展开缓存、不添版本/轮询/全局状态层。
@@ -578,6 +578,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收：真实点击查看详情后切仍匹配的type/limit，打开新socket，任务在间隙成为done/failed/canceled；逐一定位列表与展开详情的字段，精确检查状态/progress/finished_at/error/取消时间、GET次数及零mutation。旧请求不得写新查询，关闭详情/消失资源不能留下幽灵展开。
   - 追加验收：实际ready详情切limit后同步、用户收起后重建连接不重开/不多发详情GET；任务消失后以新终态重现时保持收起，用户再次显式展开取得新GET与完整最新字段。后者由本任务尚未提交的独立回归覆盖，并运行`python -X utf8 .work/c011/probe-filter-reopen.py`，T39最终输入也复验；不要求自动刷新所有未展开缓存。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskFilterDetailRebuild.test.tsx`；`npm --prefix frontend run test`；`npm --prefix frontend run build`；`python -X utf8 .work/c011/probe-task-observation.py`；`python -X utf8 .work/c011/probe-cancel-read-order.py`；`git diff --check`。上述探针均须exit0；不改探针或既有测试。完整G仍归T39。
+  - 2026-09-09完成：`taskObservation.ts`在查询重建前保留当前展开身份，使仍在结果中的任务由新列表后正式详情GET重建；最新列表移除当前展开任务时仅清其详情缓存/同任务详情错误，`TasksPage`同步清除展开身份；未刷新无关缓存、未增加轮询/重试。新增`frontend/src/features/tasks/taskFilterDetailRebuild.test.tsx`的6项独立回归覆盖done/failed/canceled间隙终态、ready详情切limit、消失重现后显式重开、收起后重建不重开；定向6 tests、`probe-task-observation.py` 14/14、`probe-cancel-read-order.py` 4/4、`probe-filter-reopen.py` 1/1、前端全量33 files/171 tests、build 68 modules、diff check均exit 0，原始输出分别保留于`.work/c011/T42-test.log`、`.work/c011/T42-probe-*.log`、`.work/c011/T42-validation-20260909.log`。修复前定向失败与独立重开探针失败证据保留于`.work/c011/T42-pre-fix-failure-20260909.log`、`.work/c011/T42-pre-fix-coverage-failure-20260909.log`及原始`probe-filter-reopen-20260909-172609.*`；不跑G。
 
 - [ ] **T43 完成导演台changed统一呈现**
   - 依赖：T42；B14；AC-09。
