@@ -447,7 +447,7 @@
   - 验收：挂载实际AppRoutes与结构化project404；原message、40px共享箭头名称/title返回项目首页同时存在，激活一次到/且无mutation；两主题实际浏览器验证共享控件、Enter/焦点；非法辅助来源继续使用既定组合证据。
   - 命令：`npm --prefix frontend run test -- src/features/navigation/projectReturnError.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T34 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T35 恢复标题字号并修复首页表单窄屏溢出**
+- [x] **T35 恢复标题字号并修复首页表单窄屏溢出**
   - 依赖：T34；问题/验收：B07、AC-05/06/07。
   - R：无；PRD：§9、§11 M5；字号取spec §3.1，不新增产品决定。
   - 交付：①保留PageTitle.tsx、HomePage.tsx及styles.css的页面角色/字号修复，首页48–80px、工作页28–40px；②按spec §10.4在自有隔离环境复现合法长风格名下首页表单溢出，确认原生select、label及grid收缩通路；③仅在上述文件内修复既有首页表单标记与form-grid/label/文本数字input/select/textarea的必要宽度/网格约束，验证共享消费者。三项逐项列证据，不能夹带其他布局重构、数据截断、业务字段/校验/请求变化；checkbox/file既有合同保留。此前“只许标题选择器”范围由本条明确替代。

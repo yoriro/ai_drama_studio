@@ -114,7 +114,7 @@ export function HomePage() {
   if (loadState === "loading") {
     return (
       <>
-        <PageTitle>项目首页</PageTitle>
+        <PageTitle variant="home">项目首页</PageTitle>
         <p aria-live="polite" role="status">
           正在加载项目与风格…
         </p>
@@ -125,7 +125,7 @@ export function HomePage() {
   if (loadState === "error") {
     return (
       <>
-        <PageTitle>项目首页</PageTitle>
+        <PageTitle variant="home">项目首页</PageTitle>
         <ApiErrorMessage error={loadError} />
       </>
     );
@@ -133,7 +133,7 @@ export function HomePage() {
 
   return (
     <>
-      <PageTitle>项目首页</PageTitle>
+      <PageTitle variant="home">项目首页</PageTitle>
       {actionError !== null && <ApiErrorMessage error={actionError} />}
       <section className="panel home-create-panel">
         <h2>创建项目</h2>
