@@ -350,7 +350,7 @@
   - 验收方式与命令：`python .work/c011/ui_fixture.py --help`、`python .work/c011/ui_fixture.py prepare`、`python .work/c011/ui_fixture.py verify`（通过现有明确环境变量选择同一新受控批次）；正式设置页逐项保存或直接用既有HTTP客户端发送四次 `PATCH /api/prompt-templates/{key}`（body仅content，精确内容见spec），再 `GET /api/prompt-templates`；每次200且key/正文逐字一致，verify exit=0并有DEBUG字段；独立只读查询current_database()对照，进程命令/显式配置证据确认受控模式；G（Task=T24A，唯一EvidenceLabel，完整pytest另建仅迁移库）。原失败日志及旧资源保留。
   - 产出证据：只记录配置前置通过与环境身份，生产源文件/迁移/工作流/正式模板无diff；人工模板不得装到普通服务或用户库。未达到条件保持本项未完成及T24阻塞。
 
-- [ ] **T24B 完成白紫亮色与暗色语义样式**
+- [x] **T24B 完成白紫亮色与暗色语义样式**
   - 依赖：T07、T15、T23；当前T24未完成不阻塞这项明确授权的修复。
   - R：无；PRD：§9、§11 M5；追加来源：需求方2026-09-08走查第1项。
   - 交付范围：仅styles.css。逐项交付①复用根data-theme选择两套完整token，暗色基线保留、亮色逐项采用spec §3.3；②覆盖header/状态栏/页面/表单/select/checkbox/按钮各状态/错误/DEBUG/scene与两轨/预检/媒体空态；③移除相应硬编码暗色及颜色滤镜，原媒体不反色；④双主题color-scheme/焦点/对比度与320px主题控件预留布局。此项不接线主题状态/存储，后者由T24C单独交付；不安装样式库/字体/图标包。
