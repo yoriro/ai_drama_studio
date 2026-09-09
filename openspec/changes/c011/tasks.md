@@ -8,6 +8,8 @@
 
 T40–T44后，T39运行六条探针：`python -X utf8 .work/c011/probe-task-observation.py`、`python -X utf8 .work/c011/probe-cancel-read-order.py`、`python -X utf8 .work/c011/probe-runtime.py`、`python -X utf8 .work/c011/probe-template-contract.py`、`python -X utf8 .work/c011/probe-cancel-confirmation-loop.py`、`python -X utf8 .work/c011/probe-filter-reopen.py`，各实际exit0；运行一次`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T39 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`完整G。本轮由Astra统一执行最终探针/G并提供实际日志与退出码，Luna核对同一受测输入后回填T39，不再重复运行。前三项修复的已通过前端检查不能替代本次G。不为T40–T44扩展G启动器Task参数；它们直接执行明列的npm/人工检查。旧审查G不能覆盖即将改变的实现；后续无相关变更不重复G。
 
+2026-09-09执行安排：T40–T43实现已提交后，只剩T44A/T44/T23证据补齐时，Astra可在独立数据库上并行执行上述六探针与一次完整G。这是本轮独立审查的实际结果，待T44/T38前置全满足且逐项核对受测输入无相关变化后，归入T39；提前执行不等于提前勾选T39或越过浏览器门槛。若又改实现/测试/相关运行配置，按影响补验，不用时间先后来机械重跑同输入检查。
+
 恢复未勾：T14/T15/T18/T19/T20/T21/T23/T24/T25/T30/T32/T38/T39及固定T26–T28。T40–T44与本轮G取得后，按原项依赖复核这些切片并逐项回填；可引用本轮已执行且同输入的定向结果，不重复跑同命令。T23补受影响TasksPage真实路径；T24补changed与异常矩阵，其他未变双主题/四视口/八按钮切片注明精确来源与适用基线，不机械全部重做。T25前交Astra独立复审；复审通过才T25→T26→T27→T28。
 
 Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、实际测试用例ID/命令/原始结果、操作→观测值、复用与未验证范围；最后出完整六段完成报告。遇到新的明确实现缺陷先诊断并向Astra报告，不把常规缺陷自动升级为用户产品决定；行为歧义、既有测试变更、安全阻断及真实外部依赖门槛仍不得擅自越过。本轮授权提交已验收的本change文件，不归档、不推送、不执行C012。
