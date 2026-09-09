@@ -465,7 +465,7 @@
   - 验收：各自可达场景切亮/暗后草稿/选择保持、Director轨道scrollLeft保留、URL/history不变、mutation/WS新增数=0；已有在途生成用例继续精确一次提交并消费原响应。jsdom的scrollLeft只证明属性保持，几何/滚到远端仍用T24F/T24浏览器记录。
   - 命令：`npm --prefix frontend run test -- src/features/theme`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T36 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`；回填每个真实用例ID，不仅写测试数量。
 
-- [ ] **T37 先交付受控生成请求正文的被动观测**
+- [x] **T37 先交付受控生成请求正文的被动观测**
   - 依赖：T36；问题/验收：B08、AC-08/20/25，装置合同见spec §10.2。
   - R：无；PRD：§5「任务」及生成端点、§6.1、§11 M5；只交付证据通路。
   - 交付：仅调整`.work/c011/task_runtime.py`受控服务入口与其既有self-check，按spec §10.2记录实际method/path/body/status/task_id；原ASGI应用接收正文一次，原响应不替换；不新增生产源码、test endpoint、事件通道、依赖或浏览器驱动。G现有正则已支持T29–T39，禁止为此重复修改启动器。
