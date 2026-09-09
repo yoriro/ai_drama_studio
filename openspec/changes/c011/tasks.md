@@ -393,7 +393,7 @@
 
 ## 2026-09-09 审查修复任务（先于重新验收与固定收尾）
 
-- [ ] **T29 保持取消请求跨筛选的所有权**
+- [x] **T29 保持取消请求跨筛选的所有权**
   - 依赖：本轮spec/tasks/追溯文档已提交；不依赖退回的T28；问题/验收：B01；AC-12/14/16。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§9、§11 M5。
   - 交付：在生产TasksPage中保持取消发起task的在途身份跨status/type/limit查询切换；新窗口仍含该task时不可二次POST，迟到错误仍归该task且不能污染其他task/卸载后的页面。只调整必要的控制器所有权/查询接线，不引入全局状态框架。 生产文件限frontend/src/pages/TasksPage.tsx、frontend/src/features/tasks/taskObservation.ts；独立新增`frontend/src/features/tasks/taskCancelFilterOwnership.test.tsx`实现下述回归，不修改既有测试。

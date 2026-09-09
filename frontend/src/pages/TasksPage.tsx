@@ -58,6 +58,16 @@ export function TasksPage() {
         observationController.current = null;
       }
     };
+  }, []);
+
+  useEffect(() => {
+    observationController.current?.setQuery(
+      buildTaskListQuery({
+        status: statusFilter,
+        type: typeFilter,
+        limit: taskLimit,
+      }),
+    );
   }, [statusFilter, taskLimit, typeFilter]);
 
   const taskGroups = groupTasksByStatus(observation.tasks);

@@ -69,6 +69,7 @@ export interface TaskObservationController {
   dispose(): void;
   subscribe(listener: (state: TaskObservationState) => void): () => void;
   getState(): TaskObservationState;
+  setQuery(query: TaskListQuery): void;
   loadTaskDetail(taskId: number): void;
   cancelTask(taskId: number): void;
 }
@@ -76,6 +77,7 @@ export interface TaskObservationController {
 interface ListRequest {
   epoch: number;
   eventRevision: number;
+  query: TaskListQuery;
   initial: boolean;
   invalidated: boolean;
 }
@@ -162,7 +164,7 @@ function createInitialState(): TaskObservationState {
 }
 
 class TaskObservation implements TaskObservationController {
-  private readonly query: TaskListQuery;
+  private query: TaskListQuery;
   private readonly readTasks: (
     query: TaskListQuery,
   ) => Promise<Task[]>;
@@ -206,6 +208,28 @@ class TaskObservation implements TaskObservationController {
       return;
     }
     this.started = true;
+    this.connect();
+  }
+
+  setQuery(query: TaskListQuery): void {
+    if (
+      this.query.status === query.status &&
+      this.query.type === query.type &&
+      this.query.limit === query.limit
+    ) {
+      return;
+    }
+    this.query = { ...query };
+    this.eventRevision += 1;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    const socket = this.socket;
+    this.socket = null;
+    if (socket !== null) {
+      socket.close();
+    }
     this.connect();
   }
 
@@ -300,7 +324,9 @@ class TaskObservation implements TaskObservationController {
             [taskId]: { phase: "confirming", error: null, authorityPending: true },
           };
           this.emit();
-          this.requestTaskDetail(taskId, false, true, true);
+          if (this.state.tasks.some((task) => task.id === taskId)) {
+            this.requestTaskDetail(taskId, false, true, true);
+          }
         },
         (error: unknown) => {
           if (!this.isCurrentCancelRequest(taskId, request)) {
@@ -656,6 +682,7 @@ class TaskObservation implements TaskObservationController {
     const request: ListRequest = {
       epoch: this.socketEpoch,
       eventRevision: this.eventRevision,
+      query: { ...this.query },
       initial,
       invalidated: false,
     };
@@ -665,7 +692,7 @@ class TaskObservation implements TaskObservationController {
     this.emit();
 
     void Promise.resolve()
-      .then(() => this.readTasks(this.query))
+      .then(() => this.readTasks(request.query))
       .then(
       (tasks) => {
         if (!this.isCurrentListRequest(socket, request)) {
@@ -679,7 +706,7 @@ class TaskObservation implements TaskObservationController {
           return;
         }
         this.knownTaskIds = new Set(tasks.map((task) => task.id));
-        this.state.tasks = limitTasks(tasks, this.query);
+        this.state.tasks = limitTasks(tasks, request.query);
         this.state.listError = null;
         this.state.socketError = null;
         if (this.state.detailError?.protocol) {
@@ -765,8 +792,8 @@ class TaskObservation implements TaskObservationController {
       return;
     }
     this.listRequest = null;
-    if (this.socket !== null && this.synchronized && !this.disposed) {
-      this.startListRequest(this.socket, false);
+    if (this.socket !== null && !this.disposed) {
+      this.startListRequest(this.socket, !this.synchronized);
     }
   }
 
