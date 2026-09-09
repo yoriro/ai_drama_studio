@@ -456,7 +456,7 @@
   - 验收：先记录原失败和隔离复现的长中文/连续英文风格名、真实选项/选中值、计算grid轨道与表单边界；不得写入或停止用户5173/8000环境。修复后两主题四视口逐页读取h1计算font-size、根clientWidth/scrollWidth与焦点可达性；首页/工作页落入各自字号范围，根无溢出且控件不超容器，至少完整记录320和1440边界。相同长内容必须仍存在并能键盘选择、提交值不变；检查共享form-grid消费者、T24E checkbox18px/label40px/file控件与Director局部滚动不受影响。禁用根overflow隐藏、删长内容、缩小标题或改变视口来掩盖失败。保留旧日志，不新增浏览器驱动或CSS镜像测试。
   - 命令：按T03既有装置准备普通新隔离批次并执行`python -X utf8 .work/c011/ui_fixture.py verify`；正式风格/项目API仅操作本批次fixture；`npm --prefix frontend run build`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T35 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`；人工按上项记录实际URL/库身份/主题/视口/字号/表单几何及功能结果。旧build只证明当时标题代码可构建，CSS新修改后重新build/G。所有验收通过再勾T35、提交并自动继续T36；本条已授权的布局根因修复无需再次请示。
 
-- [ ] **T36 补齐主题切换保持意见与导演选择的自动证据**
+- [x] **T36 补齐主题切换保持意见与导演选择的自动证据**
   - 依赖：T35；问题/验收：B08、AC-28。
   - R：无；PRD：§9（导演台意见/选择）、§11 M5；需求方2026-09-08主题追加。
   - 交付：只新增`frontend/src/features/theme/themePageState.test.tsx`；复用已有jsdom/HTTP/WS注入依赖，分别挂载实际AssetPage意见、DirectorPage意见、镜头选择、Clip选择场景，不能用手建input或复制页面状态充当生产接线；既有theme测试与生产文件不改。发现真实新实现缺陷先报告，不靠改测试输入绕过。
