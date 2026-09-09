@@ -438,7 +438,7 @@
   - 验收：分别无详情在途/旧详情在途接收相同progress的已请求取消事件；最多一个并发GET且旧读完后至多补一次必要读取；最新cancel_requested_at精确呈现、仍running且按钮等待禁用；重复相同事件不重复读取、失败可见。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelIntentObservation.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T33 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T34 补齐已删除项目的首页后退入口**
+- [x] **T34 补齐已删除项目的首页后退入口**
   - 依赖：T33完成；问题/验收：B06；AC-03/29。
   - R：无；PRD：§5「项目」、§9、§11 M5。
   - 交付：ProjectPage真实404错误分支使用既有BackNavigation渲染首页入口；保留原message和既有正常页导航，不新增路由/状态恢复功能。 生产文件限frontend/src/pages/ProjectPage.tsx；独立新增`frontend/src/features/navigation/projectReturnError.test.tsx`实现下述回归，不修改既有测试。

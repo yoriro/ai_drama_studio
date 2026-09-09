@@ -139,6 +139,9 @@ export function ProjectPage() {
     return (
       <>
         <PageTitle>项目详情</PageTitle>
+        <p className="project-home-link">
+          <BackNavigation label="返回项目首页" to="/" />
+        </p>
         <ApiErrorMessage error={loadError ?? new Error("项目不存在")} />
       </>
     );
