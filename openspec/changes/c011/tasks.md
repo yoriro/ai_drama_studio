@@ -420,7 +420,7 @@
   - 验收：先running事件后GET done：status=done、progress=1、finished_at精确；反向先GET后terminal事件且旧GET迟到：terminal不回退；断言必要GET数量、无mutation重放、无提前成功通知。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskDetailEventOrder.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T31 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T32 重连重建已展开任务详情**
+- [x] **T32 重连重建已展开任务详情**
   - 依赖：T31完成；问题/验收：B04；AC-11/15。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§9、§11 M5。
   - 交付：重连后使仍展开的详情从正式GET恢复到最新状态，清楚处理旧缓存与读取失败；保持断线旧数据可见和1/2/5/10秒重连，不添加轮询。 生产文件限frontend/src/features/tasks/taskObservation.ts、必要的frontend/src/pages/TasksPage.tsx详情接线；独立新增`frontend/src/features/tasks/taskDetailReconnect.test.tsx`实现下述回归，不修改既有测试。

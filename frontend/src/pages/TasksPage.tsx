@@ -75,9 +75,11 @@ export function TasksPage() {
   function toggleTaskDetail(taskId: number): void {
     if (expandedTaskId === taskId) {
       setExpandedTaskId(null);
+      observationController.current?.setExpandedTask(null);
       return;
     }
     setExpandedTaskId(taskId);
+    observationController.current?.setExpandedTask(taskId);
     observationController.current?.loadTaskDetail(taskId);
   }
 

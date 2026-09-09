@@ -70,6 +70,7 @@ export interface TaskObservationController {
   subscribe(listener: (state: TaskObservationState) => void): () => void;
   getState(): TaskObservationState;
   setQuery(query: TaskListQuery): void;
+  setExpandedTask(taskId: number | null): void;
   loadTaskDetail(taskId: number): void;
   cancelTask(taskId: number): void;
 }
@@ -197,6 +198,8 @@ class TaskObservation implements TaskObservationController {
   private readonly cancelRequests = new Map<number, object>();
   private readonly cancelConfirmations = new Set<number>();
   private readonly cancelReconciliations = new Map<number, object>();
+  private expandedTaskId: number | null = null;
+  private refreshExpandedDetailOnReconnect = false;
   private refreshScheduled = false;
 
   constructor(options: TaskObservationOptions) {
@@ -235,6 +238,10 @@ class TaskObservation implements TaskObservationController {
       socket.close();
     }
     this.connect();
+  }
+
+  setExpandedTask(taskId: number | null): void {
+    this.expandedTaskId = taskId;
   }
 
   dispose(): void {
@@ -412,6 +419,7 @@ class TaskObservation implements TaskObservationController {
         return;
       }
       this.socket = null;
+      this.refreshExpandedDetailOnReconnect = true;
       this.synchronized = false;
       this.synchronizationFailed = false;
       this.listRequest = null;
@@ -787,6 +795,16 @@ class TaskObservation implements TaskObservationController {
         for (const taskId of this.cancelConfirmations) {
           if (!this.detailRequests.has(taskId)) {
             this.requestTaskDetail(taskId, false, true, true);
+          }
+        }
+        if (this.refreshExpandedDetailOnReconnect) {
+          this.refreshExpandedDetailOnReconnect = false;
+          if (
+            this.expandedTaskId !== null &&
+            tasks.some((task) => task.id === this.expandedTaskId) &&
+            !this.detailRequests.has(this.expandedTaskId)
+          ) {
+            this.requestTaskDetail(this.expandedTaskId, false, true, false);
           }
         }
         bufferedEvents.forEach((event) => this.processEvent(socket, event));
