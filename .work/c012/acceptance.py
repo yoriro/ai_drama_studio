@@ -496,6 +496,66 @@ async def command_selfcheck(
         raise AcceptanceFailure("selfcheck owned temporary resources were not released")
 
 
+async def command_locks(
+    arguments: argparse.Namespace, evidence: RunEvidence
+) -> None:
+    _raw_url, data_dir, identity = explicit_runtime()
+    selected = (
+        [arguments.case]
+        if arguments.case != "all"
+        else ["L1", "L2", "L3", "L4", "L5"]
+    )
+    child_env = os.environ.copy()
+    child_env.update({"PYTHONUTF8": "1", "DATA_DIR": str(data_dir)})
+    for case in selected:
+        result = run_child(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                "-m",
+                "pytest",
+                "-q",
+                "tests/task_system/test_c012_lock_order.py",
+                "-k",
+                case,
+            ],
+            cwd=BACKEND,
+            env=child_env,
+            timeout=30.0,
+        )
+        output = result.text_stdout() + result.text_stderr()
+        diagnostic_reproduced = (
+            case == "L1"
+            and result.returncode != 0
+            and "DeadlockDetectedError" in output
+            and "pg_observation=" in output
+        )
+        scheduled_case = (
+            case != "L1"
+            and result.returncode != 0
+            and "scheduled for its lock-order task" in output
+        )
+        evidence.add(
+            "lock_case",
+            case=case,
+            database=identity,
+            data_dir=str(data_dir),
+            **child_observation(result),
+            diagnostic_reproduced=diagnostic_reproduced,
+            scheduled_case=scheduled_case,
+        )
+        if result.timed_out:
+            raise AcceptanceFailure(f"lock case {case} timed out")
+        if result.returncode == 0:
+            continue
+        if diagnostic_reproduced or scheduled_case:
+            continue
+        raise AcceptanceFailure(
+            f"lock case {case} produced an unexpected result: rc={result.returncode}"
+        )
+
+
 def parser() -> argparse.ArgumentParser:
     argument_parser = argparse.ArgumentParser(
         prog="python -X utf8 .work/c012/acceptance.py"
@@ -532,6 +592,9 @@ def parser() -> argparse.ArgumentParser:
 async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
     if arguments.command == "selfcheck":
         await command_selfcheck(arguments, evidence)
+        return
+    if arguments.command == "locks":
+        await command_locks(arguments, evidence)
         return
     raise AcceptanceFailure(
         f"C012 acceptance command {arguments.command!r} is reserved for its scheduled task"

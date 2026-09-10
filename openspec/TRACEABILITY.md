@@ -296,7 +296,7 @@ T23新批次实际list failed/detail running，Astra `probe-closed-detail-reconn
 |---|---|---|
 | C012 范围与阶段回归及交付一致性 | 不新增自动测试 | 计划：AC-01、AC-25；G1/G2与范围审计，待实施；T01 基线/隔离环境证据：`.work/c012/T01-test.log`，受测 commit `c0830c34c05bb53b3111d39eb52b05bebd11a8d3` |
 | C012 验收装置生产通路与生命周期 | 跨进程/资源生命周期 | 计划：AC-02；T01 隔离 PostgreSQL/Alembic/loader 基线：`.work/c012/T01-test.log` 及 `T01-*.stdout.log`/`T01-*.stderr.log`，独立库 `ai_drama_studio_c012_t01_regression_20260910`、DATA_DIR `D:\ai_drama_studio\.work\c012\t01-regression-data`；T02 受控装置自检：`.work/c012/T02-test.log`、`.work/c012/selfcheck-acceptance.json`，默认 selfcheck exit 0、故意 startup failure exit 1，HTTP/WS/DB 身份与 owned 资源清理均有原始结果 |
-| C012 生成提交与入队及编辑锁顺序 | 跨进程/资源生命周期 | 计划：AC-03、AC-04；L1–L5双向锁屏障及正式提交，待实施；实施后回填真实节点或原始证据 |
+| C012 生成提交与入队及编辑锁顺序 | 跨进程/资源生命周期 | 计划：AC-03、AC-04；T03 锁图 `.work/c012/lock-order.md`；新增回归 `backend/tests/task_system/test_c012_lock_order.py::test_c012_lock_order[L1]` 实际调用生产 enqueue/commit，修复前 B 红测 `.work/c012/T03-L1.stdout.log`/`.work/c012/T03-L1.stderr.log`（SQLSTATE DeadlockDetectedError，pg_stat_activity/pg_locks/pg_blocking_pids 等待关系完整）；R `locks --case all` 原始证据 `.work/c012/locks-acceptance.json`，L1 缺陷复现、其余格标记为后续 task；受测 commit `9bb0c18b2a7f27007e340171ce1f2330f9ae0894` |
 | C012 资产名称唯一约束迁移与旧库预检 | 跨进程/资源生命周期 | 计划：AC-05；真实旧库/空库迁移与无数据自动改写，待实施；实施后回填真实节点或原始证据 |
 | C012 手动资产名称冲突与输入边界 | API 集成 | 计划：AC-06；创建/改名/no-op/409/422，待实施；实施后回填真实节点或原始证据 |
 | C012 R2 生成候选去重与冲突失败 | 跨进程/资源生命周期 | 计划：AC-07；合法ID优先、候选去重、warning、类型冲突失败，待实施；实施后回填真实节点或原始证据 |

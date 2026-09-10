@@ -26,7 +26,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期。
 
-- [ ] T03 固定锁图、独立回归与修复前复现
+- [x] T03 固定锁图、独立回归与修复前复现
   - 依赖：T02。交付：`.work/c012/lock-order.md`枚举spec L1–L5的实际显式/隐式锁边、Task/关系/FK/索引锁和既有断言；一次性新增完整`backend/tests/task_system/test_c012_lock_order.py`（L1–L5参数），实际调用生产service/commit，不修改旧C009锁测试。
   - R：R3、R4、R12；PRD §3.2、§3.3、§6.1/6.4；AC-03/04。
   - 验收：R `python -X utf8 .work/c012/acceptance.py locks --case all`记录各格实际结果；B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L1`修复前须因目标锁等待/40P01及无死锁断言失败而红，原始错误与SQL等待关系完整；若未复现或因fixture/语义冲突失败，停止诊断，不直接改锁。此task验收的是已证实的缺陷及可运行装置，不宣称L1通过。
