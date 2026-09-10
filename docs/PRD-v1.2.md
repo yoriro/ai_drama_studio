@@ -6,9 +6,13 @@
 
 ## 0. 变更摘要(供 diff)
 
+### C012 资产唯一性裁决补充(2026-09-10,需求方批准)
+
+同项目资产名称唯一(不区分类型),名称统一去除首尾空白,保留大小写及内部空格,不做模糊匹配。手动创建或重命名撞名返回结构化409;生成资产按下述R2名称冲突规则避免重复创建。旧库存在重名时迁移报错并列出冲突,不自动改名、删除或合并。此项不授权资产合并、别名或版本机制。
+
 ### v1.2 实施裁决补充(2026-08-26)
 
-1. **R2 非法 existing_id 防丢失**:生成资产输出中的非 null `existing_id` 必须属于当前项目;不属于当前项目或不存在时,该项降级为新增资产并记录 warning,避免因编造 id 被静默忽略。
+1. **R2 非法 existing_id 防丢失**:生成资产输出中的非 null `existing_id` 必须属于当前项目;不属于当前项目或不存在时,该项进入新增候选并记录 warning,再按 C012 补充的 R2 名称冲突规则处理,避免因编造 id 被静默忽略。
 2. **gen_assets 修订归属**:`episodes.assets_generated_script_revision` 写入任务入队快照中的 `script_revision`,生成期间剧本若被编辑,完成后仍须显示“资产提取基于旧剧本”。
 3. **script2assets 调用合同**:现有资产以只含 `id/type/name/description` 的紧凑 JSON 数组注入;无资产时为 `[]`;模板整体作为单条 user message;结构由 guided_json 的封闭 JSON schema 硬约束;默认温度为 `0.2`。
 
@@ -97,7 +101,8 @@ context loop 融合;单 shot 局部重生成;fl2v(首帧用户上传);音频路�
 ### 3.1 生成动作
 
 - **R1 无资产禁止生成分镜**:项目资产数为 0 时 `generate-shots` 返回 409。
-- **R2 生成资产 = 增量合并**:注入当前项目现有资产清单;Qwen 输出完整所需清单,每项带 `existing_id` 或 null。后端插入 `existing_id=null` 项;非 null `existing_id` 真实属于当前项目时只视为复用,不更新、不删除;非 null id 不存在或不属于当前项目时,按该项返回的 type/name/description 降级插入为新增资产,并记录包含任务与非法 id 上下文的 warning 日志。已有资产的删改仅限用户手动。成功后写 `episodes.assets_generated_script_revision = 任务入队快照中的 script_revision`;生成期间剧本被编辑时不得写成完成时的较新 revision。
+- **R2 生成资产 = 增量合并**:注入当前项目现有资产清单;Qwen 输出完整所需清单,每项带 `existing_id` 或 null。非 null `existing_id` 真实属于当前项目时优先视为复用,不更新、不删除,不以返回的名称/类型覆盖既有资产。`existing_id=null` 项进入新增候选;非 null id 不存在或不属于当前项目时忽略该id、进入新增候选,并记录包含任务与非法id上下文的warning。新增候选的名称去除首尾空白后,与当前项目已有资产同名同类型则跳过新增并记录warning,不修改已有资产;同名但类型不同则整个任务failed,本批业务写入回滚。同一次模型响应按原顺序处理新增候选,同名同类型只保留首项、后项跳过并warning,同名不同类型则整批失败;名称无冲突时按返回type/name/description新建。非法id的warning在名称去重时仍保留。已有资产的删改仅限用户手动。成功后写 `episodes.assets_generated_script_revision = 任务入队快照中的 script_revision`;生成期间剧本被编辑时不得写成完成时的较新 revision。任何失败不写该成功标记,不重试。本规则不合并既有资产或转移任何引用。
+- **C012 生产提取完整性裁决(需求方本轮批准)**:允许省略出场占比低、不承担主要剧情或目标镜头动作、且无需跨镜保持独立身份的背景配角。本轮仅递入场券的陈宁属于可省略项,未生成其独立资产不构成发布失败。主要人物、承担关键动作的出镜人物和目标镜头所需核心场景仍须提取,不能只按出场时长判断是否可省略。此规则不改变R2对模型实际返回项的校验、合法id复用、名称去重与原子提交;不新增自动角色分类器,不自动补资产。本轮不修改已批准的正式模板正文,其完整提取目标不再被解释为必须为每个背景配角建资产的发布最低门槛。
 - **R3 生成分镜 = 集内覆盖(带兜底)**:
   1. 前端先调 `POST /episodes/{id}/generate-shots/impact`,返回将被删除的片段数、视频数与 `confirm_token`(TTL 10 分钟,绑定该集当前影响快照;影响为空时 token 可省略)。
   2. `POST /episodes/{id}/generate-shots` 携带 token;token 缺失/过期/不匹配 → 409。
@@ -174,7 +179,7 @@ assets           id PK, project_id FK, type ∈ {character, scene, prop},
                  name, description TEXT, source ∈ {generated, manual},
                  revision INT DEFAULT 1,
                  image_prompt_cache TEXT NULL, image_prompt_hash TEXT NULL,
-                 created_at, updated_at
+                 created_at, updated_at, UNIQUE(project_id, name)
 asset_images     id PK, asset_id FK, file_path, sha256, seed BIGINT NULL,
                  source ∈ {generated, uploaded}, is_current BOOL DEFAULT false,
                  built_prompt TEXT NULL, input_hash TEXT NULL,
@@ -285,6 +290,8 @@ tasks            id PK, type ∈ {gen_assets, gen_shots, gen_asset_image, gen_cl
 ```
 
 上传约束:≤ `UPLOAD_MAX_MB`(默认 20);MIME 白名单 png/jpg/webp;落盘文件名由系统生成,用户文件名不进路径;记录 sha256。
+
+资产名称约束(C012):手动创建/重命名统一去除首尾空白,与同项目其他资产同名时返回`409`及`{"detail":{"code":"conflict","message":"资产名称已存在"}}`,不区分人物/场景类型;改回自身规范化后名称为no-op,不增加revision或触发级联。空白名称等输入校验仍为422。数据库唯一约束须覆盖并发写入。旧库按同一规范化规则预检;重名时列出项目/资产ID及名称并阻止迁移,原数据不变,由操作者使用现有正式资产API显式消除冲突后另行执行迁移;不得在迁移中自动合并、删资产或改名。
 
 ---
 
