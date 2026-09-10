@@ -1,6 +1,10 @@
 # 测试追溯表
 
-**C011 2026-09-09 第二轮复审当前状态：未完成。** 本段优先于历史完成回填；依据`8f3c4bd`及`.work/c011/review-reaudit-20260909.md`。31条AC/17条主行不变。原G前端160/后端348通过只证明其原套件；`probe-cancel-read-order-20260909-161111.stdout.log`四场景失败，B11–B13未修；B14文案、B15全页异常证据待补。原日志/提交不删除。
+**C011 当前状态（2026-09-10，已核验）：** T14、T15、T18、T19、T20、T21、T23、T24A–F、T24、T25、T26、T27及T29–T45均已完成并回填；T28为当前文档/commit一致性收口项。权威最终G为`.work/c011/T39-astrafinal20260909loop-test.log`，受测HEAD为`4bd3a713f12121f8fc082626d8f0d8154e79fead`，完整pytest为`348 passed in 239.87s`，前端/build/Alembic/diff check均有真实exit 0；T45之后的前端定向与七条探针也有独立当前日志。主追溯行仍为17条，当前无待回填项。全页原生桌面200%与动态`prefers-reduced-motion`明确未动态验证，按spec §7.4不阻塞且未写成通过；`AGENTS.md`用户改动与`.work/`证据不纳入提交。
+
+**以下2026-09-09“当前状态：未完成”及B11–B15登记是历史复审快照。** 它们保留当时的失败、待补范围与授权依据；后续T40–T45、T23、T24、T25、T26、T27回填覆盖当前状态，不删除历史日志，也不把历史失败改写为通过。
+
+**历史复审快照（2026-09-09；已被后续T40–T45/T23/T24/T25重验覆盖）：未完成。** 本段记录当时依据`8f3c4bd`及`.work/c011/review-reaudit-20260909.md`的审查结论。31条AC/17条主行不变；当时原G仅证明原套件，`probe-cancel-read-order-20260909-161111.stdout.log`四场景失败，B11–B13未修，B14文案与B15全页异常证据待补。原日志/提交不删除。
 
 | 现有准确追溯行 | 本轮待补分支与任务（先登记范围，未预填成功或用例ID） |
 |---|---|
@@ -275,4 +279,6 @@ T23新批次实际list failed/detail running，Astra `probe-closed-detail-reconn
 
 追溯补充（对应 `C011 范围回归与文档提交一致性` 行，2026-09-10 T26）：`NOTES.md`追加4条已实际验证的T23 B16、T24最终矩阵/限制、T25范围审计及权威最终G事实；`git diff -- NOTES.md`仅显示这4行，`git diff --check -- NOTES.md` exit 0，内容分别可回读`.work/c011/T23-T45-B16-combo-20260910.log`、`.work/c011/T24-final-revalidation-current-20260910.log`、`.work/c011/T25-scope-audit-current-20260910.log`与`.work/c011/T39-astrafinal20260909loop-test.log`。未修改DECISIONS.md或AGENTS.md。
 
-追溯补充（对应 `C011 范围回归与文档提交一致性` 行，2026-09-10 T27）：`.work/c011/T27-decisions-audit-current-20260910.log`保存DECISIONS.md导航相关内容只读核对、D-008边界说明、`git diff --name-status -- DECISIONS.md`空结果及`git diff --check -- DECISIONS.md` exit 0；未修改DECISIONS.md。完成报告向Sol提出候选：将已校验的工作路径+search/hash、辅助页无业务数据继承及replace返回统一为跨change导航合同；候选未视为已采纳决定。
+追溯补充（对应 `C011 范围回归与文档提交一致性` 行，2026-09-10 T27）：`.work/c011/T27-decisions-audit-current-20260910.log`保存DECISIONS.md导航相关内容只读核对、D-008边界说明、`git diff --name-status -- DECISIONS.md`空结果及`git diff --check -- DECISIONS.md` exit 0；未修改DECISIONS.md。完成报告向Astra/需求方提出候选供评估：将已校验的工作路径+search/hash、辅助页无业务数据继承及replace返回统一为跨change导航合同；候选未视为已采纳决定。
+
+追溯补充（对应 `C011 范围回归与文档提交一致性` 行，2026-09-10 T28）：`.work/c011/T28-closure-audit-current-20260910.log`记录顶部当前状态澄清后的最终闭合核对：勾选前仅T28未勾、已勾任务51项、C011主追溯行17条，spec/tasks已被git跟踪；`git diff --check` exit 0，`DECISIONS.md`/`NOTES.md`无差异，`backend/app`/`backend/alembic`/`backend/workflows`相对规划基线无差异，`.work`未跟踪，C011监听端口为0，T23/T45清理元数据均为completed/exit_code=0。权威最终G仍为T39日志中的完整pytest `348 passed in 239.87s (0:03:59)`及其余exit-0步骤；本次仅提交change文档，不提交AGENTS.md或.work。全页原生200%与动态reduced-motion保留为§7.4规定的未验证且不阻塞范围。
