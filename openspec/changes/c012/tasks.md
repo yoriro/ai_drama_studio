@@ -68,7 +68,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T09 交付资产名称旧库预检与唯一约束迁移
+- [x] T09 交付资产名称旧库预检与唯一约束迁移
   - 依赖：T08。交付：一条新Alembic revision、ORM唯一约束；迁移内只读冲突/非规范名称预检及明确报错，downgrade仅移除本约束；新增`backend/tests/task_system/test_c012_asset_name_migration.py`。历史两条migration不改。
   - R：R2；PRD §3.1、§4、§5资产名称约束；AC-05。
   - 验收：R `python -X utf8 .work/c012/acceptance.py migration`；B `python -m pytest -q tests/task_system/test_c012_asset_name_migration.py`、`python -m alembic current`、`python -m alembic check`。空库、合法旧库、精确/规范化碰撞、空白/非规范名、失败数据无损与down/up逐项检查；不操作真实旧业务库。

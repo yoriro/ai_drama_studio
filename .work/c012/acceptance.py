@@ -24,6 +24,7 @@ import threading
 import time
 from typing import Any, Mapping, Sequence
 from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
 import asyncpg
 import httpx
@@ -322,6 +323,477 @@ def assert_child_success(result: ChildResult, label: str) -> None:
         )
 
 
+MIGRATION_PREVIOUS_HEAD = "6b8e3f0a1d24"
+MIGRATION_NEW_HEAD = "c012_asset_name_unique"
+MIGRATION_DEPENDENCY_QUERIES = {
+    "episodes":
+    "SELECT id, project_id, seq, title, script_text, script_revision, "
+    "assets_generated_script_revision, shots_generated_script_revision "
+    "FROM episodes ORDER BY id",
+    "asset_images":
+    "SELECT id, asset_id, file_path, sha256, seed, source, is_current, "
+    "built_prompt, input_hash, input_snapshot, user_note "
+    "FROM asset_images ORDER BY id",
+    "shots":
+    "SELECT id, episode_id, order_index, duration_est, shot_type, camera, "
+    "description, dialogue, status, revision FROM shots ORDER BY id",
+    "clips":
+    "SELECT id, episode_id, generation_mode, user_note, requested_duration, "
+    "prompt_cache, prompt_input_hash, generation_state, freshness, revision "
+    "FROM clips ORDER BY id",
+    "clip_ref_slots":
+    "SELECT id, clip_id, slot_no, asset_id, asset_name_snapshot, "
+    "asset_type_snapshot, override_image_path, override_sha256, enabled "
+    "FROM clip_ref_slots ORDER BY id",
+    "clip_shots": "SELECT clip_id, shot_id, position FROM clip_shots ORDER BY clip_id, shot_id",
+    "clip_videos":
+    "SELECT id, clip_id, file_path, sha256, seed, requested_duration, "
+    "actual_duration, is_current, built_prompt, input_hash, input_snapshot "
+    "FROM clip_videos ORDER BY id",
+    "shot_assets": "SELECT shot_id, asset_id FROM shot_assets ORDER BY shot_id, asset_id",
+}
+
+
+def migration_database_url(raw_url: str, database: str) -> str:
+    parsed = urlsplit(raw_url)
+    return urlunsplit(
+        (parsed.scheme, parsed.netloc, f"/{database}", parsed.query, parsed.fragment)
+    )
+
+
+async def migration_create_database(admin_url: str, database: str) -> None:
+    connection = await asyncpg.connect(admin_url)
+    try:
+        await connection.execute(f'CREATE DATABASE "{database}"')
+    finally:
+        await connection.close()
+
+
+async def migration_drop_database(admin_url: str, database: str) -> None:
+    connection = await asyncpg.connect(admin_url)
+    try:
+        await connection.execute(f'DROP DATABASE "{database}"')
+    finally:
+        await connection.close()
+
+
+def migration_alembic(
+    database_url: str,
+    command: str,
+    revision: str,
+    data_dir: Path,
+) -> ChildResult:
+    child_env = os.environ.copy()
+    child_env.update(
+        {
+            "DATABASE_URL": database_url,
+            "DATA_DIR": str(data_dir),
+            "PYTHONUTF8": "1",
+        }
+    )
+    return run_child(
+        [sys.executable, "-m", "alembic", command, revision],
+        cwd=BACKEND,
+        env=child_env,
+        timeout=30.0,
+    )
+
+
+async def migration_seed(
+    database_url: str,
+    rows: Sequence[tuple[int, str, str]],
+) -> tuple[
+    list[dict[str, object]],
+    list[dict[str, object]],
+    dict[str, list[dict[str, object]]],
+]:
+    connection = await asyncpg.connect(database_url.replace("+asyncpg", "", 1))
+    try:
+        style_id = await connection.fetchval(
+            "INSERT INTO styles (name, prompt_fragment) VALUES ($1, $2) RETURNING id",
+            f"c012-migration-style-{uuid4().hex}",
+            "style",
+        )
+        project_ids: dict[int, int] = {}
+        for project_number, _asset_type, _name in rows:
+            if project_number not in project_ids:
+                project_ids[project_number] = await connection.fetchval(
+                    "INSERT INTO projects (name, style_id) VALUES ($1, $2) RETURNING id",
+                    f"c012-migration-project-{project_number}-{uuid4().hex}",
+                    style_id,
+                )
+        for project_number, asset_type, name in rows:
+            await connection.execute(
+                "INSERT INTO assets "
+                "(project_id, type, name, description, source, revision) "
+                "VALUES ($1, $2, $3, $4, 'manual', 1)",
+                project_ids[project_number],
+                asset_type,
+                name,
+                f"description-{name}",
+            )
+        assets = [
+            dict(row)
+            for row in await connection.fetch(
+                "SELECT id, project_id, type, name, description, source, revision "
+                "FROM assets ORDER BY id"
+            )
+        ]
+        first_asset = await connection.fetchrow(
+            "SELECT id, project_id, type, name FROM assets ORDER BY id LIMIT 1"
+        )
+        if first_asset is None:
+            raise AcceptanceFailure("migration fixture did not create an asset")
+        episode_id = await connection.fetchval(
+            "INSERT INTO episodes "
+            "(project_id, seq, title, script_text, script_revision) "
+            "VALUES ($1, 1, 'Migration episode', 'Migration script', 1) RETURNING id",
+            first_asset["project_id"],
+        )
+        shot_id = await connection.fetchval(
+            "INSERT INTO shots "
+            "(episode_id, order_index, duration_est, shot_type, camera, "
+            "description, dialogue, status, revision) "
+            "VALUES ($1, 1, 5.0, 'wide', 'fixed', 'Migration shot', '', 'normal', 1) "
+            "RETURNING id",
+            episode_id,
+        )
+        clip_id = await connection.fetchval(
+            "INSERT INTO clips "
+            "(episode_id, requested_duration, generation_state, freshness, revision) "
+            "VALUES ($1, 5, 'ready', 'fresh', 1) RETURNING id",
+            episode_id,
+        )
+        await connection.execute(
+            "INSERT INTO asset_images "
+            "(asset_id, file_path, sha256, seed, source, is_current) "
+            "VALUES ($1, 'assets/migration.png', 'migration-image', 1, 'uploaded', true)",
+            first_asset["id"],
+        )
+        await connection.execute(
+            "INSERT INTO shot_assets (shot_id, asset_id) VALUES ($1, $2)",
+            shot_id,
+            first_asset["id"],
+        )
+        await connection.execute(
+            "INSERT INTO clip_shots (clip_id, shot_id, position) VALUES ($1, $2, 1)",
+            clip_id,
+            shot_id,
+        )
+        await connection.execute(
+            "INSERT INTO clip_ref_slots "
+            "(clip_id, slot_no, asset_id, asset_name_snapshot, asset_type_snapshot, enabled) "
+            "VALUES ($1, 1, $2, $3, $4, true)",
+            clip_id,
+            first_asset["id"],
+            first_asset["name"],
+            first_asset["type"],
+        )
+        await connection.execute(
+            "INSERT INTO clip_videos "
+            "(clip_id, file_path, sha256, seed, requested_duration, actual_duration, is_current) "
+            "VALUES ($1, 'clips/migration.mp4', 'migration-video', 1, 5, 5.0, true)",
+            clip_id,
+        )
+        templates = [
+            dict(row)
+            for row in await connection.fetch(
+                "SELECT key, content FROM prompt_templates ORDER BY key"
+            )
+        ]
+        dependencies = {
+            table: [dict(row) for row in await connection.fetch(query)]
+            for table, query in MIGRATION_DEPENDENCY_QUERIES.items()
+        }
+        return assets, templates, dependencies
+    finally:
+        await connection.close()
+
+
+async def migration_read_state(database_url: str) -> dict[str, object]:
+    connection = await asyncpg.connect(database_url.replace("+asyncpg", "", 1))
+    try:
+        return {
+            "version": await connection.fetchval(
+                "SELECT version_num FROM alembic_version"
+            ),
+            "constraint": bool(
+                await connection.fetchval(
+                    "SELECT EXISTS ("
+                    "SELECT 1 FROM pg_constraint "
+                    "WHERE conrelid = 'assets'::regclass "
+                    "AND conname = 'uq_assets_project_name'"
+                    ")"
+                )
+            ),
+            "assets": [
+                dict(row)
+                for row in await connection.fetch(
+                    "SELECT id, project_id, type, name, description, source, revision "
+                    "FROM assets ORDER BY id"
+                )
+            ],
+            "templates": [
+                dict(row)
+                for row in await connection.fetch(
+                    "SELECT key, content FROM prompt_templates ORDER BY key"
+                )
+            ],
+            "dependencies": {
+                table: [dict(row) for row in await connection.fetch(query)]
+                for table, query in MIGRATION_DEPENDENCY_QUERIES.items()
+            },
+        }
+    finally:
+        await connection.close()
+
+
+def require_migration_state(
+    actual: dict[str, object],
+    *,
+    version: str,
+    constraint: bool,
+    assets: list[dict[str, object]],
+    templates: list[dict[str, object]],
+    dependencies: dict[str, list[dict[str, object]]],
+    label: str,
+) -> None:
+    expected = {
+        "version": version,
+        "constraint": constraint,
+        "assets": assets,
+        "templates": templates,
+        "dependencies": dependencies,
+    }
+    if actual != expected:
+        raise AcceptanceFailure(
+            f"{label} state mismatch: actual={actual!r}; expected={expected!r}"
+        )
+
+
+async def migration_duplicate_rejected(
+    database_url: str,
+    project_id: int,
+) -> None:
+    connection = await asyncpg.connect(database_url.replace("+asyncpg", "", 1))
+    try:
+        try:
+            await connection.execute(
+                "INSERT INTO assets "
+                "(project_id, type, name, description, source, revision) "
+                "VALUES ($1, 'prop', 'Hero', 'duplicate', 'manual', 1)",
+                project_id,
+            )
+        except asyncpg.exceptions.UniqueViolationError:
+            return
+        raise AcceptanceFailure(
+            "project-scoped asset name constraint accepted a duplicate"
+        )
+    finally:
+        await connection.close()
+
+
+async def command_migration(
+    _arguments: argparse.Namespace,
+    evidence: RunEvidence,
+) -> None:
+    raw_url, data_dir, url_identity = explicit_runtime()
+    admin_url = migration_database_url(raw_url, "postgres").replace(
+        "+asyncpg", "", 1
+    )
+    evidence.add(
+        "migration_runtime",
+        database_url=url_identity,
+        admin_database="postgres",
+        data_dir=str(data_dir),
+    )
+
+    async def run_step(
+        database: str,
+        database_url: str,
+        command: str,
+        revision: str,
+        label: str,
+    ) -> ChildResult:
+        result = migration_alembic(database_url, command, revision, data_dir)
+        evidence.add(
+            "alembic_step",
+            database=database,
+            label=label,
+            revision=revision,
+            **child_observation(result),
+        )
+        return result
+
+    empty_database = f"c012_migration_empty_{uuid4().hex}"
+    empty_url = migration_database_url(raw_url, empty_database)
+    await migration_create_database(admin_url, empty_database)
+    try:
+        result = await run_step(
+            empty_database,
+            empty_url,
+            "upgrade",
+            MIGRATION_NEW_HEAD,
+            "empty-upgrade",
+        )
+        assert_child_success(result, "empty migration upgrade")
+        empty_state = await migration_read_state(empty_url)
+        require_migration_state(
+            empty_state,
+            version=MIGRATION_NEW_HEAD,
+            constraint=True,
+            assets=[],
+            templates=empty_state["templates"],  # type: ignore[arg-type]
+            dependencies=empty_state["dependencies"],  # type: ignore[arg-type]
+            label="empty database",
+        )
+        evidence.add("migration_case", case="empty", state=empty_state)
+    finally:
+        await migration_drop_database(admin_url, empty_database)
+        evidence.add("migration_cleanup", database=empty_database, dropped=True)
+
+    legal_database = f"c012_migration_legal_{uuid4().hex}"
+    legal_url = migration_database_url(raw_url, legal_database)
+    await migration_create_database(admin_url, legal_database)
+    try:
+        result = await run_step(
+            legal_database,
+            legal_url,
+            "upgrade",
+            MIGRATION_PREVIOUS_HEAD,
+            "legal-previous-head-upgrade",
+        )
+        assert_child_success(result, "legal previous-head upgrade")
+        before_assets, before_templates, before_dependencies = await migration_seed(
+            legal_url,
+            [(1, "character", "Hero"), (1, "scene", "Room"), (2, "character", "Hero")],
+        )
+        project_one_id = int(before_assets[0]["project_id"])
+        result = await run_step(
+            legal_database,
+            legal_url,
+            "upgrade",
+            MIGRATION_NEW_HEAD,
+            "legal-upgrade",
+        )
+        assert_child_success(result, "legal migration upgrade")
+        require_migration_state(
+            await migration_read_state(legal_url),
+            version=MIGRATION_NEW_HEAD,
+            constraint=True,
+            assets=before_assets,
+            templates=before_templates,
+            dependencies=before_dependencies,
+            label="legal upgrade",
+        )
+        await migration_duplicate_rejected(legal_url, project_one_id)
+        evidence.add("migration_constraint", case="legal", duplicate_rejected=True)
+
+        result = await run_step(
+            legal_database,
+            legal_url,
+            "downgrade",
+            MIGRATION_PREVIOUS_HEAD,
+            "legal-downgrade",
+        )
+        assert_child_success(result, "legal migration downgrade")
+        require_migration_state(
+            await migration_read_state(legal_url),
+            version=MIGRATION_PREVIOUS_HEAD,
+            constraint=False,
+            assets=before_assets,
+            templates=before_templates,
+            dependencies=before_dependencies,
+            label="legal downgrade",
+        )
+        result = await run_step(
+            legal_database,
+            legal_url,
+            "upgrade",
+            MIGRATION_NEW_HEAD,
+            "legal-re-upgrade",
+        )
+        assert_child_success(result, "legal migration re-upgrade")
+        require_migration_state(
+            await migration_read_state(legal_url),
+            version=MIGRATION_NEW_HEAD,
+            constraint=True,
+            assets=before_assets,
+            templates=before_templates,
+            dependencies=before_dependencies,
+            label="legal re-upgrade",
+        )
+        evidence.add("migration_case", case="legal", assets=before_assets)
+    finally:
+        await migration_drop_database(admin_url, legal_database)
+        evidence.add("migration_cleanup", database=legal_database, dropped=True)
+
+    invalid_cases: dict[str, list[tuple[int, str, str]]] = {
+        "exact-collision": [(1, "character", "Hero"), (1, "scene", "Hero")],
+        "normalized-collision": [(1, "character", "Hero"), (1, "scene", "  Hero  ")],
+        "blank-name": [(1, "character", "   ")],
+        "non-normalized": [(1, "character", " Hero ")],
+    }
+    for case, rows in invalid_cases.items():
+        database = f"c012_migration_{case}_{uuid4().hex}"
+        database_url = migration_database_url(raw_url, database)
+        await migration_create_database(admin_url, database)
+        try:
+            result = await run_step(
+                database,
+                database_url,
+                "upgrade",
+                MIGRATION_PREVIOUS_HEAD,
+                f"{case}-previous-head-upgrade",
+            )
+            assert_child_success(result, f"{case} previous-head upgrade")
+            before_assets, before_templates, before_dependencies = await migration_seed(
+                database_url, rows
+            )
+            result = await run_step(
+                database,
+                database_url,
+                "upgrade",
+                MIGRATION_NEW_HEAD,
+                f"{case}-precheck",
+            )
+            output = result.text_stdout() + result.text_stderr()
+            if result.timed_out or result.returncode == 0:
+                raise AcceptanceFailure(
+                    f"{case} precheck did not fail: rc={result.returncode}, "
+                    f"timeout={result.timed_out}"
+                )
+            for marker in (
+                "assets name precheck failed",
+                "project_id",
+                "asset_id",
+                "original_name",
+                "normalized_name",
+            ):
+                if marker not in output:
+                    raise AcceptanceFailure(
+                        f"{case} precheck output omitted {marker!r}: {output}"
+                    )
+            require_migration_state(
+                await migration_read_state(database_url),
+                version=MIGRATION_PREVIOUS_HEAD,
+                constraint=False,
+                assets=before_assets,
+                templates=before_templates,
+                dependencies=before_dependencies,
+                label=f"{case} failed migration",
+            )
+            evidence.add(
+                "migration_case",
+                case=case,
+                failure_returncode=result.returncode,
+                state=await migration_read_state(database_url),
+            )
+        finally:
+            await migration_drop_database(admin_url, database)
+            evidence.add("migration_cleanup", database=database, dropped=True)
+
+
 async def command_selfcheck(
     arguments: argparse.Namespace, evidence: RunEvidence
 ) -> None:
@@ -586,6 +1058,9 @@ async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
         return
     if arguments.command == "locks":
         await command_locks(arguments, evidence)
+        return
+    if arguments.command == "migration":
+        await command_migration(arguments, evidence)
         return
     raise AcceptanceFailure(
         f"C012 acceptance command {arguments.command!r} is reserved for its scheduled task"

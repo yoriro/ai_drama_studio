@@ -105,6 +105,7 @@ class Asset(Base):
         CheckConstraint(
             "source IN ('generated', 'manual')", name="ck_assets_source"
         ),
+        UniqueConstraint("project_id", "name", name="uq_assets_project_name"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
