@@ -1,8 +1,9 @@
 # C012 lock-order diagnostic (T03)
 
 Baseline: production checkout `9bb0c18` (application code unchanged from
-`c0830c34c05bb53b3111d39eb52b05bebd11a8d3`).  This is a diagnostic map, not a
-new database lock or a statement that the probe has passed.  The intended
+`c0830c34c05bb53b3111d39eb52b05bebd11a8d3`).  T04 rechecked the map after the
+source-order change.  This is a diagnostic map, not a new database lock or a
+statement that the probe has passed.  The intended
 common order from C012 §2 is:
 
 `Episode` → `Asset` (ascending id) → `Shot` (ascending id) → `Clip`
@@ -17,7 +18,7 @@ read again after the lock.
 | case | operation | current explicit row-lock edges | conflict observed by the probe |
 |---|---|---|---|
 | L1 | `enqueue_generate_clip_video` | enabled slot assets → Clip (`backend/app/services/generate_clip_video.py:554-558`) | Asset → Clip |
-| L1 | `commit_generated_clip_video` | Task → Clip → Shot → Asset → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | Clip → Asset; this closes the L1 cycle |
+| L1 | `commit_generated_clip_video` | Task → Episode → Asset (ascending id) → Shot (ascending id) → Clip → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | Baseline Clip → Shot → Asset; T04 source order now follows the common order |
 | L2 | asset edit/current/delete | edit/current: Asset → dependent bulk Shot/Clip updates; delete: Episode → Shot → Asset → AssetImage (`backend/app/services/assets.py:85-136`, `179-205`, `391-422`, `452-483`) | Asset-path mutations can wait on a Clip/Shot already held by commit while commit waits on Asset |
 | L2 | video commit | Task → Clip → Shot → Asset → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | reverse edge against asset-dependent mutation |
 | L3 | shot text/binding edit | Episode → Shot → Asset → dependent Clip update (`backend/app/services/shots.py:69-147`) | Shot → Asset against commit's Clip → Shot → Asset |
@@ -58,3 +59,14 @@ after the production lock statement; a separate read-only connection records
 the waiter and blockers.  L1 is expected to be red at this baseline because
 the two operations can hold Asset and Clip in opposite order.  No T03 result
 is a production lock fix or a real GPU/browser result.
+
+## T04 result
+
+`backend/app/services/clip_video_commit.py` now locks the snapshot Episode,
+source Assets, source Shots, and target Clip in that order after the Task
+condition check, then uses those locked rows for source comparison.  The T04
+L1 probe completed commit-first and enqueue-first with one done task, one
+queued follow-up, one current formal take, and no temporary file.  The C009
+commit/enqueue regression completed 24 tests.  Raw evidence is in
+`.work/c012/T04-L1.stdout.log`, `.work/c012/T04-C009.stdout.log`, and
+`.work/c012/locks-acceptance.json`.

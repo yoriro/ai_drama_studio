@@ -243,6 +243,20 @@ async def commit_generated_clip_video(
                 cached_prompt,
             ) = _read_snapshot(task)
             source_clip_id = source_clip["id"]
+            episode = await session.scalar(
+                select(Episode)
+                .where(Episode.id == snapshot_episode_id)
+                .with_for_update()
+            )
+            if episode is None:
+                raise ValueError("gen_clip_video episode no longer exists")
+
+            asset_rows = await _locked_source_rows(
+                session, Asset, set(source_assets)
+            )
+            shot_rows = await _locked_source_rows(
+                session, Shot, set(source_shots)
+            )
             clip = await session.scalar(
                 select(Clip)
                 .where(Clip.id == task.target_id)
@@ -252,19 +266,6 @@ async def commit_generated_clip_video(
                 raise ValueError("gen_clip_video clip no longer exists")
             if clip.id != source_clip_id or clip.episode_id != snapshot_episode_id:
                 raise ValueError("gen_clip_video clip snapshot target changed")
-
-            episode = await session.scalar(
-                select(Episode).where(Episode.id == clip.episode_id)
-            )
-            if episode is None:
-                raise ValueError("gen_clip_video episode no longer exists")
-
-            shot_rows = await _locked_source_rows(
-                session, Shot, set(source_shots)
-            )
-            asset_rows = await _locked_source_rows(
-                session, Asset, set(source_assets)
-            )
             current_result = await session.execute(
                 select(ClipVideo)
                 .where(ClipVideo.clip_id == clip.id)

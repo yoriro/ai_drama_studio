@@ -33,7 +33,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T04 修复视频最终提交的源行锁顺序
+- [x] T04 修复视频最终提交的源行锁顺序
   - 依赖：T03。交付：仅`services/clip_video_commit.py`及同一锁环直接必需的`services/generate_clip_video.py`顺序/锁后重读；遵循spec §2，保留Task条件终态、缓存、媒体补偿、入队快照和Asset→Clip既有入口合同。不修改T03测试。
   - R：R4；PRD §3.2、§6.1/6.4；AC-03。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L1`、`python -m pytest -q tests/task_system/test_c009_clip_video_commit.py tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L1`。两种先锁方向都有完整take/后续排队结果和无40P01证据。
