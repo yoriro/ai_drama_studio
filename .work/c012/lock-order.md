@@ -25,7 +25,7 @@ read again after the lock.
 | L3 | video commit | Task → Episode → Asset → Shot → Clip (`backend/app/services/clip_video_commit.py:214-272`) | both paths now share the source-row order |
 | L4 | clip create/slot/delete | create discovers candidates then locks Episode → Asset (ascending id) → Shot (ascending id) → occupied Clip (ascending id) before writing relations; slot enabled locks Clip → slot; slot override locks Episode → Clip → slot; delete locks Episode → Shot (ascending id) → Clip → ClipShot/slot/ClipVideo (`backend/app/services/clips.py:206-333`, `353-435`, `707-920`) | T07 exercises create conflict, slot mutation, and delete/media winners in both scheduling directions |
 | L4 | source mutation | shot/asset operations lock their source rows before dependent Clip updates | T07 keeps the same Clip/Shot/Asset order and does not add a project-wide lock |
-| L5 | `gen_shots` replacement | Episode → Shot → Clip → ClipVideo/slot override, then output Assets (`backend/app/tasks/gen_shots.py:155-235`, `253-273`) | API edits can acquire Asset/Shot/Clip in the opposite order |
+| L5 | `gen_shots` replacement | discovers current ShotAsset and output Asset ids, then locks Episode → Asset (ascending id) → Shot (ascending id) → Clip (ascending id) → ClipVideo/slot override and relationship/media rows (`backend/app/tasks/gen_shots.py:155-255`, `275-300`) | T08 locks output and source assets before Shots and re-reads ShotAsset references after the Shot lock |
 | L5 | API edits | see L2–L4 rows above | replacement can observe a mixed lock order unless its source rows are locked first in the common order |
 
 The `Task` lock in video commit is a condition/terminal-state guard and must
@@ -109,4 +109,22 @@ completed 13 tests.  R `locks --case L4` completed with child returncode 0,
 Raw evidence is `.work/c012/T07-L4-final3.stdout.log`,
 `.work/c012/T07-C009-final.stdout.log`,
 `.work/c012/T07-acceptance-final3.stdout.log`, and
+`.work/c012/locks-acceptance.json`.
+
+## T08 result
+
+`backend/app/tasks/gen_shots.py` now discovers the current episode's
+ShotAsset references and generated output asset ids, locks their Asset rows in
+ascending order before Shot and Clip, then re-reads ShotAsset references after
+the Shot lock.  Final output asset validation uses those locked rows; the
+existing replacement snapshot checks, media compensation, marker update, and
+R3 failure preservation remain in the same transaction.  The T08 specified
+backend batch completed 23 tests with exit code 0, including the C006 success,
+failure, cancellation, and C009 enqueue-lock regressions.  R
+`locks --case all` completed all five child cases with returncode 0,
+`timed_out=false`, and `scheduled_case=false` on the T01 database; no
+diagnostic or scheduled exception is accepted now.  Raw evidence is
+`.work/c012/T08-targeted-final.stdout.log`,
+`.work/c012/T08-targeted-final.stderr.log`,
+`.work/c012/T08-acceptance-all.stdout.log`, and
 `.work/c012/locks-acceptance.json`.

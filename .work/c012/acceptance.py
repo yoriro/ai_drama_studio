@@ -525,17 +525,8 @@ async def command_locks(
             timeout=30.0,
         )
         output = result.text_stdout() + result.text_stderr()
-        diagnostic_reproduced = (
-            case == "L1"
-            and result.returncode != 0
-            and "DeadlockDetectedError" in output
-            and "pg_observation=" in output
-        )
-        scheduled_case = (
-            case == "L5"
-            and result.returncode != 0
-            and "scheduled for its lock-order task" in output
-        )
+        diagnostic_reproduced = False
+        scheduled_case = False
         evidence.add(
             "lock_case",
             case=case,

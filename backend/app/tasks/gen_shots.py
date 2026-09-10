@@ -127,8 +127,10 @@ def _replacement_media(
 async def _read_locked_replacement(
     session: AsyncSession,
     task: ClaimedTask,
+    referenced_asset_ids: set[int],
 ) -> tuple[
     Episode,
+    dict[int, Asset],
     list[Shot],
     list[Clip],
     list[dict[str, object]],
@@ -161,6 +163,30 @@ async def _read_locked_replacement(
     if episode is None:
         raise ValueError("gen_shots target episode no longer belongs to project")
 
+    source_asset_result = await session.execute(
+        select(ShotAsset.asset_id)
+        .join(Shot, Shot.id == ShotAsset.shot_id)
+        .where(Shot.episode_id == episode_id)
+        .order_by(ShotAsset.asset_id)
+    )
+    candidate_asset_ids = {
+        int(asset_id) for asset_id in source_asset_result.scalars()
+    }
+    candidate_asset_ids.update(referenced_asset_ids)
+    locked_assets: dict[int, Asset] = {}
+    if candidate_asset_ids:
+        asset_result = await session.execute(
+            select(Asset)
+            .where(Asset.id.in_(sorted(candidate_asset_ids)))
+            .order_by(Asset.id)
+            .with_for_update()
+        )
+        locked_assets = {
+            int(asset.id): asset for asset in asset_result.scalars().all()
+        }
+        if set(locked_assets) != candidate_asset_ids:
+            raise ValueError("gen_shots source or output asset no longer exists")
+
     shot_result = await session.execute(
         select(Shot)
         .where(Shot.episode_id == episode_id)
@@ -171,6 +197,15 @@ async def _read_locked_replacement(
     actual_shots = [{"id": shot.id, "revision": shot.revision} for shot in shots]
     if actual_shots != expected_shots:
         raise ValueError("gen_shots replacement snapshot shots changed")
+
+    shot_asset_result = await session.execute(
+        select(ShotAsset)
+        .where(ShotAsset.shot_id.in_([shot.id for shot in shots]))
+        .order_by(ShotAsset.shot_id, ShotAsset.asset_id)
+    )
+    current_shot_asset_rows = list(shot_asset_result.scalars().all())
+    if any(int(row.asset_id) not in locked_assets for row in current_shot_asset_rows):
+        raise ValueError("gen_shots shot asset reference changed")
 
     clip_result = await session.execute(
         select(Clip)
@@ -247,27 +282,24 @@ async def _read_locked_replacement(
         media_paths.append(
             {"kind": item["kind"], "id": item["id"], "path": path, "source": source, "destination": destination}
         )
-    return episode, shots, clips, media_paths, video_ids
+    return episode, locked_assets, shots, clips, media_paths, video_ids
 
 
 async def _validate_final_assets(
-    session: AsyncSession,
     task: ClaimedTask,
     result: GeneratedShotsResponse,
+    locked_assets: dict[int, Asset],
 ) -> None:
     snapshot = _snapshot(task)
     project_id = _positive_int(snapshot.get("project_id"), "project_id")
     referenced_ids = {asset_id for shot in result.shots for asset_id in shot.asset_ids}
     if not referenced_ids:
         return
-    asset_result = await session.execute(
-        select(Asset)
-        .where(Asset.id.in_(referenced_ids))
-        .with_for_update()
-    )
-    assets = list(asset_result.scalars().all())
+    assets = [locked_assets.get(asset_id) for asset_id in referenced_ids]
     if len(assets) != len(referenced_ids) or any(
-        asset.project_id != project_id or asset.type not in {"character", "scene"}
+        asset is None
+        or asset.project_id != project_id
+        or asset.type not in {"character", "scene"}
         for asset in assets
     ):
         raise ValueError("gen_shots output asset id is no longer valid for the project")
@@ -303,10 +335,24 @@ async def _replace_episode(
     result: GeneratedShotsResponse,
     moved: list[_MediaMove],
 ) -> TaskChange:
-    episode, old_shots, old_clips, media_paths, video_ids = (
-        await _read_locked_replacement(session, task)
+    referenced_asset_ids = {
+        int(asset_id)
+        for generated_shot in result.shots
+        for asset_id in generated_shot.asset_ids
+    }
+    (
+        episode,
+        locked_assets,
+        old_shots,
+        old_clips,
+        media_paths,
+        video_ids,
+    ) = await _read_locked_replacement(
+        session,
+        task,
+        referenced_asset_ids,
     )
-    await _validate_final_assets(session, task, result)
+    await _validate_final_assets(task, result, locked_assets)
     _move_media(media_paths, moved)
 
     old_clip_ids = [clip.id for clip in old_clips]

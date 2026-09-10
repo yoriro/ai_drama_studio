@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.db.session import engine
 from app.integrations.workflow_binding import load_minimax_binding_snapshot
 from app.services.asset_files import asset_image_relative_path
+from app.services.gen_shots import GeneratedShot, GeneratedShotsResponse
 from app.schemas.assets import AssetPatch
 from app.schemas.clips import ClipCreateRequest, ClipSlotEnabledPatch
 from app.schemas.shots import ShotPatch
@@ -30,8 +31,9 @@ from app.services.clips import (
 )
 from app.services.generate_clip_video import enqueue_generate_clip_video
 from app.services.shots import update_shot
-from app.services.video_files import temporary_clip_video_path
+from app.services.video_files import clip_video_paths, temporary_clip_video_path
 from app.tasks.gen_clip_video import GeneratedClipVideo
+from app.tasks.gen_shots import _replace_episode
 from app.tasks.queue import ClaimedTask, TaskQueue
 
 
@@ -1054,6 +1056,359 @@ async def _assert_l4(data_dir: Path) -> None:
                 await _cleanup_fixture(fixture)
 
 
+async def _prepare_l5_fixture(
+    fixture: dict[str, object], data_dir: Path
+) -> ClaimedTask:
+    relative_path: Path
+    formal_path: Path
+    connection = await asyncpg.connect(_database_url())
+    try:
+        video_id = await connection.fetchval(
+            """
+            INSERT INTO clip_videos
+                (clip_id, file_path, sha256, seed, requested_duration,
+                 actual_duration, is_current, built_prompt, input_hash)
+            VALUES ($1, 'pending', $2, 1, 5, 2.0, true, 'C012 L5 source', 'c012-l5')
+            RETURNING id
+            """,
+            fixture["clip_id"],
+            "0" * 64,
+        )
+        assert video_id is not None
+        relative_path, formal_path, _trash_path = clip_video_paths(
+            data_dir,
+            int(fixture["project_id"]),
+            int(fixture["episode_id"]),
+            int(fixture["clip_id"]),
+            int(video_id),
+        )
+        await connection.execute(
+            "UPDATE clip_videos SET file_path = $1 WHERE id = $2",
+            relative_path.as_posix(),
+            video_id,
+        )
+        payload = {
+            "input_snapshot": {
+                "episode_id": fixture["episode_id"],
+                "project_id": fixture["project_id"],
+                "script_revision": 2,
+                "replacement_snapshot": {
+                    "shots": [
+                        {"id": shot_id, "revision": 1}
+                        for shot_id in sorted(fixture["shot_ids"])
+                    ],
+                    "clips": [{"id": fixture["clip_id"], "revision": 1}],
+                    "clip_video_ids": [int(video_id)],
+                    "clip_media": [
+                        {
+                            "kind": "clip_video",
+                            "id": int(video_id),
+                            "path": relative_path.as_posix(),
+                        }
+                    ],
+                },
+            },
+            "input_hash": None,
+            "source_revisions": {},
+        }
+        task_id = await connection.fetchval(
+            """
+            INSERT INTO tasks (type, target_id, payload, status, progress)
+            VALUES ('gen_shots', $1, $2::jsonb, 'running', 0.2)
+            RETURNING id
+            """,
+            fixture["episode_id"],
+            json.dumps(payload),
+        )
+        assert task_id is not None
+        fixture["video_id"] = int(video_id)
+        fixture["video_path"] = relative_path.as_posix()
+        fixture["gen_shots_task_id"] = int(task_id)
+    finally:
+        await connection.close()
+
+    formal_path.parent.mkdir(parents=True, exist_ok=True)
+    formal_path.write_bytes(b"c012-l5-source-media")
+    return ClaimedTask(
+        id=int(task_id),
+        type="gen_shots",
+        target_id=int(fixture["episode_id"]),
+        request_id=None,
+        payload=payload,
+    )
+
+
+def _l5_output(fixture: dict[str, object]) -> GeneratedShotsResponse:
+    return GeneratedShotsResponse(
+        shots=[
+            GeneratedShot(
+                order=1,
+                duration_est=2.0,
+                shot_type="中景",
+                camera="固定",
+                description="C012 L5 replacement shot",
+                dialogue="",
+                asset_ids=[int(fixture["character_id"])],
+            )
+        ]
+    )
+
+
+async def _read_l5_state(
+    fixture: dict[str, object], data_dir: Path
+) -> dict[str, object]:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        episode = await connection.fetchrow(
+            "SELECT shots_generated_script_revision FROM episodes WHERE id = $1",
+            fixture["episode_id"],
+        )
+        shots = await connection.fetch(
+            "SELECT id, revision, status, description FROM shots "
+            "WHERE episode_id = $1 ORDER BY id",
+            fixture["episode_id"],
+        )
+        shot_assets = await connection.fetch(
+            "SELECT sa.shot_id, sa.asset_id FROM shot_assets sa "
+            "JOIN shots s ON s.id = sa.shot_id "
+            "WHERE s.episode_id = $1 ORDER BY sa.shot_id, sa.asset_id",
+            fixture["episode_id"],
+        )
+        clips = await connection.fetch(
+            "SELECT id, revision, freshness FROM clips WHERE episode_id = $1 ORDER BY id",
+            fixture["episode_id"],
+        )
+        clip_shots = await connection.fetch(
+            "SELECT cs.clip_id, cs.shot_id FROM clip_shots cs "
+            "JOIN clips c ON c.id = cs.clip_id "
+            "WHERE c.episode_id = $1 ORDER BY cs.clip_id, cs.shot_id",
+            fixture["episode_id"],
+        )
+        videos = await connection.fetch(
+            "SELECT cv.id, cv.file_path FROM clip_videos cv "
+            "JOIN clips c ON c.id = cv.clip_id "
+            "WHERE c.episode_id = $1 ORDER BY cv.id",
+            fixture["episode_id"],
+        )
+        task = await connection.fetchrow(
+            "SELECT status, error_msg FROM tasks WHERE id = $1",
+            fixture["gen_shots_task_id"],
+        )
+        trash_files = sorted(
+            path.relative_to(data_dir).as_posix()
+            for path in (data_dir / "trash").rglob("*")
+            if path.is_file()
+        ) if (data_dir / "trash").exists() else []
+        return {
+            "marker": None if episode is None else episode[0],
+            "shots": [dict(row) for row in shots],
+            "shot_assets": [dict(row) for row in shot_assets],
+            "clips": [dict(row) for row in clips],
+            "clip_shots": [dict(row) for row in clip_shots],
+            "videos": [dict(row) for row in videos],
+            "task": None if task is None else dict(task),
+            "formal_exists": (data_dir / str(fixture["video_path"])).is_file(),
+            "trash_files": trash_files,
+        }
+    finally:
+        await connection.close()
+
+
+async def _cleanup_l5_fixture(
+    fixture: dict[str, object], data_dir: Path
+) -> None:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        await connection.execute(
+            "UPDATE prompt_templates SET content = $1 WHERE key = 'minimaxh3'",
+            fixture["original_template"],
+        )
+        await connection.execute(
+            "DELETE FROM tasks WHERE id = $1", fixture["gen_shots_task_id"]
+        )
+        await connection.execute(
+            "DELETE FROM shot_assets WHERE shot_id IN "
+            "(SELECT id FROM shots WHERE episode_id = $1)",
+            fixture["episode_id"],
+        )
+        await connection.execute(
+            "DELETE FROM clip_shots WHERE clip_id IN "
+            "(SELECT id FROM clips WHERE episode_id = $1)",
+            fixture["episode_id"],
+        )
+        await connection.execute(
+            "DELETE FROM clip_ref_slots WHERE clip_id IN "
+            "(SELECT id FROM clips WHERE episode_id = $1)",
+            fixture["episode_id"],
+        )
+        await connection.execute(
+            "DELETE FROM clip_videos WHERE clip_id IN "
+            "(SELECT id FROM clips WHERE episode_id = $1)",
+            fixture["episode_id"],
+        )
+        await connection.execute(
+            "DELETE FROM clips WHERE episode_id = $1",
+            fixture["episode_id"],
+        )
+        await connection.execute(
+            "DELETE FROM shots WHERE episode_id = $1",
+            fixture["episode_id"],
+        )
+        await connection.execute(
+            "DELETE FROM asset_images WHERE asset_id = ANY($1::int[])",
+            [fixture["character_id"], fixture["scene_id"]],
+        )
+        await connection.execute(
+            "DELETE FROM assets WHERE id = ANY($1::int[])",
+            [fixture["character_id"], fixture["scene_id"]],
+        )
+        await connection.execute(
+            "DELETE FROM episodes WHERE id = $1", fixture["episode_id"]
+        )
+        await connection.execute(
+            "DELETE FROM projects WHERE id = $1", fixture["project_id"]
+        )
+        await connection.execute(
+            "DELETE FROM styles WHERE id = $1", fixture["style_id"]
+        )
+    finally:
+        await connection.close()
+    if "video_path" in fixture:
+        relative_path = Path(str(fixture["video_path"]))
+        for path in (data_dir / relative_path, data_dir / "trash" / relative_path):
+            if path.is_file():
+                path.unlink()
+
+
+async def _run_l5_variant(
+    fixture: dict[str, object], data_dir: Path, *, first: str
+) -> None:
+    task = await _prepare_l5_fixture(fixture, data_dir)
+    output = _l5_output(fixture)
+    label = f"c012-l5-{uuid4().hex[:12]}"
+
+    async def replacement_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-replacement")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                moved: list[object] = []
+                async with session.begin():
+                    return await _replace_episode(
+                        session,
+                        TaskQueue(),
+                        task,
+                        output,
+                        moved,
+                    )
+        finally:
+            await connection.close()
+
+    async def mutation_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-mutation")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                return await update_shot(
+                    session,
+                    int(fixture["shot_ids"][0]),
+                    ShotPatch(description="C012 L5 competing edit"),
+                )
+        finally:
+            await connection.close()
+
+    if first == "mutation":
+        mutation_task = asyncio.create_task(mutation_worker())
+        await asyncio.sleep(0)
+        replacement_task = asyncio.create_task(replacement_worker())
+    else:
+        replacement_task = asyncio.create_task(replacement_worker())
+        await asyncio.sleep(0)
+        mutation_task = asyncio.create_task(mutation_worker())
+    results = await asyncio.wait_for(
+        asyncio.gather(replacement_task, mutation_task, return_exceptions=True),
+        timeout=10,
+    )
+    state = await _read_l5_state(fixture, data_dir)
+    unexpected = [
+        result
+        for result in results
+        if isinstance(result, BaseException)
+        and not isinstance(result, (HTTPException, ValueError))
+    ]
+    if unexpected:
+        pytest.fail(
+            f"C012 L5/{first} failed: results={results}; "
+            f"state={json.dumps(state, ensure_ascii=False, default=str)}"
+        )
+
+    current_trash_files = [
+        path
+        for path in state["trash_files"]
+        if f"/clips/{fixture['clip_id']}/" in f"/{path}"
+    ]
+    if isinstance(results[0], ValueError):
+        assert isinstance(results[1], dict)
+        assert state["marker"] is None
+        assert state["shots"] == [
+            {
+                "id": fixture["shot_ids"][0],
+                "revision": 2,
+                "status": "changed",
+                "description": "C012 L5 competing edit",
+            },
+            {
+                "id": fixture["shot_ids"][1],
+                "revision": 1,
+                "status": "normal",
+                "description": "锁测停留",
+            },
+        ]
+        assert state["shot_assets"] == [
+            {"shot_id": shot_id, "asset_id": asset_id}
+            for shot_id in sorted(fixture["shot_ids"])
+            for asset_id in sorted(
+                [int(fixture["character_id"]), int(fixture["scene_id"])]
+            )
+        ]
+        assert state["clips"] == [
+            {"id": fixture["clip_id"], "revision": 1, "freshness": "stale"}
+        ]
+        assert state["clip_shots"] == [
+            {"clip_id": fixture["clip_id"], "shot_id": shot_id}
+            for shot_id in sorted(fixture["shot_ids"])
+        ]
+        assert len(state["videos"]) == 1
+        assert state["formal_exists"] is True
+        assert current_trash_files == []
+        assert state["task"] == {"status": "running", "error_msg": None}
+    else:
+        assert results[0] is not None
+        assert isinstance(results[1], HTTPException)
+        assert results[1].status_code == 404
+        assert state["marker"] == 2
+        assert len(state["shots"]) == 1
+        assert state["shots"][0]["revision"] == 1
+        assert state["shots"][0]["status"] == "normal"
+        assert state["shots"][0]["description"] == "C012 L5 replacement shot"
+        assert state["shot_assets"] == [
+            {"shot_id": state["shots"][0]["id"], "asset_id": fixture["character_id"]}
+        ]
+        assert state["clips"] == []
+        assert state["clip_shots"] == []
+        assert state["videos"] == []
+        assert state["formal_exists"] is False
+        assert len(current_trash_files) == 1
+        assert state["task"] == {"status": "done", "error_msg": None}
+
+
+async def _assert_l5(data_dir: Path) -> None:
+    for first in ("mutation", "replacement"):
+        fixture = await _create_fixture(data_dir)
+        try:
+            await _run_l5_variant(fixture, data_dir, first=first)
+        finally:
+            await _cleanup_l5_fixture(fixture, data_dir)
+
+
 @pytest.mark.parametrize("lock_case", LOCK_CASES, ids=LOCK_CASES)
 def test_c012_lock_order(
     lock_case: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -1069,6 +1424,9 @@ def test_c012_lock_order(
             return
         if lock_case == "L4":
             await _assert_l4(tmp_path)
+            return
+        if lock_case == "L5":
+            await _assert_l5(tmp_path)
             return
         fixture = await _create_fixture(tmp_path)
         try:
@@ -1090,4 +1448,7 @@ def test_c012_lock_order(
         finally:
             await _cleanup_fixture(fixture)
 
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    finally:
+        asyncio.run(engine.dispose())
