@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
+import hashlib
+import io
 import json
 import os
 import re
@@ -445,11 +448,72 @@ class HealthStubHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ok"})
         elif self.path == "/system_stats":
             self._send_json(200, {"system": "ok"})
+        elif self.path == "/is_sleeping":
+            self._send_json(200, {"is_sleeping": False})
+        elif self.path == "/queue":
+            self._send_json(200, {"queue_running": [], "queue_pending": []})
+        elif self.path == "/v1/models":
+            self._send_json(
+                200,
+                {"data": [{"id": os.environ.get("VLLM_MODEL", "controlled-model")}]},
+            )
+        elif self.path.startswith("/history/"):
+            prompt_id = self.path.rsplit("/", 1)[-1]
+            self._send_json(
+                200,
+                {
+                    prompt_id: {
+                        "status": {"status_str": "success"},
+                        "outputs": {
+                            "168": {
+                                "gifs": [
+                                    {
+                                        "filename": "controlled.mp4",
+                                        "subfolder": "",
+                                        "type": "output",
+                                        "format": "video/h264-mp4",
+                                    }
+                                ]
+                            }
+                        },
+                    }
+                },
+            )
         else:
             self._send_json(404, {"detail": "selfcheck route not provided"})
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler contract
-        self._send_json(404, {"detail": "selfcheck mutation route not provided"})
+        length = int(self.headers.get("Content-Length", "0"))
+        raw_body = self.rfile.read(length)
+        try:
+            body = json.loads(raw_body or b"{}")
+        except json.JSONDecodeError:
+            body = {}
+        if self.path in {"/wake_up", "/sleep", "/free", "/interrupt"}:
+            self._send_json(200, {})
+        elif self.path == "/prompt":
+            prompt_id = body.get("prompt_id") if isinstance(body, dict) else None
+            self._send_json(200, {"prompt_id": prompt_id})
+        elif self.path == "/v1/chat/completions":
+            response_format = body.get("response_format", {}) if isinstance(body, dict) else {}
+            schema = response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
+            schema_name = schema.get("name") if isinstance(schema, dict) else None
+            if schema_name == "script2assets":
+                content = {"assets": []}
+            elif schema_name == "script2shots":
+                content = {"shots": []}
+            else:
+                content = {"prompt": "controlled acceptance prompt"}
+            self._send_json(
+                200,
+                {
+                    "choices": [
+                        {"message": {"content": json.dumps(content, ensure_ascii=False)}}
+                    ]
+                },
+            )
+        else:
+            self._send_json(404, {"detail": "selfcheck route not provided"})
 
     def _send_json(self, status: int, payload: object) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -488,6 +552,252 @@ class ControlledHTTPStub:
         self.thread.join(timeout=5)
         if self.thread.is_alive():
             raise AcceptanceFailure("owned HTTP stub thread did not stop")
+
+
+def controlled_mp4_bytes() -> bytes:
+    """Create one legal, deterministic offline video for the controlled path."""
+
+    import av
+
+    output = io.BytesIO()
+    container = av.open(output, mode="w", format="mp4")
+    stream = container.add_stream("mpeg4", rate=24)
+    stream.width = 16
+    stream.height = 16
+    stream.pix_fmt = "yuv420p"
+    for _ in range(3):
+        frame = av.VideoFrame(16, 16, "yuv420p")
+        for plane in frame.planes:
+            plane.update(bytes(plane.buffer_size))
+        for packet in stream.encode(frame):
+            container.mux(packet)
+    for packet in stream.encode():
+        container.mux(packet)
+    container.close()
+    return output.getvalue()
+
+
+class ControlledComfyStub:
+    """A local HTTP/WebSocket Comfy boundary for the real worker path."""
+
+    _WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+    def __init__(self) -> None:
+        self.server: asyncio.AbstractServer | None = None
+        self.video = controlled_mp4_bytes()
+        self.upload_count = 0
+
+    @property
+    def base_url(self) -> str:
+        if self.server is None or not self.server.sockets:
+            raise AcceptanceFailure("controlled Comfy stub is not started")
+        host, port = self.server.sockets[0].getsockname()[:2]
+        return f"http://{host}:{port}"
+
+    async def __aenter__(self) -> "ControlledComfyStub":
+        self.server = await asyncio.start_server(
+            self._handle_connection,
+            host="127.0.0.1",
+            port=0,
+        )
+        return self
+
+    async def __aexit__(
+        self,
+        _type: object,
+        _value: object,
+        _traceback: object,
+    ) -> None:
+        if self.server is not None:
+            self.server.close()
+            await self.server.wait_closed()
+            self.server = None
+
+    async def _handle_connection(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> None:
+        headers: dict[str, str] = {}
+        is_websocket = False
+        try:
+            header_bytes = await reader.readuntil(b"\r\n\r\n")
+            header_lines = header_bytes[:-4].split(b"\r\n")
+            request_line = header_lines[0].decode("ascii")
+            method, raw_path, _version = request_line.split(" ", 2)
+            for line in header_lines[1:]:
+                key, value = line.decode("latin-1").split(":", 1)
+                headers[key.strip().lower()] = value.strip()
+            if headers.get("upgrade", "").casefold() == "websocket":
+                is_websocket = True
+                await self._handle_websocket(raw_path, headers, reader, writer)
+                return
+            body_length = int(headers.get("content-length", "0"))
+            body = await reader.readexactly(body_length) if body_length else b""
+            await self._handle_http(method, raw_path, body, writer)
+        except (asyncio.IncompleteReadError, ValueError, ConnectionError):
+            writer.close()
+        finally:
+            if not is_websocket:
+                try:
+                    await writer.wait_closed()
+                except ConnectionError:
+                    pass
+
+    async def _handle_http(
+        self,
+        method: str,
+        raw_path: str,
+        body: bytes,
+        writer: asyncio.StreamWriter,
+    ) -> None:
+        path = urlsplit(raw_path).path
+        payload: object
+        status = 200
+        content_type = "application/json"
+        response_body: bytes
+        if method == "GET" and path == "/health":
+            payload = {"status": "ok"}
+            response_body = json.dumps(payload).encode("utf-8")
+        elif method == "GET" and path == "/system_stats":
+            response_body = b'{"system":"ok"}'
+        elif method == "GET" and path == "/is_sleeping":
+            response_body = b'{"is_sleeping":false}'
+        elif method == "GET" and path == "/queue":
+            response_body = b'{"queue_running":[],"queue_pending":[]}'
+        elif method == "GET" and path == "/v1/models":
+            model = os.environ.get("VLLM_MODEL", "controlled-model")
+            response_body = json.dumps({"data": [{"id": model}]}).encode("utf-8")
+        elif method == "GET" and path.startswith("/history/"):
+            prompt_id = path.rsplit("/", 1)[-1]
+            response_body = json.dumps(
+                {
+                    prompt_id: {
+                        "status": {"status_str": "success"},
+                        "outputs": {
+                            "168": {
+                                "gifs": [
+                                    {
+                                        "filename": "controlled.mp4",
+                                        "subfolder": "",
+                                        "type": "output",
+                                        "format": "video/h264-mp4",
+                                    }
+                                ]
+                            }
+                        },
+                    }
+                }
+            ).encode("utf-8")
+        elif method == "GET" and path == "/view":
+            content_type = "video/mp4"
+            response_body = self.video
+        elif method == "POST" and path == "/prompt":
+            try:
+                request_body = json.loads(body or b"{}")
+            except json.JSONDecodeError:
+                request_body = {}
+            prompt_id = request_body.get("prompt_id") if isinstance(request_body, dict) else None
+            response_body = json.dumps({"prompt_id": prompt_id}).encode("utf-8")
+        elif method == "POST" and path == "/upload/image":
+            self.upload_count += 1
+            response_body = json.dumps(
+                {
+                    "name": f"subject{self.upload_count}.png",
+                    "subfolder": "c012-controlled",
+                    "type": "input",
+                }
+            ).encode("utf-8")
+        elif method == "POST" and path == "/v1/chat/completions":
+            try:
+                request_body = json.loads(body or b"{}")
+            except json.JSONDecodeError:
+                request_body = {}
+            response_format = request_body.get("response_format", {}) if isinstance(request_body, dict) else {}
+            json_schema = response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
+            schema_name = json_schema.get("name") if isinstance(json_schema, dict) else None
+            if schema_name == "script2assets":
+                model_content: object = {"assets": []}
+            elif schema_name == "script2shots":
+                model_content = {"shots": []}
+            else:
+                model_content = {"prompt": "controlled acceptance prompt"}
+            response_body = json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    model_content,
+                                    ensure_ascii=False,
+                                )
+                            }
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+        elif method == "POST" and path in {"/wake_up", "/sleep", "/free", "/interrupt"}:
+            response_body = b"{}"
+        else:
+            status = 404
+            response_body = b'{"detail":"controlled route not provided"}'
+        await self._write_http_response(writer, status, content_type, response_body)
+
+    async def _write_http_response(
+        self,
+        writer: asyncio.StreamWriter,
+        status: int,
+        content_type: str,
+        body: bytes,
+    ) -> None:
+        reason = "OK" if status == 200 else "Not Found"
+        response = (
+            f"HTTP/1.1 {status} {reason}\r\n"
+            f"Content-Type: {content_type}\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            "Connection: close\r\n\r\n"
+        ).encode("ascii") + body
+        writer.write(response)
+        await writer.drain()
+        writer.close()
+
+    async def _handle_websocket(
+        self,
+        raw_path: str,
+        headers: Mapping[str, str],
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> None:
+        key = headers.get("sec-websocket-key")
+        if not key:
+            writer.close()
+            return
+        accept = base64.b64encode(
+            hashlib.sha1((key + self._WEBSOCKET_GUID).encode("ascii")).digest()
+        ).decode("ascii")
+        writer.write(
+            (
+                "HTTP/1.1 101 Switching Protocols\r\n"
+                "Upgrade: websocket\r\n"
+                "Connection: Upgrade\r\n"
+                f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
+            ).encode("ascii")
+        )
+        await writer.drain()
+        query = urlsplit(raw_path).query
+        prompt_id = query.split("clientId=", 1)[-1].split("&", 1)[0]
+        message = json.dumps(
+            {"type": "execution_success", "data": {"prompt_id": prompt_id}}
+        ).encode("utf-8")
+        if len(message) >= 126:
+            raise AcceptanceFailure("controlled websocket message unexpectedly exceeded 125 bytes")
+        writer.write(bytes((0x81, len(message))) + message)
+        await writer.drain()
+        try:
+            await asyncio.wait_for(reader.read(4096), timeout=2)
+        except (asyncio.TimeoutError, ConnectionError):
+            pass
+        writer.close()
 
 
 def free_tcp_port() -> int:
@@ -1952,6 +2262,570 @@ async def command_locks(
         )
 
 
+async def cascade_seed_fixture(raw_url: str, data_dir: Path) -> dict[str, object]:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    token = uuid4().hex
+    try:
+        async with connection.transaction():
+            style_id = await connection.fetchval(
+                "INSERT INTO styles (name, prompt_fragment) VALUES ($1, $2) RETURNING id",
+                f"C012 acceptance style {token}", "controlled style",
+            )
+            project_id = await connection.fetchval(
+                "INSERT INTO projects (name, style_id) VALUES ($1, $2) RETURNING id",
+                f"C012 acceptance project {token}", style_id,
+            )
+            edit_episode_id = await connection.fetchval(
+                "INSERT INTO episodes (project_id, seq, title, script_text, script_revision) "
+                "VALUES ($1, 1, 'Cascade edit', 'cascade script', 1) RETURNING id",
+                project_id,
+            )
+            generation_episode_id = await connection.fetchval(
+                "INSERT INTO episodes (project_id, seq, title, script_text, script_revision) "
+                "VALUES ($1, 2, 'Cascade generation', 'generation script', 1) RETURNING id",
+                project_id,
+            )
+            asset_ids: list[int] = []
+            for asset_type, name in (("character", "Cascade character"), ("scene", "Cascade scene"), ("character", "Cascade spare")):
+                asset_id = await connection.fetchval(
+                    "INSERT INTO assets (project_id, type, name, description, source) "
+                    "VALUES ($1, $2, $3, 'controlled fixture asset', 'manual') RETURNING id",
+                    project_id, asset_type, f"{name} {token}",
+                )
+                asset_ids.append(int(asset_id))
+            edit_shot_ids: list[int] = []
+            for order_index, description in ((1, "old edit shot"), (2, "second edit shot")):
+                shot_id = await connection.fetchval(
+                    "INSERT INTO shots (episode_id, order_index, duration_est, shot_type, camera, description, dialogue, status, revision) "
+                    "VALUES ($1, $2, 1.0, '中景', '固定', $3, '', 'normal', 1) RETURNING id",
+                    edit_episode_id, order_index, description,
+                )
+                edit_shot_ids.append(int(shot_id))
+            await connection.execute(
+                "INSERT INTO shot_assets (shot_id, asset_id) VALUES ($1, $2), ($1, $3), ($4, $5)",
+                edit_shot_ids[0], asset_ids[0], asset_ids[1], edit_shot_ids[1], asset_ids[0],
+            )
+            generation_shot_id = await connection.fetchval(
+                "INSERT INTO shots (episode_id, order_index, duration_est, shot_type, camera, description, dialogue, status, revision) "
+                "VALUES ($1, 1, 1.0, '全景', '固定', 'old generation shot', '', 'normal', 1) RETURNING id",
+                generation_episode_id,
+            )
+            await connection.execute(
+                "INSERT INTO shot_assets (shot_id, asset_id) VALUES ($1, $2)",
+                generation_shot_id, asset_ids[1],
+            )
+            clip_id = await connection.fetchval(
+                "INSERT INTO clips (episode_id, requested_duration, generation_state, freshness, revision) "
+                "VALUES ($1, 5, 'empty', 'fresh', 1) RETURNING id",
+                edit_episode_id,
+            )
+            await connection.executemany(
+                "INSERT INTO clip_shots (clip_id, shot_id, position) VALUES ($1, $2, $3)",
+                [(clip_id, edit_shot_ids[0], 1), (clip_id, edit_shot_ids[1], 2)],
+            )
+            success_shot_ids: list[int] = []
+            for order_index, description in ((3, "controlled success shot one"), (4, "controlled success shot two")):
+                success_shot_id = await connection.fetchval(
+                    "INSERT INTO shots (episode_id, order_index, duration_est, shot_type, camera, description, dialogue, status, revision) "
+                    "VALUES ($1, $2, 2.0, '中景', '固定', $3, '', 'normal', 1) RETURNING id",
+                    edit_episode_id, order_index, description,
+                )
+                success_shot_ids.append(int(success_shot_id))
+                await connection.execute(
+                    "INSERT INTO shot_assets (shot_id, asset_id) VALUES ($1, $2), ($1, $3)",
+                    success_shot_id, asset_ids[2], asset_ids[1],
+                )
+            success_clip_id = await connection.fetchval(
+                "INSERT INTO clips (episode_id, requested_duration, generation_state, freshness, revision) "
+                "VALUES ($1, 4, 'empty', 'fresh', 1) RETURNING id",
+                edit_episode_id,
+            )
+            await connection.executemany(
+                "INSERT INTO clip_shots (clip_id, shot_id, position) VALUES ($1, $2, $3)",
+                [(success_clip_id, success_shot_ids[0], 1), (success_clip_id, success_shot_ids[1], 2)],
+            )
+            await connection.execute(
+                "INSERT INTO clip_ref_slots (clip_id, slot_no, asset_id, asset_name_snapshot, asset_type_snapshot, enabled) "
+                "VALUES ($1, 1, $2, $3, 'character', true)",
+                success_clip_id, asset_ids[2], f"Cascade spare {token}",
+            )
+            from app.services.asset_files import asset_image_relative_path
+
+            image_id = await connection.fetchval(
+                "INSERT INTO asset_images (asset_id, file_path, sha256, source, is_current) "
+                "VALUES ($1, 'pending', $2, 'generated', true) RETURNING id",
+                asset_ids[2], "0" * 64,
+            )
+            image_relative_path = asset_image_relative_path(
+                int(project_id), asset_ids[2], int(image_id), "png"
+            )
+            image_path = data_dir / image_relative_path
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            image_bytes = b"c012 controlled current image"
+            image_path.write_bytes(image_bytes)
+            await connection.execute(
+                "UPDATE asset_images SET file_path = $1, sha256 = $2 WHERE id = $3",
+                image_relative_path.as_posix(), hashlib.sha256(image_bytes).hexdigest(), image_id,
+            )
+        return {
+            "project_id": int(project_id), "style_id": int(style_id),
+            "edit_episode_id": int(edit_episode_id), "generation_episode_id": int(generation_episode_id),
+            "asset_ids": asset_ids, "edit_shot_ids": edit_shot_ids,
+            "generation_shot_id": int(generation_shot_id), "clip_id": int(clip_id),
+            "success_clip_id": int(success_clip_id), "success_shot_ids": success_shot_ids,
+        }
+    finally:
+        await connection.close()
+
+
+async def cascade_cleanup_fixture(raw_url: str, fixture: Mapping[str, object]) -> None:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    try:
+        project_id = int(fixture["project_id"])
+        await connection.execute(
+            "DELETE FROM tasks WHERE target_id IN ($1, $2, $3)",
+            fixture["edit_episode_id"], fixture["generation_episode_id"], fixture["success_clip_id"],
+        )
+        for table, predicate in (
+            ("clip_shots", "clip_id IN (SELECT id FROM clips WHERE episode_id IN (SELECT id FROM episodes WHERE project_id = $1))"),
+            ("clip_ref_slots", "clip_id IN (SELECT id FROM clips WHERE episode_id IN (SELECT id FROM episodes WHERE project_id = $1))"),
+            ("clip_videos", "clip_id IN (SELECT id FROM clips WHERE episode_id IN (SELECT id FROM episodes WHERE project_id = $1))"),
+            ("shot_assets", "shot_id IN (SELECT id FROM shots WHERE episode_id IN (SELECT id FROM episodes WHERE project_id = $1))"),
+        ):
+            await connection.execute(f"DELETE FROM {table} WHERE {predicate}", project_id)
+        await connection.execute("DELETE FROM clips WHERE episode_id IN (SELECT id FROM episodes WHERE project_id = $1)", project_id)
+        await connection.execute("DELETE FROM shots WHERE episode_id IN (SELECT id FROM episodes WHERE project_id = $1)", project_id)
+        await connection.execute("DELETE FROM asset_images WHERE asset_id IN (SELECT id FROM assets WHERE project_id = $1)", project_id)
+        await connection.execute("DELETE FROM assets WHERE project_id = $1", project_id)
+        await connection.execute("DELETE FROM episodes WHERE project_id = $1", project_id)
+        await connection.execute("DELETE FROM projects WHERE id = $1", project_id)
+        await connection.execute("DELETE FROM styles WHERE id = $1", fixture["style_id"])
+    finally:
+        await connection.close()
+
+
+async def cascade_http_json(client: httpx.AsyncClient, method: str, url: str, payload: object | None = None) -> HttpObservation:
+    response = await client.request(method, url, json=payload)
+    try:
+        body: object = response.json()
+    except ValueError:
+        body = response.text
+    return HttpObservation(response.status_code, body)
+
+
+async def cascade_wait_task(client: httpx.AsyncClient, base_url: str, task_id: int) -> dict[str, object]:
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        observation = await cascade_http_json(client, "GET", f"{base_url}/api/tasks/{task_id}")
+        if observation.status_code != 200 or not isinstance(observation.body, Mapping):
+            raise AcceptanceFailure(f"task {task_id} detail read failed: {observation.status_code} {observation.body!r}")
+        if observation.body.get("status") in {"done", "failed", "canceled"}:
+            return dict(observation.body)
+        await asyncio.sleep(0.1)
+    raise AcceptanceFailure(f"task {task_id} did not reach a terminal state")
+
+
+def start_backend_process(
+    raw_url: str,
+    data_dir: Path,
+    dependency_stub: object,
+    extra_env: Mapping[str, str] | None = None,
+    comfy_dependency_stub: object | None = None,
+) -> tuple[subprocess.Popen[bytes], int]:
+    port = free_tcp_port()
+    child_env = os.environ.copy()
+    comfy_stub = dependency_stub if comfy_dependency_stub is None else comfy_dependency_stub
+    child_env.update({"DATABASE_URL": raw_url, "DATA_DIR": str(data_dir), "VLLM_BASE_URL": dependency_stub.base_url, "COMFY_BASE_URL": comfy_stub.base_url, "PYTHONUTF8": "1"})
+    if extra_env is not None:
+        child_env.update(extra_env)
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+            "--lifespan",
+            "on",
+        ],
+        cwd=BACKEND, env=child_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+    )
+    return process, port
+
+
+async def command_cascade(_arguments: argparse.Namespace, evidence: RunEvidence) -> None:
+    raw_url, data_dir, identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add("runtime_identity", database_url=identity, database=database_identity, data_dir=str(data_dir))
+    if database_identity["current_database"] != identity["database_from_url"]:
+        raise AcceptanceFailure("database identity does not match explicit DATABASE_URL database")
+    with tempfile.TemporaryDirectory(prefix="c012-cascade-", dir=str(data_dir)) as runtime_name:
+        runtime_dir = Path(runtime_name)
+        fixture = await cascade_seed_fixture(raw_url, runtime_dir)
+        process: subprocess.Popen[bytes] | None = None
+        stopped: ChildResult | None = None
+        try:
+            async with ControlledComfyStub() as dependency_stub:
+                process, port = start_backend_process(
+                    raw_url,
+                    runtime_dir,
+                    dependency_stub,
+                    comfy_dependency_stub=dependency_stub,
+                )
+                base_url = f"http://127.0.0.1:{port}"
+                health = await wait_for_http(f"{base_url}/api/system/health")
+                if health.status_code != 200:
+                    raise AcceptanceFailure(f"cascade backend health returned {health.status_code}")
+                evidence.add("production_process", pid=process.pid, port=port, health=health.body, dependency_stub=dependency_stub.base_url)
+                async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
+                    for template_key, content in (
+                        ("script2assets", "{{existing_assets}} {{style}} {{script}}"),
+                        ("script2shots", "{{assets}} {{style}} {{script}}"),
+                    ):
+                        template_path = f"/api/prompt-templates/{template_key}"
+                        template_observation = await cascade_http_json(
+                            client,
+                            "PATCH",
+                            f"{base_url}{template_path}",
+                            {"content": content},
+                        )
+                        if template_observation.status_code != 200:
+                            raise AcceptanceFailure(
+                                f"cascade template {template_key} returned "
+                                f"{template_observation.status_code}: {template_observation.body!r}"
+                            )
+                        evidence.add(
+                            "cascade_operation",
+                            operation="edit_style_template",
+                            method="PATCH",
+                            path=template_path,
+                            status=template_observation.status_code,
+                            response=template_observation.body,
+                        )
+
+                    assets_observation = await cascade_http_json(
+                        client,
+                        "POST",
+                        f"{base_url}/api/episodes/{fixture['generation_episode_id']}/generate-assets",
+                    )
+                    if assets_observation.status_code != 202:
+                        raise AcceptanceFailure(
+                            f"cascade regenerate_assets returned "
+                            f"{assets_observation.status_code}: {assets_observation.body!r}"
+                        )
+                    assets_body = require_mapping(assets_observation.body, "cascade regenerate_assets")
+                    assets_task = await cascade_wait_task(
+                        client, base_url, int(assets_body["task_id"])
+                    )
+                    if assets_task["status"] != "done":
+                        raise AcceptanceFailure(f"cascade regenerate_assets task failed: {assets_task!r}")
+                    evidence.add(
+                        "cascade_operation",
+                        operation="regenerate_assets",
+                        method="POST",
+                        path=f"/api/episodes/{fixture['generation_episode_id']}/generate-assets",
+                        status=assets_observation.status_code,
+                        response=assets_observation.body,
+                        task=assets_task,
+                    )
+                    impact_observation = await cascade_http_json(
+                        client,
+                        "POST",
+                        f"{base_url}/api/episodes/{fixture['generation_episode_id']}/generate-shots/impact",
+                    )
+                    impact = require_mapping(impact_observation.body, "cascade regenerate_shots impact")
+                    shots_observation = await cascade_http_json(
+                        client,
+                        "POST",
+                        f"{base_url}/api/episodes/{fixture['generation_episode_id']}/generate-shots",
+                        {"confirm_token": impact.get("confirm_token")},
+                    )
+                    if shots_observation.status_code != 202:
+                        raise AcceptanceFailure(
+                            f"cascade regenerate_shots returned "
+                            f"{shots_observation.status_code}: {shots_observation.body!r}"
+                        )
+                    shots_body = require_mapping(shots_observation.body, "cascade regenerate_shots")
+                    shots_task = await cascade_wait_task(
+                        client, base_url, int(shots_body["task_id"])
+                    )
+                    if shots_task["status"] != "done":
+                        raise AcceptanceFailure(f"cascade regenerate_shots task failed: {shots_task!r}")
+                    evidence.add(
+                        "cascade_operation",
+                        operation="regenerate_shots",
+                        method="POST",
+                        path=f"/api/episodes/{fixture['generation_episode_id']}/generate-shots",
+                        impact=impact_observation.body,
+                        status=shots_observation.status_code,
+                        response=shots_observation.body,
+                        task=shots_task,
+                    )
+                    simple_operations = [
+                        ("edit_script", "PATCH", f"/api/episodes/{fixture['edit_episode_id']}", {"script_text": "cascade script edited"}),
+                        ("edit_asset", "PATCH", f"/api/assets/{fixture['asset_ids'][0]}", {"name": f"Cascade renamed {uuid4().hex}"}),
+                        ("edit_shot_binding", "PATCH", f"/api/shots/{fixture['edit_shot_ids'][1]}", {"asset_ids": [fixture['asset_ids'][1]]}),
+                        ("edit_style_template", "PATCH", f"/api/styles/{fixture['style_id']}", {"prompt_fragment": "cascade updated style"}),
+                        ("edit_style_template", "PATCH", "/api/prompt-templates/minimaxh3", {"content": "{{shots}} {{references}} {{style}} {{requested_duration}} {{user_note}}"}),
+                        ("delete_clip", "DELETE", f"/api/clips/{fixture['clip_id']}", None),
+                        ("delete_asset", "DELETE", f"/api/assets/{fixture['asset_ids'][0]}", None),
+                    ]
+                    for name, method, path, payload in simple_operations:
+                        observation = await cascade_http_json(client, method, f"{base_url}{path}", payload)
+                        if observation.status_code not in {200, 204}:
+                            raise AcceptanceFailure(f"cascade {name} returned {observation.status_code}: {observation.body!r}")
+                        evidence.add("cascade_operation", operation=name, method=method, path=path, status=observation.status_code, response=observation.body)
+                    success_path = f"/api/clips/{fixture['success_clip_id']}/generate-video"
+                    success_request_id = "c012-cascade-clip-success"
+                    success_observation = await cascade_http_json(
+                        client,
+                        "POST",
+                        f"{base_url}{success_path}",
+                        {"request_id": success_request_id},
+                    )
+                    if success_observation.status_code != 202:
+                        raise AcceptanceFailure(
+                            f"cascade clip_success enqueue returned "
+                            f"{success_observation.status_code}: {success_observation.body!r}"
+                        )
+                    success_body = require_mapping(success_observation.body, "cascade clip_success enqueue")
+                    success_task_id = int(success_body["task_id"])
+                    success_task = await cascade_wait_task(client, base_url, success_task_id)
+                    videos_observation = await cascade_http_json(
+                        client,
+                        "GET",
+                        f"{base_url}/api/clips/{fixture['success_clip_id']}/videos",
+                    )
+                    videos = videos_observation.body
+                    if success_task["status"] != "done" or videos_observation.status_code != 200:
+                        raise AcceptanceFailure(
+                            f"cascade clip_success did not complete: task={success_task!r} videos={videos!r}"
+                        )
+                    if not isinstance(videos, list) or len(videos) != 1:
+                        raise AcceptanceFailure(f"cascade clip_success video count mismatch: {videos!r}")
+                    video = require_mapping(videos[0], "cascade clip_success video")
+                    video_id = video.get("id")
+                    if not isinstance(video_id, int):
+                        raise AcceptanceFailure(f"cascade clip_success video id missing: {video!r}")
+                    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+                    try:
+                        stored_video = await connection.fetchrow(
+                            "SELECT file_path, sha256, built_prompt, input_hash FROM clip_videos WHERE id = $1",
+                            video_id,
+                        )
+                    finally:
+                        await connection.close()
+                    if stored_video is None:
+                        raise AcceptanceFailure(f"cascade clip_success DB video row missing: {video_id}")
+                    file_path = stored_video["file_path"]
+                    if not isinstance(file_path, str) or not file_path:
+                        raise AcceptanceFailure(f"cascade clip_success file path missing: {video!r}")
+                    formal_path = (runtime_dir / Path(file_path)).resolve()
+                    if runtime_dir.resolve() not in formal_path.parents or not formal_path.is_file():
+                        raise AcceptanceFailure(f"cascade clip_success formal media missing: {formal_path}")
+                    media_bytes = formal_path.read_bytes()
+                    if not media_bytes or video.get("is_current") is not True:
+                        raise AcceptanceFailure(f"cascade clip_success media/current mismatch: {video!r}")
+                    evidence.add(
+                        "cascade_operation",
+                        operation="clip_success",
+                        method="POST",
+                        path=success_path,
+                        status=success_observation.status_code,
+                        response=success_observation.body,
+                        task=success_task,
+                        videos=videos,
+                        media={
+                            "path": str(formal_path),
+                            "bytes": len(media_bytes),
+                            "sha256": stored_video["sha256"],
+                            "built_prompt": stored_video["built_prompt"],
+                            "input_hash": stored_video["input_hash"],
+                        },
+                    )
+        finally:
+            if process is not None:
+                stopped = stop_process(process)
+                evidence.add("production_process_shutdown", **child_observation(stopped), process_exited=process.poll() is not None)
+            await cascade_cleanup_fixture(raw_url, fixture)
+        if stopped is None or stopped.timed_out or process is None or process.poll() is None:
+            raise AcceptanceFailure("cascade owned production process did not cleanly stop")
+    evidence.add("owned_resource_cleanup", production_process_stopped=True, runtime_directory_exists=runtime_dir.exists())
+
+
+async def recovery_seed_tasks(raw_url: str) -> tuple[int, int]:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    running_target_id = 2_000_000_000 + (uuid4().int % 100_000_000)
+    queued_target_id = 2_000_000_000 + (uuid4().int % 100_000_000)
+    while queued_target_id == running_target_id:
+        queued_target_id = 2_000_000_000 + (uuid4().int % 100_000_000)
+    try:
+        async with connection.transaction():
+            running = int(await connection.fetchval("INSERT INTO tasks (type, target_id, status, progress, payload) VALUES ('gen_assets', $1, 'running', 0.5, '{}'::jsonb) RETURNING id", running_target_id))
+            queued = int(await connection.fetchval("INSERT INTO tasks (type, target_id, status, progress, payload) VALUES ('gen_assets', $1, 'queued', 0, '{}'::jsonb) RETURNING id", queued_target_id))
+        return running, queued
+    finally:
+        await connection.close()
+
+
+async def command_recovery(_arguments: argparse.Namespace, evidence: RunEvidence) -> None:
+    raw_url, data_dir, identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add("runtime_identity", database_url=identity, database=database_identity, data_dir=str(data_dir))
+    with tempfile.TemporaryDirectory(prefix="c012-recovery-", dir=str(data_dir)) as runtime_name:
+        runtime_dir = Path(runtime_name)
+        running_id, queued_id = await recovery_seed_tasks(raw_url)
+        first: subprocess.Popen[bytes] | None = None
+        second: subprocess.Popen[bytes] | None = None
+        first_stop: ChildResult | None = None
+        queued_lock_connection: asyncpg.Connection | None = None
+        try:
+            queued_lock_connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+            await queued_lock_connection.execute("BEGIN")
+            await queued_lock_connection.fetchrow(
+                "SELECT id FROM tasks WHERE id = $1 FOR UPDATE", queued_id
+            )
+            with ControlledHTTPStub() as dependency_stub:
+                first, first_port = start_backend_process(raw_url, runtime_dir, dependency_stub)
+                health = await wait_for_http(f"http://127.0.0.1:{first_port}/api/system/health")
+                tasks_after = await read_database_tasks(raw_url)
+                running_row = next(row for row in tasks_after if row["id"] == running_id)
+                queued_row = next(row for row in tasks_after if row["id"] == queued_id)
+                if running_row["status"] != "failed" or running_row["error_msg"] != "server restarted":
+                    raise AcceptanceFailure(f"running recovery mismatch: {running_row!r}")
+                evidence.add("running_recovery", first_pid=first.pid, first_port=first_port, health=health.body, running_task=running_row, queued_task=queued_row)
+                second, second_port = start_backend_process(raw_url, runtime_dir, dependency_stub)
+                try:
+                    stdout, stderr = second.communicate(timeout=30)
+                    second_result = ChildResult(command=tuple(str(part) for part in second.args), returncode=second.returncode, stdout=stdout, stderr=stderr)
+                except subprocess.TimeoutExpired:
+                    second_result = stop_process(second, timeout=1)
+                evidence.add("advisory_lock_exclusion", second_pid=second.pid, second_port=second_port, **child_observation(second_result))
+                lock_output = second_result.text_stdout() + second_result.text_stderr()
+                if (
+                    second_result.returncode == 0
+                    or second_result.timed_out
+                    or second_result.termination_requested
+                    or "AdvisoryLockNotAcquired" not in lock_output
+                    or "advisory lock is already held" not in lock_output
+                ):
+                    raise AcceptanceFailure(
+                        "second backend did not naturally reject the shared advisory lock "
+                        "with the expected startup error"
+                    )
+        finally:
+            if second is not None and second.poll() is None:
+                stop_process(second)
+            if first is not None:
+                first_stop = stop_process(first)
+                evidence.add("first_process_shutdown", **child_observation(first_stop))
+            if queued_lock_connection is not None:
+                await queued_lock_connection.execute("ROLLBACK")
+                await queued_lock_connection.close()
+                queued_lock_connection = None
+            connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+            try:
+                await connection.execute("DELETE FROM tasks WHERE id = ANY($1::int[])", [running_id, queued_id])
+            finally:
+                await connection.close()
+        if first_stop is None or first_stop.timed_out or first.poll() is None:
+            raise AcceptanceFailure("recovery first backend did not cleanly stop")
+    evidence.add("owned_resource_cleanup", production_process_stopped=True, runtime_directory_exists=runtime_dir.exists())
+
+
+async def command_trash(_arguments: argparse.Namespace, evidence: RunEvidence) -> None:
+    raw_url, data_dir, identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add("runtime_identity", database_url=identity, database=database_identity, data_dir=str(data_dir))
+    with tempfile.TemporaryDirectory(prefix="c012-trash-", dir=str(data_dir)) as runtime_name:
+        runtime_dir = Path(runtime_name)
+        trash_root = runtime_dir / "trash"
+        trash_root.mkdir(parents=True)
+        old_path = trash_root / "old.bin"
+        recent_path = trash_root / "recent.bin"
+        valid_path = runtime_dir / "valid.bin"
+        old_path.write_bytes(b"old")
+        recent_path.write_bytes(b"recent")
+        valid_path.write_bytes(b"valid")
+        old_time = time.time() - 7200
+        os.utime(old_path, (old_time, old_time))
+        process: subprocess.Popen[bytes] | None = None
+        stopped: ChildResult | None = None
+        try:
+            with ControlledHTTPStub() as dependency_stub:
+                process, port = start_backend_process(raw_url, runtime_dir, dependency_stub, {"TRASH_RETENTION_HOURS": "1"})
+                health = await wait_for_http(f"http://127.0.0.1:{port}/api/system/health")
+                if health.status_code != 200 or old_path.exists() or not recent_path.exists() or not valid_path.exists():
+                    raise AcceptanceFailure("startup trash cleanup boundary was incorrect")
+                evidence.add("startup_cleanup", pid=process.pid, port=port, health=health.body, old_exists=old_path.exists(), recent_exists=recent_path.exists(), outside_exists=valid_path.exists())
+        finally:
+            if process is not None:
+                stopped = stop_process(process)
+                evidence.add("startup_process_shutdown", **child_observation(stopped))
+        if stopped is None or stopped.timed_out or process is None or process.poll() is None:
+            raise AcceptanceFailure("trash startup process did not cleanly stop")
+
+        scheduled_old = trash_root / "scheduled-old.bin"
+        scheduled_new = trash_root / "scheduled-new.bin"
+        scheduled_old.write_bytes(b"scheduled-old")
+        scheduled_new.write_bytes(b"scheduled-new")
+        os.utime(scheduled_old, (old_time, old_time))
+        scheduled_code = """
+import asyncio
+import os
+from pathlib import Path
+import app.services.trash as trash
+
+calls = 0
+
+async def fake_sleep(_seconds):
+    global calls
+    calls += 1
+    if calls > 1:
+        raise asyncio.CancelledError
+
+trash.asyncio.sleep = fake_sleep
+asyncio.run(trash.run_trash_cleanup_loop(Path(os.environ["DATA_DIR"]), 1))
+"""
+        scheduled_env = os.environ.copy()
+        scheduled_env.update({"DATABASE_URL": raw_url, "DATA_DIR": str(runtime_dir), "PYTHONUTF8": "1"})
+        scheduled_result = run_child([sys.executable, "-c", scheduled_code], cwd=BACKEND, env=scheduled_env, timeout=10)
+        evidence.add("scheduled_cleanup", **child_observation(scheduled_result), old_exists=scheduled_old.exists(), new_exists=scheduled_new.exists())
+        if (
+            scheduled_result.returncode != 1
+            or scheduled_result.timed_out
+            or "CancelledError" not in scheduled_result.text_stderr()
+            or scheduled_old.exists()
+            or not scheduled_new.exists()
+        ):
+            raise AcceptanceFailure("scheduled trash cleanup probe failed")
+
+        recent_path.unlink()
+        scheduled_new.unlink()
+        trash_root.rmdir()
+        trash_root.write_bytes(b"not a directory")
+        failure_code = "from pathlib import Path; import os; from app.services.trash import cleanup_expired_trash; cleanup_expired_trash(Path(os.environ['DATA_DIR']), 1)"
+        failure_env = os.environ.copy()
+        failure_env.update({"DATABASE_URL": raw_url, "DATA_DIR": str(runtime_dir), "PYTHONUTF8": "1"})
+        failure_result = run_child([sys.executable, "-c", failure_code], cwd=BACKEND, env=failure_env, timeout=10)
+        evidence.add("io_failure_visible", **child_observation(failure_result))
+        if (
+            failure_result.returncode == 0
+            or failure_result.timed_out
+            or failure_result.termination_requested
+            or "NotADirectoryError" not in failure_result.text_stderr()
+        ):
+            raise AcceptanceFailure(
+                "trash IO failure probe did not expose the expected NotADirectoryError"
+            )
+
+
 def parser() -> argparse.ArgumentParser:
     argument_parser = argparse.ArgumentParser(
         prog="python -X utf8 .work/c012/acceptance.py"
@@ -2000,6 +2874,15 @@ async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
         return
     if arguments.command == "ws":
         await command_ws(arguments, evidence)
+        return
+    if arguments.command == "cascade":
+        await command_cascade(arguments, evidence)
+        return
+    if arguments.command == "recovery":
+        await command_recovery(arguments, evidence)
+        return
+    if arguments.command == "trash":
+        await command_trash(arguments, evidence)
         return
     if arguments.command == "verify-inputs":
         await command_verify_inputs(arguments, evidence)

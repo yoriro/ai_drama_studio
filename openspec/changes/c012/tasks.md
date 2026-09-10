@@ -15,10 +15,10 @@
 需求方本轮批准按 spec §1.1 并行推进独立工作。T22 保持发布门槛，按需求方最新批准的背景配角可省略条件复核；已有单次诊断不再追加生成。Luna 统一协调真实模型线和示范线，最多一名执行者承担受控线，禁止真实 GPU 并发。
 
 - 真实线：T21→T23→T24→T25→T26；不再以 T22 通过作为 T23 的开工条件，当前模板/服务门槛仍必须满足。T22 检验项目与示范项目分离。
-- 受控线：T02+T16+T19→T27→T28→T29→T30；独立库/目录/端口和 stub，不能借用示范媒体或触碰真实 GPU。
+- 受控线：T02基础装置+T19→T02A；T02完整交付+T02A+T16+T19→T27→T28→T29→T30；独立库/目录/端口和 stub，不能借用示范媒体或触碰真实 GPU。
 - 汇合：T22+T26+T30→T31→T32→T33→T34→T35→T36。任何未通过项仍未完成，不以其他线成功替代。
 - 同一条线按序逐 task 验收，失败保留证据并暂停该线后继；共用缺陷暂停全部受影响线。不因调度变化重跑已可复用全量测试。
-- Luna 独占共享文档/acceptance.py、真实服务与提交；受控执行者仅写 T27–T30 指定新测试及独立批次日志，不改已有测试、生产代码或共享文档。回填与提交串行，保留其他执行者和用户改动；固定装置输出串行采集并立即另存，防止证据覆盖。
+- Luna 独占共享文档/acceptance.py、真实服务与提交；受控执行者仅写 T27–T30 指定新测试及独立批次日志，另按 T02A 明确授权修改其 worktree 内的装置副本；不改已有测试、生产代码或共享文档。回填与提交串行，保留其他执行者和用户改动；固定装置输出串行采集并立即另存，防止证据覆盖。
 
 ## A. 锁风险与唯一性前置
 
@@ -202,6 +202,7 @@
   - 追溯行：C012 四模板生产消费：M6 一集剧本→资产→出图→分镜→两个片段视频全链路分别实际读取四份正式模板且无后台人工干预或 fallback；C012 真实外部依赖与GPU资源归属。
 
 - [ ] T26 人工核验两个片段的人物、场景及动作
+  - 当前调度：需求方本轮允许暂缓，保留失败/未通过，不修改模板或追加真实生成。先由 luna_worker_6 核对并补齐 T02A 与 T27→T30，worker_7 暂停；T31及最终收尾依赖不变。task #14/video #4 的 summary 含指向但 detailed_description 未保留该动作，旧关键词检查仅作文本存在性证据，不算动作保真或视觉通过。
   - 依赖：T25。交付：spec §6.2第5项逐项真假表、参考图/MP4链接、可定位时间点；每项记录实际观测，不使用“符合预期”替代内容。
   - R：无；PRD §11 M6；AC-19。
   - 验收：人工打开T25本轮修正后两段新take MP4与current参考图，分别检查身份无互换、宿舍/球馆、A入门/抬眼/继续吃饭、B指向/僵住，以及主体消失/额外肢体；缺项记失败，声音/字幕不要求；不新增像素或LLM自评自动测试。
@@ -210,8 +211,17 @@
 
 ## D. 级联、恢复与发布收口
 
+- [x] T02A 补交 cascade、recovery、trash 的实际验收入口
+  - 依赖：T01及T02已有基础装置/selfcheck实测、T19。交付：仅在既有 `.work/c012/acceptance.py` 补齐三个实际分发和命令实现；不创建第二runner，不把reserved改成成功或仅删掉报错。原T02整体撤回完成，其基础装置已通过证据保留；本项通过并集成后核对T02完整交付再恢复勾选。
+  - 所有权：本次明确委派 luna_worker_7 在其 `C:/Users/Administrator/.codex/worktrees/4fb3/ai_drama_studio` 副本修改该装置的三个命令及直接必需的fixture/采集逻辑；不得改其他命令语义、真实GPU通路、生产或旧测试。luna_worker_6 保留主工作区集成/共享文档/提交责任。此项是受控执行者不得修改验收脚本限制的一次明确范围扩展；双方不得同时编辑主目录脚本。
+  - R：R2、R3、R4、R9、R12；PRD §3.2/3.3、§6.1/6.4、§10、§11 M6；AC-02/20/22/24。
+  - 验收：在显式独立数据库/DATA_DIR、仅stub外部服务的环境，R `python -X utf8 .work/c012/acceptance.py selfcheck`、同入口 `cascade`、`recovery`、`trash`。三个命令分别实际经过spec §8规定的生产service/独立进程/数据库/文件通路并取得对应矩阵、恢复/互斥及清理证据；至少保留一条自检故意失败非零和资源退出结果。纯CLI分发、仅包装既有9 passed、空events或reserved均不算交付。原始命令/环境身份/事件/exit分批另存，不能伪造独立进程证据。此项先验证装置可用，不能替代T27/T29/T30专属用例和规定人工检查；不为本装置再写“测试测试”的独立套件，不触发完整pytest。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵；C012 取消心跳失败与重启资源恢复；C012 trash 启动与定时清理。
+
+
 - [ ] T27 验证 M6 九行全级联及所有明确子分支
-  - 依赖：T02、T16、T19及独立受控环境；不依赖T22/T26。交付：新增`backend/tests/task_system/test_c012_cascade.py`按spec §7完整九行分参数，复用生产服务/独立连接/实际媒体；在隔离受控浏览器逐格记录UI变化，不能破坏真实示范集。只补跨链路覆盖，不复制纯规则用例。需求方本轮允许按spec §7.1修复此task新增未提交测试文件：loop/engine生命周期、可达marker夹具与字段期望、数据表示、合法模板、JSON和媒体fixture；不改已提交旧测试/生产。保留首次6 failed，删除Clip的500先取traceback定位，未证明fixture原因不得擅改生产；恒真自比较改为操作前后比较。
+  - 依赖：T02、T02A、T16、T19及独立受控环境；不依赖T22/T26。交付：新增`backend/tests/task_system/test_c012_cascade.py`按spec §7完整九行分参数，复用生产服务/独立连接/实际媒体；在隔离受控浏览器逐格记录UI变化，不能破坏真实示范集。只补跨链路覆盖，不复制纯规则用例。需求方本轮允许按spec §7.1修复此task新增未提交测试文件：loop/engine生命周期、可达marker夹具与字段期望、数据表示、合法模板、JSON和媒体fixture；不改已提交旧测试/生产。保留首次6 failed，删除Clip的500先取traceback定位，未证明fixture原因不得擅改生产；恒真自比较改为操作前后比较。
   - R：R2、R3、R4、R9、R12；PRD §3.2、§3.3、§6.4、§11 M6；AC-20。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_cascade.py`；R `python -X utf8 .work/c012/acceptance.py cascade`；精确行/ID/revision/current和文件bytes对照，编辑/换图/绑定增删/模板变更分支逐项记录；R3成功和模型失败都验证。实施后向既有九条§3.3追溯行追加实际节点。
   - 计划测试层级：跨进程/资源生命周期。
@@ -225,14 +235,14 @@
   - 追溯行：C012 M6 错误与敌意输入回归。
 
 - [ ] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
-  - 依赖：T28。交付：新增`backend/tests/task_system/test_c012_recovery.py`，真实应用进程/DB/文件；queued/running取消与成功竞争、心跳错误/DB不可用时的真实限制、同库重启和第二实例拒绝。不加入心跳重试或伪造failed。
+  - 依赖：T28、T02A。交付：新增`backend/tests/task_system/test_c012_recovery.py`，真实应用进程/DB/文件；queued/running取消与成功竞争、心跳错误/DB不可用时的真实限制、同库重启和第二实例拒绝。不加入心跳重试或伪造failed。
   - R：无；PRD §3.2、§6.1、§6.4、§11 M6；AC-22。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_recovery.py`；R `python -X utf8 .work/c012/acceptance.py recovery`。确定性进程屏障验证running→failed、queued保留/claim一次、副作用一次、advisory锁释放/拒绝、temp与连接退出；只使用本轮owned隔离进程。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 取消心跳失败与重启资源恢复。
 
 - [ ] T30 验证生产 trash 启动和每日清理
-  - 依赖：T29。交付：新增`backend/tests/task_system/test_c012_trash_cleanup.py`，真实文件/启动进程和每日调用路径；cutoff前/恰好/之后、trash外媒体、IO失败与shutdown。仅验证生产清理，发现越界/生命周期缺陷先报告定位，不顺手扩大清理范围。
+  - 依赖：T29、T02A。交付：新增`backend/tests/task_system/test_c012_trash_cleanup.py`，真实文件/启动进程和每日调用路径；cutoff前/恰好/之后、trash外媒体、IO失败与shutdown。仅验证生产清理，发现越界/生命周期缺陷先报告定位，不顺手扩大清理范围。
   - R：无；PRD §6.4、§10、§11 M6；AC-24。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_trash_cleanup.py`；R `python -X utf8 .work/c012/acceptance.py trash`；记录精确保留/删除文件与bytes，受控计时等待与真实启动证据分开，明确不是实际24小时长跑。
   - 计划测试层级：跨进程/资源生命周期。
