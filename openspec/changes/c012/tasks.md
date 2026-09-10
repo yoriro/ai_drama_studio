@@ -135,7 +135,7 @@
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位。
 
-- [ ] T18 交付显式模板部署 CLI 与失败合同
+- [x] T18 交付显式模板部署 CLI 与失败合同
   - 依赖：T17。交付：`backend/app/deploy_templates.py`、独立`backend/tests/api/test_c012_template_deployment.py`；复用正式设置API/httpx，install/verify、预检先于PATCH、部分提交说明与无retry按spec §5；完善部署README的实际命令。
   - R：R11；PRD §5设置、§7、§11 M6、§12.2；AC-14。
   - 验收：B `python -m pytest -q tests/api/test_c012_template_deployment.py`；输入缺失/未知/非法UTF8/占位/缺变量、HTTP失败、内容不一致、verify零PATCH全部精确计数与错误；另在独立后端/CLI进程间令第三个PATCH在进入写入前显式失败，独立DB回读前两项已提交、后两项保持基线，进程非零且没有后续PATCH；CLI无自动重启、无SQL写入、无lifespan seed。

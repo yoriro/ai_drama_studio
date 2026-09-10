@@ -208,3 +208,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T15 前端单文件1 test、任务目录60 tests、build 68 modules均退出码0；T02受控后端停止/恢复期间真实页面从`running/0.4`重建为`done/1`，后端info日志为WS接受→列表GET→详情GET且无cancel/generate-video POST，fixture与监听清理完成，证据见`.work/c012/T15-browser-acceptance.md`。
 - 2026-09-10 C012 T16 G1 在新库`ai_drama_studio_c012_g1_20260910`与`D:\ai_drama_studio\.work\c012\t16-g1-data`完成迁移、后端`369 passed`、前端`35 files/175 tests`、build`68 modules`及diff check，全部exit 0；原始日志见`.work/c012/T16-*.log`。
 - 2026-09-10 C012 T17 四个模板文件按批准源恢复并逐字核验：script2assets 1253、script2shots 1181、zimage 2770、minimaxh3 7340 字符；UTF-8/LF，前三者无末尾换行、MiniMax 保留一个；迁移/workflow diff exit 0，证据见`.work/c012/T17-source-check-02.log`。
+- 2026-09-10 C012 T18 CLI 定向回归最终`13 passed in 18.16s`、exit 0；覆盖输入前置校验、install 顺序/停止/部分提交、verify 零 PATCH、真实后端/CLI 进程与独立 DB 回读，首次装置连接上下文错误保留在`.work/c012/T18-test.log`，修正结果见`.work/c012/T18-test-02.log`。
