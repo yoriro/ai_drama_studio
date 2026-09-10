@@ -837,6 +837,236 @@ async def command_names(
     evidence.add("post_probe_connection", database=await read_database_identity(raw_url))
 
 
+async def ws_seed_task(raw_url: str) -> int:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    try:
+        target_id = await connection.fetchval(
+            "SELECT COALESCE(MAX(target_id), 0) + 1 FROM tasks"
+        )
+        row = await connection.fetchrow(
+            "INSERT INTO tasks "
+            "(type, target_id, payload, status, progress) "
+            "VALUES ('gen_assets', $1, $2::jsonb, 'running', $3) "
+            "RETURNING id",
+            int(target_id),
+            json.dumps(
+                {
+                    "input_snapshot": {},
+                    "input_hash": None,
+                    "source_revisions": {},
+                }
+            ),
+            0.5,
+        )
+    finally:
+        await connection.close()
+    if row is None:
+        raise AcceptanceFailure("WebSocket task fixture insert returned no id")
+    return int(row["id"])
+
+
+async def ws_read_task(raw_url: str, task_id: int) -> dict[str, object]:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    try:
+        row = await connection.fetchrow(
+            "SELECT status, progress, cancel_requested_at, error_msg "
+            "FROM tasks WHERE id = $1",
+            task_id,
+        )
+    finally:
+        await connection.close()
+    if row is None:
+        raise AcceptanceFailure(f"WebSocket task {task_id} disappeared before probe")
+    return {
+        "status": row["status"],
+        "progress": float(row["progress"]),
+        "cancel_requested": row["cancel_requested_at"] is not None,
+        "error_msg": row["error_msg"],
+    }
+
+
+async def ws_delete_task(raw_url: str, task_id: int) -> str:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    try:
+        return str(
+            await connection.execute("DELETE FROM tasks WHERE id = $1", task_id)
+        )
+    finally:
+        await connection.close()
+
+
+async def command_ws(
+    _arguments: argparse.Namespace,
+    evidence: RunEvidence,
+) -> None:
+    raw_url, data_dir, url_identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add(
+        "runtime_identity",
+        database_url=url_identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+    )
+    if database_identity["current_database"] != url_identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+
+    with tempfile.TemporaryDirectory(
+        prefix="c012-ws-", dir=str(data_dir)
+    ) as runtime_name:
+        runtime_dir = Path(runtime_name)
+        with ControlledHTTPStub() as dependency_stub:
+            app_port = free_tcp_port()
+            child_env = os.environ.copy()
+            child_env.update(
+                {
+                    "DATABASE_URL": raw_url,
+                    "PYTHONUTF8": "1",
+                    "DATA_DIR": str(runtime_dir),
+                    "VLLM_BASE_URL": dependency_stub.base_url,
+                    "COMFY_BASE_URL": dependency_stub.base_url,
+                }
+            )
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    "app.main:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(app_port),
+                    "--log-level",
+                    "warning",
+                ],
+                cwd=BACKEND,
+                env=child_env,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=getattr(
+                    subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+                ),
+            )
+            task_id: int | None = None
+            stopped_result: ChildResult | None = None
+            try:
+                health = await wait_for_http(
+                    f"http://127.0.0.1:{app_port}/api/system/health"
+                )
+                if health.status_code != 200:
+                    raise AcceptanceFailure(
+                        f"production health returned {health.status_code}"
+                    )
+                task_id = await ws_seed_task(raw_url)
+                ws_uri = f"ws://127.0.0.1:{app_port}/ws/tasks"
+                cancel_url = f"http://127.0.0.1:{app_port}/api/tasks/{task_id}/cancel"
+                expected_event = {
+                    "task_id": task_id,
+                    "type": "gen_assets",
+                    "status": "running",
+                    "progress": 0.5,
+                    "message": "已请求取消",
+                }
+                async with (
+                    websockets.asyncio.client.connect(
+                        ws_uri, open_timeout=5, close_timeout=5
+                    ) as websocket_a,
+                    websockets.asyncio.client.connect(
+                        ws_uri, open_timeout=5, close_timeout=5
+                    ) as websocket_b,
+                ):
+                    async with httpx.AsyncClient(
+                        timeout=5.0, trust_env=False
+                    ) as client:
+                        cancel_response = await client.post(cancel_url)
+                    if cancel_response.status_code != 200:
+                        raise AcceptanceFailure(
+                            f"production cancel returned {cancel_response.status_code}: "
+                            f"{cancel_response.text}"
+                        )
+                    cancel_body = cancel_response.json()
+                    if not isinstance(cancel_body, dict):
+                        raise AcceptanceFailure("production cancel body was not an object")
+                    if (
+                        cancel_body.get("status") != "running"
+                        or cancel_body.get("cancel_requested_at") is None
+                    ):
+                        raise AcceptanceFailure(
+                            f"cancel response did not preserve running state: {cancel_body}"
+                        )
+                    received_events: list[object] = []
+                    for websocket in (websocket_a, websocket_b):
+                        raw_event = await asyncio.wait_for(websocket.recv(), timeout=5)
+                        try:
+                            received_events.append(json.loads(raw_event))
+                        except ValueError as exc:
+                            raise AcceptanceFailure(
+                                f"production WebSocket returned non-JSON event: {raw_event!r}"
+                            ) from exc
+                    if received_events != [expected_event, expected_event]:
+                        raise AcceptanceFailure(
+                            f"production WebSocket event mismatch: {received_events!r}"
+                        )
+                task_state = await ws_read_task(raw_url, task_id)
+                if task_state != {
+                    "status": "running",
+                    "progress": 0.5,
+                    "cancel_requested": True,
+                    "error_msg": None,
+                }:
+                    raise AcceptanceFailure(
+                        f"task state changed after WebSocket probe: {task_state!r}"
+                    )
+                evidence.add(
+                    "network_ws",
+                    uri=ws_uri,
+                    connections_before=0,
+                    connections_active=2,
+                    connections_after=0,
+                    cancel_response=cancel_body,
+                    events=received_events,
+                    task_state=task_state,
+                    process_alive=process.poll() is None,
+                )
+                if process.poll() is not None:
+                    raise AcceptanceFailure(
+                        f"production process exited during WebSocket probe: {process.returncode}"
+                    )
+            finally:
+                stopped_result = stop_process(process)
+                evidence.add(
+                    "production_process_shutdown",
+                    **child_observation(stopped_result),
+                    process_exited=process.poll() is not None,
+                )
+                if task_id is not None:
+                    deleted = await ws_delete_task(raw_url, task_id)
+                    evidence.add(
+                        "task_fixture_cleanup",
+                        task_id=task_id,
+                        delete_result=deleted,
+                    )
+            if stopped_result is None:
+                raise AcceptanceFailure("owned production process shutdown was not observed")
+            if stopped_result.timed_out:
+                raise AcceptanceFailure(
+                    "owned production process required forced termination"
+                )
+            if process.poll() is None:
+                raise AcceptanceFailure("owned production process did not stop")
+    if runtime_dir.exists():
+        raise AcceptanceFailure("WebSocket runtime directory was not released")
+    evidence.add(
+        "owned_resource_cleanup",
+        runtime_directory_exists=runtime_dir.exists(),
+        dependency_stub_stopped=True,
+        production_process_stopped=True,
+    )
+
+
 async def command_selfcheck(
     arguments: argparse.Namespace, evidence: RunEvidence
 ) -> None:
@@ -1107,6 +1337,9 @@ async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
         return
     if arguments.command == "names":
         await command_names(arguments, evidence)
+        return
+    if arguments.command == "ws":
+        await command_ws(arguments, evidence)
         return
     raise AcceptanceFailure(
         f"C012 acceptance command {arguments.command!r} is reserved for its scheduled task"

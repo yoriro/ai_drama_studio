@@ -105,7 +105,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
-- [ ] T14 实现 WS owner 超时关闭和子任务释放
+- [x] T14 实现 WS owner 超时关闭和子任务释放
   - 依赖：T13。交付：`api/tasks.py`发送10秒上限、溢出/发送异常关闭、同时完成事件处理、取消后await；新增`backend/tests/task_system/test_c012_ws_lifecycle.py`。不修改Task REST或事件JSON字段。
   - R：无；PRD §5任务、§6.1/6.4；AC-11。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_ws_lifecycle.py tests/task_system/test_c012_event_bus.py`；R `python -X utf8 .work/c012/acceptance.py ws`。受控ASGI慢send与真实网络WS分开记录，1013/日志、连接基线、零pending子任务、Task不误failed及健康订阅均验证。
