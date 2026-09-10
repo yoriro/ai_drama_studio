@@ -2,7 +2,7 @@
 
 ### 当前状态（2026-09-10，最终收口核验）
 
-当前核验结论覆盖本文件列出的执行项：T14、T15、T18、T19、T20、T21、T23、T24A–F、T24、T25、T26、T27及T29–T45均已完成并勾选；当前唯一待收口项为T28。权威最终G沿用`.work/c011/T39-astrafinal20260909loop-test.log`：受测HEAD为`4bd3a713f12121f8fc082626d8f0d8154e79fead`，完整pytest为`348 passed in 239.87s`，前端/build/Alembic/diff check均有真实exit 0；T45之后仅有文档/NOTES回填，前端定向测试与七条探针另有当前exit-0日志。
+当前核验结论覆盖本文件列出的执行项：T14、T15、T18、T19、T20、T21、T23、T24A–F、T24、T25、T26、T27及T29–T45均已完成并勾选；T28已完成，52个执行项均已勾选。权威最终G沿用`.work/c011/T39-astrafinal20260909loop-test.log`：受测HEAD为`4bd3a713f12121f8fc082626d8f0d8154e79fead`，完整pytest为`348 passed in 239.87s`，前端/build/Alembic/diff check均有真实exit 0；当前前端采用T45受测实现`e4605bb`的34 files/174 tests、build 68 modules及七条独立探针，全部exit 0；后端348及迁移按相同输入复用上述G，不把旧G的前端171项当作覆盖T45。T45之后仅有文档/NOTES回填。
 
 全页原生桌面200%与动态`prefers-reduced-motion`仍明确未动态验证，按spec §7.4为不阻塞的未验证范围，不回填为通过。下方2026-09-09派发、复审与“恢复未勾”段落是历史诊断/授权记录，不覆盖本当前状态；历史失败输出继续保留。`AGENTS.md`的用户改动、`.work/`证据与`DECISIONS.md`只读边界均不纳入T28提交。
 
@@ -619,6 +619,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收：两主题正式页面Shots/Director中changed原文精确为“已变更（changed）”，normal无角标；实际操作选择/查看与状态/轨道不变。CSS/纯文案不适合镜像测试，真实浏览器是本项替代验收。
   - 命令：`npm --prefix frontend run test -- src/features/status src/features/director`；`npm --prefix frontend run build`；用既有普通隔离fixture实际走查，记录完整URL/主题/镜头ID/实际DOM文字；`git diff --check`。不跑G、不触发普通模式生成。
   - 2026-09-09完成：仅将`DirectorPage.tsx`的changed文本接到既有`presentShotStatus(...).label`，保留原`.director-shot-changed`样式、normal空标签、选择/禁用/R8/轨道。定向14 files/79 tests、build 68 modules、diff check均exit 0；真实IAB tab 57在`http://127.0.0.1:52429`项目2/集1的Shots与Director亮/暗主题均观察Shot 4/14为“已变更（changed）”、normal Shot 1无角标；实际选择镜头17后切换两主题，选择、预检可用和3轨保持，未提交mutation。原始浏览器记录`.work/c011/T43-browser-acceptance-20260909.log`，定向/构建日志`.work/c011/T43-test.log`、`.work/c011/T43-build.log`；不跑G。
+
+  - 最终归属更正：52429属于受控环境；本项规定的普通后端复核以Astra实际`.work/c011/review-t43-ordinary-20260909.log`为准，前端52427/后端52426，双主题Shots/Director的Shot 4/14精确为“已变更（changed）”、normal Shot 1无角标，选择17及原操作保持。原受控观察继续保留，不误称普通证据。
 
 - [x] **T44A 交付导演台在途失败的隔离行锁装置**
   - 依赖：T43；为T44导演台切片前置，保留历史T44尝试，不倒填完成顺序。

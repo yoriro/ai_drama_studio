@@ -1,6 +1,6 @@
 # 测试追溯表
 
-**C011 当前状态（2026-09-10，已核验）：** T14、T15、T18、T19、T20、T21、T23、T24A–F、T24、T25、T26、T27及T29–T45均已完成并回填；T28为当前文档/commit一致性收口项。权威最终G为`.work/c011/T39-astrafinal20260909loop-test.log`，受测HEAD为`4bd3a713f12121f8fc082626d8f0d8154e79fead`，完整pytest为`348 passed in 239.87s`，前端/build/Alembic/diff check均有真实exit 0；T45之后的前端定向与七条探针也有独立当前日志。主追溯行仍为17条，当前无待回填项。全页原生桌面200%与动态`prefers-reduced-motion`明确未动态验证，按spec §7.4不阻塞且未写成通过；`AGENTS.md`用户改动与`.work/`证据不纳入提交。
+**C011 当前状态（2026-09-10，已核验）：** T14、T15、T18、T19、T20、T21、T23、T24A–F、T24、T25、T26、T27及T29–T45均已完成并回填；T28已完成，52个执行项均已勾选。权威最终G为`.work/c011/T39-astrafinal20260909loop-test.log`，受测HEAD为`4bd3a713f12121f8fc082626d8f0d8154e79fead`，完整pytest为`348 passed in 239.87s`，前端/build/Alembic/diff check均有真实exit 0；当前前端采用受测实现`e4605bb`的34 files/174 tests、build 68 modules与七条独立探针，全部exit 0；后端348及迁移按相同输入复用上述G，不把旧G前端171项作为T45证据。主追溯行仍为17条，当前无待回填项。全页原生桌面200%与动态`prefers-reduced-motion`明确未动态验证，按spec §7.4不阻塞且未写成通过；`AGENTS.md`用户改动与`.work/`证据不纳入提交。
 
 **以下2026-09-09“当前状态：未完成”及B11–B15登记是历史复审快照。** 它们保留当时的失败、待补范围与授权依据；后续T40–T45、T23、T24、T25、T26、T27回填覆盖当前状态，不删除历史日志，也不把历史失败改写为通过。
 
@@ -282,3 +282,6 @@ T23新批次实际list failed/detail running，Astra `probe-closed-detail-reconn
 追溯补充（对应 `C011 范围回归与文档提交一致性` 行，2026-09-10 T27）：`.work/c011/T27-decisions-audit-current-20260910.log`保存DECISIONS.md导航相关内容只读核对、D-008边界说明、`git diff --name-status -- DECISIONS.md`空结果及`git diff --check -- DECISIONS.md` exit 0；未修改DECISIONS.md。完成报告向Astra/需求方提出候选供评估：将已校验的工作路径+search/hash、辅助页无业务数据继承及replace返回统一为跨change导航合同；候选未视为已采纳决定。
 
 追溯补充（对应 `C011 范围回归与文档提交一致性` 行，2026-09-10 T28）：`.work/c011/T28-closure-audit-current-20260910.log`记录顶部当前状态澄清后的最终闭合核对：勾选前仅T28未勾、已勾任务51项、C011主追溯行17条，spec/tasks已被git跟踪；`git diff --check` exit 0，`DECISIONS.md`/`NOTES.md`无差异，`backend/app`/`backend/alembic`/`backend/workflows`相对规划基线无差异，`.work`未跟踪，C011监听端口为0，T23/T45清理元数据均为completed/exit_code=0。权威最终G仍为T39日志中的完整pytest `348 passed in 239.87s (0:03:59)`及其余exit-0步骤；本次仅提交change文档，不提交AGENTS.md或.work。全页原生200%与动态reduced-motion保留为§7.4规定的未验证且不阻塞范围。
+
+
+追溯补充（对应 `C011 范围回归与文档提交一致性`、`C011 既有功能入口与状态呈现不变` 行，2026-09-10 Astra提交后复核）：`b01381c`已有52项已勾、0项未勾、31条AC、17条主追溯行；本次只将顶部“待T28”改成实际已勾状态并明确当前前端/后端证据组合。T43普通后端证据为`.work/c011/review-t43-ordinary-20260909.log`，52429旧记录仅归受控环境。T45手工整理日志属于摘要，完整原始stdout/stderr/exit元数据分别为`.work/c011/T45-raw-f79e7827-8ee9-469a-a437-770fd0d3dbd3.*`（3项目标红测exit1）、`T45-raw-00a13f6c-c348-4d45-8bd8-59397d9d90ad.*`（最终定向exit0）、`T45-raw-846e586c-5cf1-44c1-af94-721feead68cc.*`（前端174 exit0）、`T45-raw-1baa25ed-e75a-4dce-a486-62ea3fd330a9.*`（build exit0）；这些从原工具事件恢复，未重跑或改写原错误。T23后端29484/29220清理真实exit0分别由`review-t23-combo-runtime-0d7c0d53-06dc-482f-82ed-b3a797565072.metadata.json`、`review-t23-combo-runtime-8e677793-8479-4d64-be5b-457957a0e86f.metadata.json`及各自stdout/stderr证明；后者与`review-t23-combo-cua-raw-20260910.json`、`review-t23-combo-runtime-raw-20260910.json`保留同页127显式GET/无重复取消的原始证据。Astra独立核读报告见`.work/c011/review-closure-20260910.md`。没有实现、测试或依赖变化，不重复运行G。
