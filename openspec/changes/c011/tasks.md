@@ -336,7 +336,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
 
   **2026-09-10重验：** 当前受测代码再次执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx`，结果见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/3 tests passed，exit 0；覆盖queued取消一次无body POST、确认详情/列表、running+cancel_requested不伪造canceled及多任务控制隔离。
 
-- [ ] **T21 封闭取消竞争错误与当前页面隔离**
+- [x] **T21 封闭取消竞争错误与当前页面隔离**
   - 依赖：T20。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5；D-008。
   - 交付范围：落实取消与done竞争、迟到200 running、404/409权威刷新与资源消失、超时未知结果、筛选A/B/展开B/卸载identity。操作错误不被后台GET清除；未知结果确认前禁止再次提交，仅显式刷新或观察重建。新增独立 `frontend/src/features/tasks/taskCancelRaces.test.tsx`，保持T20既有用例不变。
@@ -346,6 +346,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收归属：AC-13/14 完整；不修改后端竞争裁决或改既有测试换绿。
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskCancelRaces.test.tsx` 退出码0，1 file/6 tests passed，原始输出见 `.work/c011/T21-rerun-current-20260909.log`。该生产TasksPage测试继续覆盖终态WS胜方、迟到响应、404/409权威刷新、未知结果、筛选/展开/卸载身份隔离及无重放；未修改既有测试。
+
+  **2026-09-10重验：** 当前受测代码再次执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskCancelRaces.test.tsx`，结果见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/6 tests passed，exit 0；覆盖终态WS胜方、迟到running/404/409/网络结果、单次POST、筛选/展开/卸载身份隔离和无重放。当前真实跨进程取消/重连组合由T23-T45 B16及独立DB证据补足。
 
 - [x] **T22 验证跨进程取消与观察一致性**
   - 依赖：T04、T21。
