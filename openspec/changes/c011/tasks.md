@@ -480,7 +480,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收：先running事件后GET done：status=done、progress=1、finished_at精确；反向先GET后terminal事件且旧GET迟到：terminal不回退；断言必要GET数量、无mutation重放、无提前成功通知。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskDetailEventOrder.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T31 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T32 重连重建已展开任务详情**
+- [x] **T32 重连重建已展开任务详情**
   - 依赖：T31完成；问题/验收：B04；AC-11/15。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§9、§11 M5。
   - 交付：重连后使仍展开的详情从正式GET恢复到最新状态，清楚处理旧缓存与读取失败；保持断线旧数据可见和1/2/5/10秒重连，不添加轮询。 生产文件限frontend/src/features/tasks/taskObservation.ts、必要的frontend/src/pages/TasksPage.tsx详情接线；独立新增`frontend/src/features/tasks/taskDetailReconnect.test.tsx`实现下述回归，不修改既有测试。
@@ -488,6 +488,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 追溯行：`C011 任务公开边界与可见协议错误`；`C011 任务中心 REST/WS 同步与过滤竞态`。
   - 验收：不卸载实际页面：展开running→WS断开→服务端done/failed/canceled→重连；列表与详情的status/progress/finished_at/error_msg/cancel_requested_at逐字段相等，null时间对应字段显示—、非空时间含时区；长多行错误原文可见；没有重复POST。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskDetailReconnect.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T32 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
+
+  **2026-09-10重验：** 当前受测代码执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskDetailReconnect.test.tsx`，见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/4 tests passed，exit 0；覆盖不卸载页面时重连后的done/failed/canceled详情逐字段重建及刷新读取失败可见。T45当前真实页面B16组合补足收起/展开详情边界；按最新频率规则不重复G。
 
 - [x] **T33 补读远端首次取消意图**
   - 依赖：T32完成；问题/验收：B05；AC-12/17。
