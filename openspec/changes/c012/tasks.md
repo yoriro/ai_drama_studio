@@ -156,7 +156,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 真实外部依赖与GPU资源归属。
 
-- [ ] T21 全新生产等价库安装四模板并重启回读
+- [x] T21 全新生产等价库安装四模板并重启回读
   - 依赖：T20。交付：新M6库仅迁移、默认后端启动、部署与两次verify证据；记录原始4占位key基线与实际输入逐字比对，禁止复制旧库。该库此后专供真实示范链路。
   - R：R11；PRD §7、§11 M6、§12.2；AC-15。
   - 验收：B `python -m alembic upgrade head`；`python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deployment/templates --mode install`、同参数`--mode verify`；显式关闭并重启同库后端，再执行同一verify命令。两次集合GET全文一致、无占位、verify PATCH0；记录部分失败原始结果，不自动重装。
