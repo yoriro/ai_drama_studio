@@ -655,13 +655,14 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收方式与命令：`git diff -- NOTES.md`，逐条对照原始日志；`git diff --check`；引用 T25 核对的完整回归，不重跑 G。AC-23，不把历史端口/通过数写成当前结果。
   - 2026-09-10完成：NOTES.md追加4条本轮T23 B16、T24、T25与权威最终G的实际事实；`git diff -- NOTES.md`和`git diff --check -- NOTES.md`均exit 0，逐条可回读至`.work/c011/`日志；未写入未验证的原生200%或动态reduced-motion通过结论。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - 编号/依赖：T27；依赖T26。
   - R：无；PRD：§11 M5。
   - 交付范围：只在完成报告列出确有跨change价值的候选与依据；没有则「无」。不因该checkbox自行编辑DECISIONS。可评估来源返回的路由state边界是否值得记录，不能把未验收计划当既成决策。
   - 计划测试层级：不新增自动测试。
   - 追溯行：`C011 范围回归与文档提交一致性`。
   - 验收方式与命令：人工核对候选与已验收证据；`git diff -- DECISIONS.md` 应为空；`git diff --check`；引用 T25 核对的完整回归，不重跑 G。AC-23。
+  - 2026-09-10完成：`.work/c011/T27-decisions-audit-current-20260910.log`记录导航相关既有D-008核对、`git diff --name-status -- DECISIONS.md`为空和`git diff --check -- DECISIONS.md` exit 0；候选仅列入完成报告，未修改DECISIONS.md。
 
 - [ ] change 文档与 commit 状态一致
   - 编号/依赖：T28；依赖T27。
