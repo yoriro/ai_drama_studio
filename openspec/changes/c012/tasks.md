@@ -119,7 +119,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 慢连接后的页面权威重建。
 
-- [ ] T16 G1 前置修复阶段完整回归
+- [x] T16 G1 前置修复阶段完整回归
   - 依赖：T15。交付：锁顺序/唯一约束/慢连接修复后的一次完整回归与阶段报告，确认没有未完成必需门槛再进入模板/真实M6。
   - R：R1–R12（含R5a，既有全套回归）；PRD §3、§6、§11 M6；AC-01/25。
   - 验收：新隔离仅迁移库，B `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；R `npm.cmd --prefix frontend run test`、`npm.cmd --prefix frontend run build`、`git diff --check`。实际计数/exit/受测输入完整记录，旧C011全量不能替代本次。
