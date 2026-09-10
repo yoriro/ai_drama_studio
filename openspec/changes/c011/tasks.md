@@ -310,7 +310,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
 
   **2026-09-10重验：** 当前受测代码再次执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskObservation.test.tsx`，结果见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/5 tests passed，exit 0；T23-T45 B16同页组合和T45七探针补足当前真实REST/WS/重连观察，未把DOM mock冒称跨进程证据。
 
-- [ ] **T19 接入任务详情与严格错误呈现**
+- [x] **T19 接入任务详情与严格错误呈现**
   - 依赖：T15、T18。
   - R：无；PRD：§2.1(8)、§5 任务、§9、§11 M5。
   - 交付范围：TasksPage 可展开具体 task 正式详情，完整时间/错误与 request_id 展示；接线 parseTaskResponse/parseTaskEventResponse 的可见失败路径，状态/进度/ID/extra字段不能强转；协议错误关闭该 socket、观察重连成功前错误不消失。新增 `frontend/src/features/tasks/taskBoundary.test.tsx`，挂载真实页面。
@@ -320,6 +320,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收归属：AC-11/18 完整；既有 api/tasks parser 的合法合同不放宽。
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx` 退出码0，1 file/14 tests passed，原始输出见 `.work/c011/T19-rerun-current-20260909.log`。该挂载生产TasksPage测试继续保留详情字段、错误正文、非法输入/协议错误可见与无伪成功断言；未修改既有测试。
+
+  **2026-09-10重验：** 当前受测代码再次执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx`，结果见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/14 tests passed，exit 0；覆盖正式详情/null时间/长错误、未知状态/越界进度/unsafe ID/extra字段、畸形JSON、422/500和WS协议错误的可见性与无伪空态。
 
 - [ ] **T20 接入单任务取消基本交互**
   - 依赖：T19。
