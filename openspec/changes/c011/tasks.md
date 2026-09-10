@@ -521,7 +521,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 命令：`python -X utf8 .work/c011/task_runtime.py self-check`（新隔离批次）；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T37 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。自检只验证装置通路，不冒称四按钮的浏览器验证。
   - 2026-09-09补充退回：当前PassiveRequestObserver捕获所有HTTP（包括media响应）并输出完整response_body_b64，超出spec §10.2的四类生成/impact范围，导致PTY大输出淹没关键证据；replay_receive在缓存耗尽时合成http.disconnect也不符合原ASGI透传合同。仅在本既有.work装置修复：非目标请求直接交原应用，命中请求仅旁路观测实际receive/send且不合成事件，保持字节/次数/异常传播；原始stdout/stderr须在进程运行时完整落盘，控制台只读所需短行，不能事后删证据或用输出截断冒充采集。复用标准进程输出重定向与既有控制通路，不新增生产代码、依赖、第二套启动器或HTTP端点。先self-check证明生成body/响应一次透传、非目标媒体正常读取且不打印其正文、真实disconnect不被提前合成、shutdown/端口释放，再G；通过才重新勾选进入T38。
 
-- [ ] **T38 补齐双主题四按钮与逐页异常矩阵**
+- [x] **T38 补齐双主题四按钮与逐页异常矩阵**
   - 依赖：T37；问题/验收：B08、AC-08/19/22；B06已修复。
   - R：R1、R2、R3、R4、R5、R5a、R6、R7、R8、R9、R10、R11、R12（只核对原功能合同不变）；PRD：§3.1–§3.5、§5、§9、§11 M5。
   - 交付：仅浏览器操作与证据/追溯；不在本项夹带实现或装置修改。明暗主题分别经真实页面点击四按钮，合计8次受控生成，分镜保留impact确认；每次记录实际body/202/task_id、同id barrier/release、UI与REST/独立DB终态。记录受控handler不产真实GPU媒体。
