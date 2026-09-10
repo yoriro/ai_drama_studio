@@ -216,3 +216,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T23：`preflight --real`、`observe --real` 均 exit 0；现场回读库`ai_drama_studio_c012_m6_20260910`、DATA_DIR`D:\ai_drama_studio\.work\c012\t21-m6-data`、vLLM/Comfy健康且队列空，完整证据见`.work/c012/T23-*`。
 - 2026-09-10 C012 T24：正式 task #10 `gen_shots` 生成28条连续分镜；导演台正式预检并创建 Clip #1（shots 1–3、宿舍）与 Clip #2（shots 25–28、球馆），API/DB/slot均回读一致。
 - 2026-09-10 C012 T24：未提交视频生成任务；`observe --real` exit 0，真实库仍为`ai_drama_studio_c012_m6_20260910`、DATA_DIR为`D:\ai_drama_studio\.work\c012\t21-m6-data`且队列为空。
+- 2026-09-10 C012 T25：task #11/#12 经正式 UI 分别生成 Clip #1/#2；真实 MP4 均可解码且 DB sha256、current take、REST/DB 槽位回读一致，`preflight --real`/`observe --real` exit 0。
+- 2026-09-10 C012 T25：独立只读核对 `DATA_DIR\tmp` file_count=0；AX 重渲染后额外空 Clip #3（shots 4–6、无 task/video）保留原状并单独留证，未删除或补生成。

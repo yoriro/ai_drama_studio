@@ -194,7 +194,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 四模板生产消费：M6 一集剧本→资产→出图→分镜→两个片段视频全链路分别实际读取四份正式模板且无后台人工干预或 fallback。
 
-- [ ] T25 示范集两个真实片段视频与 take 回读
+- [x] T25 示范集两个真实片段视频与 take 回读
   - 依赖：T24。交付：A/B分别真实生成、可播放MP4、actual_duration、画廊/current和四模板消费全链证据；记录每个task的正式请求、payload/进程/GPU/文件通路。
   - R：R4、R6、R9、R10、R11；PRD §3.2/3.4/3.5、§6.2/6.3/6.4、§11 M6；AC-18（完成）、AC-16。
   - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`；人工真实UI生成两次、打开take/切current、媒体播放；独立只读DB和正式REST逐字段一致、视频可解码且actual>0、当前take引用正确；结束queue空/sleeping/temp0。此task只证明链路与文件，视觉语义由T26判定。
