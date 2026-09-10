@@ -5,6 +5,18 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 AssetType = Literal["character", "scene"]
+MAX_ASSET_NAME_BYTES = 2000
+
+
+def _normalize_asset_name(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("name must not be blank")
+    if "\x00" in normalized:
+        raise ValueError("name must not contain NUL")
+    if len(normalized.encode("utf-8")) > MAX_ASSET_NAME_BYTES:
+        raise ValueError("name is too long")
+    return normalized
 
 
 class AssetCreate(BaseModel):
@@ -17,10 +29,7 @@ class AssetCreate(BaseModel):
     @field_validator("name")
     @classmethod
     def normalize_name(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("name must not be blank")
-        return normalized
+        return _normalize_asset_name(value)
 
     @field_validator("description")
     @classmethod
@@ -41,10 +50,7 @@ class AssetPatch(BaseModel):
     def normalize_name(cls, value: str | None) -> str:
         if value is None:
             raise ValueError("name must not be null")
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("name must not be blank")
-        return normalized
+        return _normalize_asset_name(value)
 
     @field_validator("description")
     @classmethod

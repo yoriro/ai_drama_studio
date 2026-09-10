@@ -75,7 +75,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 资产名称唯一约束迁移与旧库预检。
 
-- [ ] T10 实现手动创建与重命名的名称合同
+- [x] T10 实现手动创建与重命名的名称合同
   - 依赖：T09。交付：`services/assets.py`/既有schema边界，结构化409与输入422、no-op、预期唯一约束异常映射；新增`backend/tests/api/test_c012_asset_names.py`。不改前端业务逻辑或通用错误体结构。
   - R：R2；PRD §3.1、§3.2、§5资产；AC-06。
   - 验收：B `python -m pytest -q tests/api/test_c012_asset_names.py`；覆盖同项目跨类型、其他项目、strip、大小写/内部空格、改名撞名、自身no-op、空白/NUL/索引超长；读回revision及下游确保失败无副作用。

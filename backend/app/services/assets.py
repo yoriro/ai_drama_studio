@@ -29,9 +29,11 @@ from app.services.asset_files import (
     sha256_file,
     temporary_asset_image_path,
 )
+from app.tasks.queue import _constraint_name
 
 
 _VISIBLE_ASSET_TYPES = ("character", "scene")
+_ASSET_NAME_CONSTRAINT = "uq_assets_project_name"
 
 
 def _asset_not_found() -> HTTPException:
@@ -40,6 +42,10 @@ def _asset_not_found() -> HTTPException:
 
 def _project_not_found() -> HTTPException:
     return HTTPException(status_code=404, detail="Project not found")
+
+
+def _asset_name_conflict() -> HTTPException:
+    return HTTPException(status_code=409, detail="资产名称已存在")
 
 
 def _is_visible_asset(asset: Asset) -> bool:
@@ -180,19 +186,24 @@ async def list_assets(session: AsyncSession, project_id: int) -> list[Asset]:
 async def create_asset(
     session: AsyncSession, project_id: int, payload: AssetCreate
 ) -> Asset:
-    async with session.begin():
-        if await session.get(Project, project_id) is None:
-            raise _project_not_found()
-        asset = Asset(
-            project_id=project_id,
-            type=payload.type,
-            name=payload.name,
-            description=payload.description,
-            source="manual",
-            revision=1,
-        )
-        session.add(asset)
-        await session.flush()
+    try:
+        async with session.begin():
+            if await session.get(Project, project_id) is None:
+                raise _project_not_found()
+            asset = Asset(
+                project_id=project_id,
+                type=payload.type,
+                name=payload.name,
+                description=payload.description,
+                source="manual",
+                revision=1,
+            )
+            session.add(asset)
+            await session.flush()
+    except IntegrityError as exc:
+        if _constraint_name(exc) != _ASSET_NAME_CONSTRAINT:
+            raise
+        raise _asset_name_conflict() from exc
     return asset
 
 
@@ -206,31 +217,36 @@ async def get_asset(session: AsyncSession, asset_id: int) -> Asset:
 async def update_asset(
     session: AsyncSession, asset_id: int, payload: AssetPatch
 ) -> Asset:
-    async with session.begin():
-        asset, shot_ids, clip_ids = await _lock_asset_source_dependencies(
-            session, asset_id
-        )
-
-        changed = False
-        if "name" in payload.model_fields_set and payload.name != asset.name:
-            asset.name = payload.name
-            changed = True
-        if (
-            "description" in payload.model_fields_set
-            and payload.description != asset.description
-        ):
-            asset.description = payload.description
-            changed = True
-        if changed:
-            asset.revision += 1
-            asset.updated_at = datetime.now(timezone.utc)
-            await _mark_asset_dependents_changed(
-                session,
-                asset.id,
-                shot_ids=shot_ids,
-                clip_ids=clip_ids,
+    try:
+        async with session.begin():
+            asset, shot_ids, clip_ids = await _lock_asset_source_dependencies(
+                session, asset_id
             )
-        await session.flush()
+
+            changed = False
+            if "name" in payload.model_fields_set and payload.name != asset.name:
+                asset.name = payload.name
+                changed = True
+            if (
+                "description" in payload.model_fields_set
+                and payload.description != asset.description
+            ):
+                asset.description = payload.description
+                changed = True
+            if changed:
+                asset.revision += 1
+                asset.updated_at = datetime.now(timezone.utc)
+                await _mark_asset_dependents_changed(
+                    session,
+                    asset.id,
+                    shot_ids=shot_ids,
+                    clip_ids=clip_ids,
+                )
+            await session.flush()
+    except IntegrityError as exc:
+        if _constraint_name(exc) != _ASSET_NAME_CONSTRAINT:
+            raise
+        raise _asset_name_conflict() from exc
     return asset
 
 
