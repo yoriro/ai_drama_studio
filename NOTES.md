@@ -214,3 +214,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T21：新库`ai_drama_studio_c012_m6_20260910`仅经Alembic到`c012_asset_name_unique`，DATA_DIR为`D:\ai_drama_studio\.work\c012\t21-m6-data`；正式CLI安装四模板，后端重启后verify仍四key通过，独立API/asyncpg回读无占位且逐字等于批准文件，重启日志prompt-template PATCH计数为0；证据见`.work/c012/T21-*.log`。
 - 2026-09-10 C012 T23：project 2/episode 2 经正式UI保存脚本并生成四项核心资产；task #5 `gen_assets` 与 task #6–#9 `gen_asset_image` 均 `done`，四项 PNG 均 `source=generated` 且 current，未手工补资产/上传媒体。
 - 2026-09-10 C012 T23：`preflight --real`、`observe --real` 均 exit 0；现场回读库`ai_drama_studio_c012_m6_20260910`、DATA_DIR`D:\ai_drama_studio\.work\c012\t21-m6-data`、vLLM/Comfy健康且队列空，完整证据见`.work/c012/T23-*`。
+- 2026-09-10 C012 T24：正式 task #10 `gen_shots` 生成28条连续分镜；导演台正式预检并创建 Clip #1（shots 1–3、宿舍）与 Clip #2（shots 25–28、球馆），API/DB/slot均回读一致。
+- 2026-09-10 C012 T24：未提交视频生成任务；`observe --real` exit 0，真实库仍为`ai_drama_studio_c012_m6_20260910`、DATA_DIR为`D:\ai_drama_studio\.work\c012\t21-m6-data`且队列为空。
