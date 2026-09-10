@@ -191,3 +191,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C011 T24：主题3 files/13 tests与Director 13 files/72 tests均exit 0；64格双主题四正式视口、四类受控按钮与异常矩阵有日志，原生全页200%和动态reduced-motion仍未动态验证。
 - 2026-09-10 C011 T25：基线审计确认`backend/app`、`backend/alembic`、`backend/workflows`无diff，既有测试仅一处AGENTS授权`do_POST`修改，C011主追溯17行且无待填标记。
 - 2026-09-10 C011最终G：权威日志`.work/c011/T39-astrafinal20260909loop-test.log`使用库`ai_drama_studio_c011_t39_full_20260909_183354_38988`记录完整pytest `348 passed in 239.87s`，迁移三步、前端/build与diff check均exit 0。
+- 2026-09-10 C011归档：最终审查基线`2acf32a`之后实现、测试和依赖无变化，无需重复完整复审。spec/tasks及最终审查、完成报告保存在`openspec/archive/c011/`；来源返回合同已采纳为DECISIONS D-015。历史报告中的“候选未采纳”为当时状态；原始验收输出继续保留于`.work/c011/`。
+- 2026-09-10 C011清理未执行：针对`.work/c011/`临时媒体、缓存、checkbox补丁的删除命令被自动审批审查以`blocked by policy`拒绝；未绕过、未删除文件。永久回归测试的删除范围仍待需求方明确，当前全部保留。
