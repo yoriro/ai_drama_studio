@@ -221,3 +221,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T22：按最新 AC-17 只读复核 task #1/#2/#3，第二次新增0、第三次最终新增0且原集合不变；task #3 原始模型响应缺失，task #4 完整采集仅证明该次模型漏提陈宁，边界见 `.work/c012/T22-reassessment.md`。
 - 2026-09-10 C012 T24 重开：Chrome PID 24020 的外部 Comfy 长链停止后 `/history` 为 `execution_interrupted`、`/queue` 回到0/0；正式 UI 仅修改 Shot 2/25 description，revision 各+1、相关 Clip 各 stale，`observe --real` exit 0，证据见 `.work/c012/T24-reopen-*`。
 - 2026-09-10 C012 T25 重开：正式 UI 仅新提交 task #13/#14，分别生成 Clip #1/#2 的 video #3/#4 并切为 current；旧 video #1/#2 保留，REST/DB/媒体探针与 payload 修订证据见 `.work/c012/T25-reopen-*`。
+- 2026-09-10 C012 T26 重开：正式导演台播放 video #3/#4；Clip #1 抬眼/继续吃饭可定位，Clip #2 僵住可定位但未观察到明确指向，故 T26 保持未勾选；期间 Comfy 8188 曾无监听，恢复后只读 observe exit 0。
