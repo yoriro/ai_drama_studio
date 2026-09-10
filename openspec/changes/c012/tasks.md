@@ -82,7 +82,7 @@
   - 计划测试层级：API 集成。
   - 追溯行：C012 手动资产名称冲突与输入边界。
 
-- [ ] T11 实现 R2 新增候选去重与整批失败
+- [x] T11 实现 R2 新增候选去重与整批失败
   - 依赖：T10。交付：`services/gen_assets.py`模型边界与`tasks/gen_assets.py`候选处理、名称唯一冲突收敛、warning及原子marker；新增`backend/tests/task_system/test_c012_gen_assets_names.py`。不改正式模板，不把合法existing_id返回名称写入资产。
   - R：R2；PRD §3.1、§3.2、§6.2/6.4、§7；AC-07。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_gen_assets_names.py tests/task_system/test_c005_gen_assets.py tests/task_system/test_c005_invalid_existing_id.py`。逐项断言新增数量/精确内容、合法ID优先、两个warning可并存、同批首项、跨类型回滚、一次真实mock调用、marker不漂移；使用独立数据库连接核验 task 终态与 marker 同一提交，不仅断言 mock 返回。

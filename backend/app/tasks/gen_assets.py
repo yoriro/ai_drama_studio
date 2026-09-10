@@ -1,6 +1,7 @@
 import logging
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session_factory
@@ -18,6 +19,7 @@ logger = logging.getLogger("app.tasks.gen_assets")
 
 _POSTGRES_INTEGER_MIN = -(2**31)
 _POSTGRES_INTEGER_MAX = 2**31 - 1
+_ASSET_NAME_CONSTRAINT = "uq_assets_project_name"
 
 
 class _CanceledBeforeCommit(Exception):
@@ -80,7 +82,7 @@ async def _merge_generated_assets(
             asset.id: asset for asset in asset_result.scalars().all()
         }
 
-    for generated in result.assets:
+    for response_position, generated in enumerate(result.assets, start=1):
         existing_id = generated.existing_id
         if (
             existing_id is not None
@@ -88,24 +90,74 @@ async def _merge_generated_assets(
             and existing_by_id[existing_id].project_id == project_id
         ):
             continue
+        invalid_existing_reason: str | None = None
         if existing_id is not None:
+            if not (
+                _POSTGRES_INTEGER_MIN <= existing_id <= _POSTGRES_INTEGER_MAX
+            ):
+                invalid_existing_reason = "existing_id_out_of_postgres_integer_range"
+            elif existing_by_id.get(existing_id) is None:
+                invalid_existing_reason = "existing_id_not_found"
+            else:
+                invalid_existing_reason = "existing_id_not_in_project"
             logger.warning(
-                "gen_assets invalid existing_id task_id=%s "
-                "episode_id=%s project_id=%s existing_id=%s",
+                "gen_assets candidate warning task_id=%s episode_id=%s "
+                "project_id=%s response_position=%s normalized_name=%r "
+                "reused_asset_id=%s reason=%s existing_id=%s",
                 task.id,
                 task.target_id,
                 project_id,
+                response_position,
+                generated.name,
+                None,
+                invalid_existing_reason,
                 existing_id,
             )
-        session.add(
-            Asset(
-                project_id=project_id,
-                type=generated.type,
-                name=generated.name,
-                description=generated.description,
-                source="generated",
-                revision=1,
+        inserted_id = (
+            await session.execute(
+                insert(Asset)
+                .values(
+                    project_id=project_id,
+                    type=generated.type,
+                    name=generated.name,
+                    description=generated.description,
+                    source="generated",
+                    revision=1,
+                )
+                .on_conflict_do_nothing(constraint=_ASSET_NAME_CONSTRAINT)
+                .returning(Asset.id)
             )
+        ).scalar_one_or_none()
+        if inserted_id is not None:
+            continue
+
+        conflict_result = await session.execute(
+            select(Asset)
+            .where(Asset.project_id == project_id, Asset.name == generated.name)
+            .with_for_update()
+        )
+        conflict = conflict_result.scalar_one_or_none()
+        if conflict is None:
+            raise RuntimeError(
+                "gen_assets name conflict did not expose the existing asset"
+            )
+        if conflict.type != generated.type:
+            raise ValueError(
+                "gen_assets normalized asset name conflicts across asset types: "
+                f"project_id={project_id} response_position={response_position} "
+                f"normalized_name={generated.name!r} existing_asset_id={conflict.id}"
+            )
+        logger.warning(
+            "gen_assets candidate warning task_id=%s episode_id=%s "
+            "project_id=%s response_position=%s normalized_name=%r "
+            "reused_asset_id=%s reason=%s",
+            task.id,
+            task.target_id,
+            project_id,
+            response_position,
+            generated.name,
+            conflict.id,
+            "same_normalized_name_same_type",
         )
 
     episode.assets_generated_script_revision = script_revision

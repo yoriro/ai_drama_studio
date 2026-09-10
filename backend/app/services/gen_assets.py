@@ -1,10 +1,18 @@
 import json
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    StrictInt,
+    StrictStr,
+    ValidationError,
+    field_validator,
+)
 
-from app.tasks.queue import ClaimedTask, WorkerContext
+from app.schemas.assets import _normalize_asset_name
 from app.services.vllm import VLLMClient
+from app.tasks.queue import ClaimedTask, WorkerContext
 
 
 class GeneratedAsset(BaseModel):
@@ -14,6 +22,11 @@ class GeneratedAsset(BaseModel):
     type: Literal["character", "scene"]
     name: StrictStr
     description: StrictStr
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return _normalize_asset_name(value)
 
 
 class GeneratedAssetsResponse(BaseModel):

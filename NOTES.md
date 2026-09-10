@@ -200,3 +200,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T08 在同一 T01 隔离库运行指定后端定向回归`23 passed in 27.80s`、退出码0；`locks --case all`五格子进程均退出0且未超时/占位，生产分镜覆盖失败与成功媒体通路使用隔离 DATA_DIR，原始证据见`.work/c012/T08-targeted-final.stdout.log`、`.work/c012/T08-acceptance-all.stdout.log`、`.work/c012/locks-acceptance.json`。
 - 2026-09-10 C012 T09 在独立临时数据库覆盖空库、合法旧库、名称碰撞/空白预检及down/up；迁移回归`1 passed`，migration acceptance与Alembic upgrade/current/check均exit 0，T01隔离库已升级至`c012_asset_name_unique`，原始证据见`.work/c012/T09-test.log`、`.work/c012/T09-acceptance.stdout.log`、`.work/c012/T09-alembic.log`。
 - 2026-09-10 C012 T10 在 T01 隔离库运行资产创建/改名合同回归`1 passed`、退出码0；精确409、跨项目/大小写/内部空格、strip/no-op及空白/NUL/超长422与失败改名下游无损均有断言，证据见`.work/c012/T10-test.log`。
+- 2026-09-10 C012 T11 在 T01 隔离库运行 gen_assets 新旧回归`11 passed`、退出码0；一次生产handler mock调用覆盖合法existing_id、候选去重/warning、跨类型整批回滚及生成名称边界，证据见`.work/c012/T11-test.log`。
