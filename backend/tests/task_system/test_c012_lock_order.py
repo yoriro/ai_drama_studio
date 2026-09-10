@@ -10,6 +10,7 @@ from uuid import uuid4
 import asyncpg
 import av
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,9 +19,15 @@ from app.db.session import engine
 from app.integrations.workflow_binding import load_minimax_binding_snapshot
 from app.services.asset_files import asset_image_relative_path
 from app.schemas.assets import AssetPatch
+from app.schemas.clips import ClipCreateRequest, ClipSlotEnabledPatch
 from app.schemas.shots import ShotPatch
 from app.services.clip_video_commit import commit_generated_clip_video
 from app.services.assets import delete_asset, set_current_asset_image, update_asset
+from app.services.clips import (
+    create_clip,
+    delete_clip,
+    update_clip_slot_enabled,
+)
 from app.services.generate_clip_video import enqueue_generate_clip_video
 from app.services.shots import update_shot
 from app.services.video_files import temporary_clip_video_path
@@ -828,6 +835,225 @@ async def _assert_l3(data_dir: Path) -> None:
                 await _cleanup_fixture(fixture)
 
 
+async def _read_l4_state(
+    fixture: dict[str, object], data_dir: Path
+) -> dict[str, object]:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        clips = await connection.fetch(
+            "SELECT id, revision, freshness FROM clips WHERE episode_id = $1 ORDER BY id",
+            fixture["episode_id"],
+        )
+        clip_shots = await connection.fetch(
+            "SELECT clip_id, shot_id FROM clip_shots WHERE clip_id = $1 ORDER BY shot_id",
+            fixture["clip_id"],
+        )
+        slots = await connection.fetch(
+            "SELECT clip_id, slot_no, asset_id, enabled FROM clip_ref_slots "
+            "WHERE clip_id = $1 ORDER BY slot_no",
+            fixture["clip_id"],
+        )
+        videos = await connection.fetch(
+            "SELECT id, file_path, is_current FROM clip_videos WHERE clip_id = $1 ORDER BY id",
+            fixture["clip_id"],
+        )
+        tasks = await connection.fetch(
+            "SELECT status, error_msg FROM tasks WHERE target_id = $1 "
+            "AND type = 'gen_clip_video' ORDER BY id",
+            fixture["clip_id"],
+        )
+        shots = await connection.fetch(
+            "SELECT id FROM shots WHERE id = ANY($1::int[]) ORDER BY id",
+            fixture["shot_ids"],
+        )
+        trash_files = sorted(
+            path.relative_to(data_dir).as_posix()
+            for path in (data_dir / "trash").rglob("*")
+            if path.is_file()
+        ) if (data_dir / "trash").exists() else []
+        return {
+            "clips": [dict(row) for row in clips],
+            "clip_shots": [dict(row) for row in clip_shots],
+            "slots": [dict(row) for row in slots],
+            "videos": [dict(row) for row in videos],
+            "tasks": [dict(row) for row in tasks],
+            "shots": [int(row[0]) for row in shots],
+            "trash_files": trash_files,
+        }
+    finally:
+        await connection.close()
+
+
+async def _run_l4_variant(
+    fixture: dict[str, object],
+    data_dir: Path,
+    *,
+    operation: str,
+    first: str,
+) -> None:
+    task = await _insert_commit_task(fixture)
+    temp_path = temporary_clip_video_path(data_dir, task.id)
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path.write_bytes(_video_bytes())
+    label = f"c012-l4-{uuid4().hex[:12]}"
+
+    async def commit_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-commit")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                return await commit_generated_clip_video(
+                    session,
+                    TaskQueue(),
+                    task,
+                    GeneratedClipVideo(temp_path, "C012 L4 prompt"),
+                    data_dir=data_dir,
+                )
+        finally:
+            await connection.close()
+
+    async def mutation_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-mutation")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                if operation == "create":
+                    return await create_clip(
+                        session,
+                        int(fixture["episode_id"]),
+                        ClipCreateRequest(
+                            shot_ids=list(fixture["shot_ids"]),
+                            reference_asset_ids=[int(fixture["character_id"])],
+                            requested_duration=5,
+                        ),
+                    )
+                if operation == "slot":
+                    return await update_clip_slot_enabled(
+                        session,
+                        int(fixture["clip_id"]),
+                        1,
+                        ClipSlotEnabledPatch(enabled=False),
+                    )
+                return await delete_clip(session, int(fixture["clip_id"]))
+        finally:
+            await connection.close()
+
+    if first == "mutation":
+        mutation_task = asyncio.create_task(mutation_worker())
+        await asyncio.sleep(0)
+        commit_task = asyncio.create_task(commit_worker())
+    else:
+        commit_task = asyncio.create_task(commit_worker())
+        await asyncio.sleep(0)
+        mutation_task = asyncio.create_task(mutation_worker())
+    results = await asyncio.wait_for(
+        asyncio.gather(commit_task, mutation_task, return_exceptions=True),
+        timeout=10,
+    )
+    state = await _read_l4_state(fixture, data_dir)
+
+    if operation == "create":
+        mutation_result = results[1]
+        unexpected = [
+            result
+            for result in results
+            if isinstance(result, BaseException)
+            and not isinstance(result, HTTPException)
+        ]
+        if unexpected or not isinstance(mutation_result, HTTPException):
+            pytest.fail(
+                f"C012 L4 create/{first} failed: results={results}; "
+                f"state={json.dumps(state, ensure_ascii=False, default=str)}"
+            )
+        assert mutation_result.status_code == 422
+        assert state["clips"] == [
+            {
+                "id": fixture["clip_id"],
+                "revision": 1,
+                "freshness": "fresh",
+            }
+        ]
+        assert state["tasks"] == [{"status": "done", "error_msg": None}]
+        assert len(state["videos"]) == 1
+        assert state["clip_shots"] == [
+            {"clip_id": fixture["clip_id"], "shot_id": shot_id}
+            for shot_id in sorted(fixture["shot_ids"])
+        ]
+        return
+
+    if operation == "slot":
+        errors = [repr(result) for result in results if isinstance(result, BaseException)]
+        if errors:
+            pytest.fail(
+                f"C012 L4 slot/{first} failed: errors={errors}; "
+                f"state={json.dumps(state, ensure_ascii=False, default=str)}"
+            )
+        assert state["clips"] == [
+            {
+                "id": fixture["clip_id"],
+                "revision": 2,
+                "freshness": "stale",
+            }
+        ]
+        assert state["slots"] == [
+            {
+                "clip_id": fixture["clip_id"],
+                "slot_no": 1,
+                "asset_id": fixture["character_id"],
+                "enabled": False,
+            }
+        ]
+        assert state["tasks"] == [{"status": "done", "error_msg": None}]
+        assert len(state["videos"]) == 1
+        return
+
+    delete_errors = [
+        result
+        for result in results
+        if isinstance(result, BaseException) and not isinstance(result, ValueError)
+    ]
+    if delete_errors:
+        pytest.fail(
+            f"C012 L4 delete/{first} failed: results={results}; "
+            f"state={json.dumps(state, ensure_ascii=False, default=str)}"
+        )
+    assert state["clips"] == []
+    assert state["clip_shots"] == []
+    assert state["slots"] == []
+    assert state["videos"] == []
+    assert state["shots"] == sorted(fixture["shot_ids"])
+    assert len(state["tasks"]) == 1
+    current_trash_files = [
+        path
+        for path in state["trash_files"]
+        if f"/clips/{fixture['clip_id']}/" in f"/{path}"
+    ]
+    if current_trash_files:
+        assert results[0] is not None
+        assert len(current_trash_files) == 1
+        assert state["tasks"] in (
+            [{"status": "done", "error_msg": None}],
+            [{"status": "running", "error_msg": None}],
+        )
+    else:
+        assert isinstance(results[0], ValueError)
+        assert state["tasks"] == [{"status": "running", "error_msg": None}]
+        assert current_trash_files == []
+
+
+async def _assert_l4(data_dir: Path) -> None:
+    for operation in ("create", "slot", "delete"):
+        for first in ("mutation", "commit"):
+            fixture = await _create_fixture(data_dir)
+            try:
+                await _run_l4_variant(
+                    fixture,
+                    data_dir,
+                    operation=operation,
+                    first=first,
+                )
+            finally:
+                await _cleanup_fixture(fixture)
+
+
 @pytest.mark.parametrize("lock_case", LOCK_CASES, ids=LOCK_CASES)
 def test_c012_lock_order(
     lock_case: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -840,6 +1066,9 @@ def test_c012_lock_order(
             return
         if lock_case == "L3":
             await _assert_l3(tmp_path)
+            return
+        if lock_case == "L4":
+            await _assert_l4(tmp_path)
             return
         fixture = await _create_fixture(tmp_path)
         try:

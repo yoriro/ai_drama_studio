@@ -54,7 +54,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T07 对齐片段创建及相关关系行锁顺序
+- [x] T07 对齐片段创建及相关关系行锁顺序
   - 依赖：T06。交付：`services/clips.py`中create/slot/delete与同一锁环有关的查询顺序和FOR UPDATE锁表范围；其余业务原样。不得删除必要归属/占用校验。
   - R：R5、R5a、R7、R9、R12；PRD §3.3、§3.4、§6.4；AC-04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L4`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L4`；同时验证create冲突、slot变化与删除后的引用/媒体赢家。

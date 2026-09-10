@@ -231,14 +231,55 @@ async def _load_selection(
         )
         .order_by(Shot.order_index, Shot.id)
     )
-    if lock:
-        shot_statement = shot_statement.with_for_update()
     shot_result = await session.execute(shot_statement)
     shots = list(shot_result.scalars().all())
     if len(shots) != len(shot_ids):
         raise _selection_validation_error(
             "shot_ids must reference existing shots in the episode"
         )
+
+    if lock:
+        candidate_asset_result = await session.execute(
+            select(ShotAsset.asset_id)
+            .where(ShotAsset.shot_id.in_(shot_ids))
+            .order_by(ShotAsset.asset_id)
+        )
+        candidate_asset_ids = sorted(
+            {int(asset_id) for asset_id in candidate_asset_result.scalars()}
+        )
+        if candidate_asset_ids:
+            await session.execute(
+                select(Asset)
+                .where(Asset.id.in_(candidate_asset_ids))
+                .order_by(Asset.id)
+                .with_for_update()
+            )
+
+        shot_lock_result = await session.execute(
+            select(Shot)
+            .where(
+                Shot.episode_id == episode_id,
+                Shot.id.in_(shot_ids),
+            )
+            .order_by(Shot.order_index, Shot.id)
+            .with_for_update()
+        )
+        shots = list(shot_lock_result.scalars().all())
+        occupied_clip_result = await session.execute(
+            select(ClipShot.clip_id)
+            .where(ClipShot.shot_id.in_(shot_ids))
+            .order_by(ClipShot.clip_id)
+        )
+        occupied_clip_ids = sorted(
+            {int(clip_id) for clip_id in occupied_clip_result.scalars()}
+        )
+        if occupied_clip_ids:
+            await session.execute(
+                select(Clip)
+                .where(Clip.id.in_(occupied_clip_ids))
+                .order_by(Clip.id)
+                .with_for_update()
+            )
 
     assets_by_shot: dict[int, list[ClipRuleAsset]] = defaultdict(list)
     asset_statement = (
@@ -249,8 +290,6 @@ async def _load_selection(
         )
         .order_by(ShotAsset.shot_id, Asset.id)
     )
-    if lock:
-        asset_statement = asset_statement.with_for_update()
     asset_result = await session.execute(asset_statement)
     for shot_id, asset_id, project_id, asset_type, asset_name in asset_result.all():
         if int(project_id) != int(episode.project_id):
@@ -268,8 +307,6 @@ async def _load_selection(
     occupied_statement = select(ClipShot).where(ClipShot.shot_id.in_(shot_ids)).order_by(
         ClipShot.shot_id, ClipShot.clip_id
     )
-    if lock:
-        occupied_statement = occupied_statement.with_for_update()
     occupied_result = await session.execute(occupied_statement)
     occupied_shot_ids = {
         int(row.shot_id) for row in occupied_result.scalars().all()
@@ -749,15 +786,28 @@ async def update_clip_slot_override(
             )
 
         async with session.begin():
+            clip_identity_result = await session.execute(
+                select(Clip.id, Clip.episode_id).where(Clip.id == clip_id)
+            )
+            clip_identity = clip_identity_result.one_or_none()
+            if clip_identity is None:
+                raise HTTPException(status_code=404, detail="Clip not found")
+
+            episode_result = await session.execute(
+                select(Episode)
+                .where(Episode.id == clip_identity.episode_id)
+                .with_for_update()
+            )
+            episode = episode_result.scalar_one_or_none()
+            if episode is None:
+                raise _source_data_error()
+
             clip_result = await session.execute(
-                select(Clip).where(Clip.id == clip_id).with_for_update()
+                select(Clip).where(Clip.id == clip_identity.id).with_for_update()
             )
             clip = clip_result.scalar_one_or_none()
             if clip is None:
                 raise HTTPException(status_code=404, detail="Clip not found")
-            episode = await session.get(Episode, clip.episode_id)
-            if episode is None:
-                raise _source_data_error()
 
             slot_result = await session.execute(
                 select(ClipRefSlot)
@@ -886,16 +936,51 @@ async def delete_clip(session: AsyncSession, clip_id: int) -> None:
     transaction_committed = False
     try:
         async with session.begin():
+            clip_identity_result = await session.execute(
+                select(Clip.id, Clip.episode_id).where(Clip.id == clip_id)
+            )
+            clip_identity = clip_identity_result.one_or_none()
+            if clip_identity is None:
+                raise HTTPException(status_code=404, detail="Clip not found")
+
+            episode_result = await session.execute(
+                select(Episode)
+                .where(Episode.id == clip_identity.episode_id)
+                .with_for_update()
+            )
+            episode = episode_result.scalar_one_or_none()
+            if episode is None:
+                raise _source_data_error()
+
+            clip_shot_result = await session.execute(
+                select(ClipShot)
+                .where(ClipShot.clip_id == clip_identity.id)
+                .order_by(ClipShot.position, ClipShot.shot_id)
+            )
+            candidate_clip_shots = list(clip_shot_result.scalars().all())
+            if not candidate_clip_shots:
+                raise _source_data_error()
+            candidate_shot_ids = sorted(
+                {int(clip_shot.shot_id) for clip_shot in candidate_clip_shots}
+            )
+            shot_result = await session.execute(
+                select(Shot)
+                .where(Shot.id.in_(candidate_shot_ids))
+                .order_by(Shot.id)
+                .with_for_update()
+            )
+            shots = list(shot_result.scalars().all())
+            if len(shots) != len(candidate_clip_shots) or any(
+                shot.episode_id != episode.id for shot in shots
+            ):
+                raise _source_data_error()
+
             clip_result = await session.execute(
-                select(Clip).where(Clip.id == clip_id).with_for_update()
+                select(Clip).where(Clip.id == clip_identity.id).with_for_update()
             )
             clip = clip_result.scalar_one_or_none()
             if clip is None:
                 raise HTTPException(status_code=404, detail="Clip not found")
-
-            episode = await session.get(Episode, clip.episode_id)
-            if episode is None:
-                raise _source_data_error()
 
             clip_shot_result = await session.execute(
                 select(ClipShot)
@@ -906,15 +991,14 @@ async def delete_clip(session: AsyncSession, clip_id: int) -> None:
             clip_shots = list(clip_shot_result.scalars().all())
             if not clip_shots:
                 raise _source_data_error()
+            locked_shot_ids = sorted(
+                {int(clip_shot.shot_id) for clip_shot in clip_shots}
+            )
+            if locked_shot_ids != candidate_shot_ids:
+                raise _source_data_error()
             positions = [int(clip_shot.position) for clip_shot in clip_shots]
             if positions != list(range(1, len(clip_shots) + 1)):
                 raise _source_data_error()
-            shot_result = await session.execute(
-                select(Shot)
-                .where(Shot.id.in_([clip_shot.shot_id for clip_shot in clip_shots]))
-                .order_by(Shot.id)
-            )
-            shots = list(shot_result.scalars().all())
             if len(shots) != len(clip_shots) or any(
                 shot.episode_id != clip.episode_id for shot in shots
             ):

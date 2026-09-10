@@ -532,7 +532,7 @@ async def command_locks(
             and "pg_observation=" in output
         )
         scheduled_case = (
-            case != "L1"
+            case == "L5"
             and result.returncode != 0
             and "scheduled for its lock-order task" in output
         )

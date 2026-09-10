@@ -23,8 +23,8 @@ read again after the lock.
 | L2 | video commit | Task → Episode → Asset → Shot → Clip → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | T04 removed the reverse source edge |
 | L3 | shot text/binding edit | candidate current/requested Assets → Episode → Asset (ascending id) → Shot → related Clips (`backend/app/services/shots.py:69-176`) | T06 re-reads the current ShotAsset rows after parent locks before applying binding changes |
 | L3 | video commit | Task → Episode → Asset → Shot → Clip (`backend/app/services/clip_video_commit.py:214-272`) | both paths now share the source-row order |
-| L4 | clip create/slot/delete | create selection locks Episode/Shot/Asset and then relation/Clip rows (`backend/app/services/clips.py:206-285`, `353-435`); delete locks Clip, relation rows, Shot, slots, and videos (`backend/app/services/clips.py:884-990`) | relation and source-row order differs by entry point |
-| L4 | source mutation | shot/asset operations lock their source rows before dependent Clip updates | the same Clip/Shot/Asset cycle can be reached through a slot-only asset |
+| L4 | clip create/slot/delete | create discovers candidates then locks Episode → Asset (ascending id) → Shot (ascending id) → occupied Clip (ascending id) before writing relations; slot enabled locks Clip → slot; slot override locks Episode → Clip → slot; delete locks Episode → Shot (ascending id) → Clip → ClipShot/slot/ClipVideo (`backend/app/services/clips.py:206-333`, `353-435`, `707-920`) | T07 exercises create conflict, slot mutation, and delete/media winners in both scheduling directions |
+| L4 | source mutation | shot/asset operations lock their source rows before dependent Clip updates | T07 keeps the same Clip/Shot/Asset order and does not add a project-wide lock |
 | L5 | `gen_shots` replacement | Episode → Shot → Clip → ClipVideo/slot override, then output Assets (`backend/app/tasks/gen_shots.py:155-235`, `253-273`) | API edits can acquire Asset/Shot/Clip in the opposite order |
 | L5 | API edits | see L2–L4 rows above | replacement can observe a mixed lock order unless its source rows are locked first in the common order |
 
@@ -91,3 +91,22 @@ ascending order.  Text and binding edits were each interleaved with the real
 video commit in both start directions; the resulting Shot was revision
 2/changed, the Clip stale, and one committed take remained.  Raw evidence is
 `.work/c012/T06-L3.stdout.log`.
+
+## T07 result
+
+`backend/app/services/clips.py` now takes the common source locks before
+Clip for create selection, uses Episode → Clip → slot for slot overrides, and
+uses Episode → Shot → Clip before relationship and media rows for deletion.
+The lock-after reads validate the current clip identity and current ClipShot
+set before mutating.  The L4 probe exercised create conflict, slot mutation,
+and deletion with the real video commit in both scheduling directions; it
+left create at HTTP 422, preserved one Clip for the conflict case, kept the
+slot mutation at revision 2/stale with one committed take, and removed the
+delete winner's Clip/relations while retaining source Shots and moving the
+video to trash.  B L4 completed 1 test; the existing C009 enqueue-lock suite
+completed 13 tests.  R `locks --case L4` completed with child returncode 0,
+`timed_out=false`, and `scheduled_case=false` against the T01 database.
+Raw evidence is `.work/c012/T07-L4-final3.stdout.log`,
+`.work/c012/T07-C009-final.stdout.log`,
+`.work/c012/T07-acceptance-final3.stdout.log`, and
+`.work/c012/locks-acceptance.json`.
