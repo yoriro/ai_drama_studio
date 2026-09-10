@@ -441,7 +441,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   5. T24四类受控handler接线的证据归“任务系统 mock；跨进程/资源生命周期”，普通视觉部分仍为“不新增自动测试”；沿用 `C011 既有功能入口与状态呈现不变`、`C011 全局浏览器功能与视觉验收`，并记录 `C011 验收装置与生产通路归属`。不新增自动测试文件，不修改生产/既有测试/配置或夹带驱动；需要装置实现变化先单列前置任务，本裁决仅增加运行配置准备T24A。
   6. 补验命令为原Director定向命令与 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T24 -EvidenceLabel <补验唯一标签>`，完整pytest另用新仅迁移库；保留原G成功及后续失败的时间顺序。全部缺项与原要求齐全才回填整项、勾T24并提交。DECISIONS候选无需新增：浏览器内置控制是验收手段，人工模板是现有PRD §7/§12.2与D-014边界下的隔离配置，不变更跨change产品约定。
 
-- [ ] **T25 完成范围追溯与回归审计**
+- [x] **T25 完成范围追溯与回归审计**
   - 依赖：T24A、T24B、T24C、T24D、T24E、T24F全部完成，且最终双主题T24全部验收通过。T25编号保留，执行顺序延后；不能用旧T24提交/单主题G跳过追加任务。
   - R：无；PRD：§0、§5 通用、§9、§11 M5。
   - 交付范围：核对全部31条AC/追溯/指定用例和最终双主题人工记录；保护基线既有测试，仅允许AGENTS.md明确授权的C011 T05 do_POST窄修正和新增独立测试文件；核对后端生产、schema/migration/workflow/template零变化、无新增业务、无未列装置、无旧暗色证据伪装追加需求结果。只修正文档事实，不修代码或重跑失败到绿。
@@ -449,6 +449,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 追溯行：`C011 范围回归与文档提交一致性`。
   - 验收方式与命令：按开头验收频率表核对并引用覆盖最终受测输入的完整 G；缺失或相关输入变化时运行 `powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T25 -EvidenceLabel ('closure'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`；`git diff --check`；`git diff --name-status 1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`；`git diff 1ef70e5d5fad245d6e38e1472eaa16ffb523aa59 -- backend/app backend/alembic backend/workflows` 应为空；`git status --short`；人工按基线逐一核对既有test仅允许授权do_POST范围M、其他无M/D、新增用例逐行回填（含本次4条新追溯行）；`rg -n '^\| C011 .*待填' openspec/TRACEABILITY.md` 应无匹配。
   - 验收归属：AC-01/23；范围依据允许文件集，不要求整个change diff为空。
+
+  **2026-09-10当前审计：** `.work/c011/T25-scope-audit-current-20260910.log`保存31条AC合同/17条主追溯行、生产与测试范围、依赖manifest、DECISIONS和工作树的实际命令与退出码；backend/app、backend/alembic、backend/workflows相对基线为空，既有测试唯一M为AGENTS授权的T05 `do_POST`屏障窄修正，新增测试均为独立C011文件。权威完整G引用`.work/c011/T39-astrafinal20260909loop-test.log`（`348 passed in 239.87s`），当前T45前端全量/构建/七探针及T24专项日志覆盖最终实现；未修改代码或测试，不重复无输入变化的G。
 
 
 ## 2026-09-09 审查修复任务（先于重新验收与固定收尾）
