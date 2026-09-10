@@ -205,3 +205,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T12 R `python -X utf8 .work/c012/acceptance.py names` 退出码0；自检记录实际库与 T01 DATA_DIR，子进程 `3 passed`，测试后独立数据库连接仍可用，证据见`.work/c012/T12-acceptance.log`与`.work/c012/names-acceptance.json`。
 - 2026-09-10 C012 T13 EventBus 定向回归`1 passed`、退出码0；慢订阅在第257条溢出并通知/注销，健康订阅持续消费257条且顺序与五字段内容保持，重复unsubscribe及新订阅无历史回放，证据见`.work/c012/T13-test.log`。
 - 2026-09-10 C012 T14 定向 B `6 passed in 0.54s`、退出码0；受控 WS 覆盖溢出/发送超时/发送异常的1013关闭和子任务清理，双真实网络连接各收到取消五字段事件，独立任务仍`running`且`error_msg=null`；R `ws`退出码0，证据见`.work/c012/T14-test.log`、`.work/c012/T14-acceptance.log`和`.work/c012/ws-acceptance.json`。
+- 2026-09-10 C012 T15 前端单文件1 test、任务目录60 tests、build 68 modules均退出码0；T02受控后端停止/恢复期间真实页面从`running/0.4`重建为`done/1`，后端info日志为WS接受→列表GET→详情GET且无cancel/generate-video POST，fixture与监听清理完成，证据见`.work/c012/T15-browser-acceptance.md`。

@@ -112,7 +112,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
-- [ ] T15 验证慢连接关闭后的真实页面重建
+- [x] T15 验证慢连接关闭后的真实页面重建
   - 依赖：T14。交付：新增`frontend/src/features/tasks/taskSlowConsumerReconnect.test.tsx`，挂载生产TasksPage验证关闭→重连→列表/展开详情权威GET。现有协调器若有缺陷，只修该实际路径并补记录，不改旧测试。
   - R：无；PRD §5任务、§6.1、§9；AC-12。
   - 验收：R `npm.cmd --prefix frontend run test -- src/features/tasks/taskSlowConsumerReconnect.test.tsx`、`npm.cmd --prefix frontend run test -- src/features/tasks`、`npm.cmd --prefix frontend run build`；真实浏览器在T02受控后端经现有页面展开任务、观察连接异常/终态重建，记录该页面自己的详情GET与生成/取消POST零增加。
