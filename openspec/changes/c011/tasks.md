@@ -533,7 +533,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 2026-09-09完成证据：普通批次 `.work/c011/T38-ordinary-browser-20260909_143450.log` 记录 spec §4.1 各类页面的正常/空态、后端停止后的逐页读取失败、资产动作失败、媒体失败与恢复；受控批次 `.work/c011/T38-controlled-browser-20260909_1505.log` 记录亮/暗主题下四类按钮各两次真实入队，分镜 impact 确认，以及每个 task 的实际 body/202/task_id/barrier/release/UI 终态；8份 `T38-controlled-20260909_1505-taskN-db-readback.log`、`.work/c011/T38-controlled-20260909_1505-terminal-readback.log` 保留独立数据库与 REST 对照。两个批次 fixture verify、模板 API 失败及修复、服务清理证据均保留原始日志；受控handler不宣称真实GPU/M6媒体生成。
   - 本项按最新验收频率裁决未新跑 G；阶段完整回归归 T39。追溯四行已回填 T38 证据后勾选本项。
 
-- [ ] **T39 完成逐用例追溯和审查探针复验**
+- [x] **T39 完成逐用例追溯和审查探针复验**
   - 依赖：T38；问题/验收：B01–B10、AC-23；此项通过仍须重新执行T23/T24/T25及固定收尾。
   - R：无；PRD：§0、§9、§11 M5。
   - 交付：只回填openspec/TRACEABILITY.md及tasks.md的实际事实；枚举基线后所有新增测试，回填文件＋describe/it完整名称（参数用例标实际参数）或pytest node ID；尤其statusPresentation、theme/themeWiring及T29–T36新增用例。每个用例至少归属一个现有追溯行；既有/新增文件不改，审查原报告与探针不改。
