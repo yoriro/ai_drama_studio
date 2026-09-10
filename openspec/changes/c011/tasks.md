@@ -616,6 +616,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 依赖：T40–T44A已交付，当前T23失败；B16；AC-11/15，取消建缓存关联AC-12/13。本项→当前T23受影响重验→T44/T38/T39及其余退回项核对→Astra复审→T25→T26–T28。
   - R：无；PRD：§2.1(8)、§5任务、§6.1、§9、§11 M5；spec §6、§10.8。
   - 交付：生产范围仅`frontend/src/features/tasks/taskObservation.ts`，沿现有connect/详情状态边界失效旧连接的ready详情，显式展开经正式detail GET取得当前值；不自动读取所有收起任务、不增加持久缓存/版本字段/轮询、无mutation重放。新增独立`frontend/src/features/tasks/taskClosedDetailReconnect.test.tsx`；不修改已存在测试或Astra探针。
+  - 2026-09-10执行澄清：本项创建尚不存在的独立回归文件，依据AGENTS项目「测试与证据」关于新增测试先定位追溯行的明文规则及用户审查请求关于探针确认BLOCK须补回归的要求；不申请、类推或扩大任何既有测试修改例外。文件尚不存在时的`No test files found`只记准备失败，不是B16红测；新增回归后必须在未修复实现上实际得到目标断言失败，再修生产根因。
   - 计划测试层级：任务系统 mock。
   - 追溯行：`C011 任务中心 REST/WS 同步与过滤竞态`；`C011 任务公开边界与可见协议错误`；`C011 任务取消交互与终态竞争`；`C011 范围回归与文档提交一致性`。
   - 验收一：真实TasksPage展开running→收起→自然断线或类型过滤重建→新列表failed；两种入口均保持收起且详情GET仍1，显式重开后GET精确2，status/progress/error_msg/finished_at/cancel_requested_at逐字段等于新响应，POST为0。
