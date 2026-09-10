@@ -19,7 +19,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 范围与阶段回归及交付一致性。
 
-- [ ] T02 交付单一受控验收装置及其自检
+- [x] T02 交付单一受控验收装置及其自检
   - 依赖：T01。交付：`.work/c012/acceptance.py`，完整实现spec §8的selfcheck/locks/migration/names/ws/cascade/recovery/trash子命令、合法离线媒体与隔离fixture、生产服务调用屏障、原始证据采集和owned资源清理。不代写生产handler、EventBus或业务结果；同一异步fixture使用单loop。
   - R：无；PRD §6.1、§6.4、§10；AC-02。
   - 验收：R `python -X utf8 .work/c012/acceptance.py selfcheck`；必须逐项得到真实成功exit0、故意失败非零、stderr+0不误判、启动失败停止、同源HTTP/WS/DB身份、子进程/端口/连接清理结果；记录spec §8各替代边界。仅`--help`/py_compile不算完成。
