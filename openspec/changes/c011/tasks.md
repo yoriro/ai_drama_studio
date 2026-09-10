@@ -421,7 +421,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/director/directorTrackLayout.test.ts`；`npm --prefix frontend run test -- src/features/director`；G（Task=T24F）。真实浏览器两主题四视口/200%下测最短列≥192px、三轨边界误差≤1px、duration比例及Clip跨列间隙；横向滚动/键盘聚焦远端控件，观察根无溢出、主题切换scrollLeft与选择保持；原选择/预检/创建/选Clip操作仍使用原合同。宽度纯函数测试不冒称真实CSS grid对齐。
   - 验收归属：AC-31；与theme在途状态保持联检AC-28，最终全页结论在T24收口。
 
-- [ ] **T24 完成全站响应式视觉与功能保留验收**
+- [x] **T24 完成全站响应式视觉与功能保留验收**
   - 依赖：T29–T39修复及原退回任务重验完成；T05-T15、T23、T24A、T24B、T24C、T24D、T24E、T24F。需求方2026-09-08追加后须对最终实现重新验收，不能沿用旧暗色走查作为整体通过。
   - R：R1、R2、R3、R4、R5、R5a、R6、R7、R8、R9、R10、R11、R12；PRD：§2.1、§3.1-§3.5、§5、§9、§11 M5。
   - 交付范围：不夹带代码或装置改动；使用T03普通生产后端/fixture逐页执行spec §3视口矩阵、§4.1每项功能入口、AC-02..09/19/22。检查四类生成按钮的现有请求接线时单独使用T04受控handler模式并明确不证明实际生成；普通模式不得触发未授权GPU流水线。未满足项记录为失败并停在本task。
@@ -429,6 +429,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 追溯行：`C011 导航来源返回与剧集唯一入口`；`C011 全站视觉与响应式可访问性`；`C011 既有功能入口与状态呈现不变`；`C011 全局异常空态与媒体错误呈现`；`C011 全局浏览器功能与视觉验收`；`C011 验收装置与生产通路归属`；`C011 明暗主题与偏好存储`；`C011 统一后退图标与目标保持`；`C011 资产勾选行对齐`；`C011 导演台轨道可读宽度与比例`。
   - 验收方式与命令：明暗两主题分别执行四视口、Tab/Enter/Space与计算对比度；另执行`rg -n -A 30 -B 3 'prefers-reduced-motion' frontend/src/styles.css`和`rg -n 'transform:|animation:|animation-|transition:' frontend/src/styles.css`，人工逐项核对reduce规则覆盖所有现有悬浮位移、保留禁用循环装饰动画与缩短过渡的规则，记录位置/覆盖清单而非只判字符串存在；逐页逐状态记录实际结果、截图及method/path/body，并覆盖AC-26..31。先运行`npm --prefix frontend run test -- src/features/theme`、`npm --prefix frontend run test -- src/features/director`，再G。自建自动浏览器脚本若尚无前置task，不可临时补进此task。
   - 验收归属：AC-05..08/22与AC-26..31全页结论在这里收口；不得只交首页或单一主题截图就勾全站。至少记录8类页面（首页/项目/剧本/资产/分镜/导演台/设置/任务中心）×2主题×4视口共64个基础页面组合，另记录空/错/DEBUG/候选/状态变体；全页原生200%、动态reduced-motion按spec §7.4明确记为未验证且本次不阻塞，不能填为通过。不是只凑截图数：每格含根溢出/入口/文字焦点可读性结果及证据；任一失败不勾选。四类生成按钮在T04受控模式每主题各验一次，普通模式不触发GPU；全页保存/删除/选用等按原§4.1合同。
+
+  **2026-09-10当前最终重验：** `.work/c011/T24-final-revalidation-current-20260910.log`记录依赖已齐、31条AC合同/17条主追溯行/无待填标记、主题定向3 files/13 tests和Director定向13 files/72 tests均exit 0；`.work/c011/T24-final-browser-matrix-20260908.log`及T24C/D/E/F/T35/T38/T44/T23-T45证据覆盖双主题四正式视口64格、键盘/焦点/根溢出/状态/异常/保存与受控四按钮链路。权威阶段G改引用`.work/c011/T39-astrafinal20260909loop-test.log`（当前受测4bd3a71、完整pytest348 passed in239.87s、前端/build/Alembic/diff check exit 0），T45当前前端全量与七探针另有实际exit-0日志。reduced-motion完成源码审计；全页原生200%与动态reduced-motion仍明确未验证，按spec §7.4不阻塞且未写成通过。普通模式未触发GPU，受控handler不冒称真实GPU/M6产物；本项未改代码、迁移、测试或装置。
 
   **2026-09-08 Astra 对 T24 部分验收与补验路径的裁决：**
 
@@ -561,7 +563,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 提交核验：`git ls-tree -r --name-only HEAD openspec/changes/c011`必须含spec.md/tasks.md；工作树/提交各自真实报告，AGENTS既有改动及.work不纳入。本轮规划提交先解决B10的spec缺文件，T28最终再证明全部修复后的状态。
   - 2026-09-09探针裁决：Astra已将probe-task-observation.py唯一重连场景由直接loadTaskDetail改为挂载真实TasksPage并点击查看详情，使生产页面调用setExpandedTask；期望detail=done不变并加强读取次数/完成时间/无POST断言。新原始输出`probe-task-observation-20260909-141633.stdout.log`为14场景failed=[]/exit=0，实际页面重连回归4用例也通过。旧132904失败保留，其原因是探针漏模拟展开身份，不是据此要求生产代码刷新所有未展开缓存。此诊断不代表T39正式完成，不授权Luna修改探针/既有测试；等T38完成后按原命令执行两发探针与G，并按既有顺序重验T23/T24/T25、最后T26–T28。
   - 2026-09-09完成证据：已在T38提交 `06fb3ef` 后正式运行 `python -X utf8 .work/c011/probe-task-observation.py`（14场景、`failed=[]`、exit 0）和 `python -X utf8 .work/c011/probe-runtime.py`（全新库 `ai_drama_studio_c011_probe_20260909_150722_36700`、migration/prepare/verify/模板API/REST+WS+独立DB/关闭与端口检查均通过、exit 0）；完整原始文件与退出事实见 `.work/c011/T39-audit-20260909.log` 及对应 `probe-*` 日志。已核对 spec 唯一31条AC和17条C011追溯行、T29–T36新增测试文件及 describe/it/参数身份；对应B01–B10修复commit/原失败/新通过日志仍保留在追溯表。
-  - G复用核验：T37成功G `.work/c011/T37-t37apparatus20260909_142315-test.log` 的受测代码到当前HEAD在backend/frontend、测试和运行时装置范围无差异；该G已真实记录前端30 files/160 tests、build68 modules、Alembic upgrade/current/check exit 0、完整pytest `348 passed in 392.73s`、git diff check exit 0。T38仅文档提交，故按最新频率规则引用该同输入G，未重复执行 `run_checks.ps1 -Task T39`；`AGENTS.md`和`.work`未提交。
+  - G复用核验：最终闭合使用权威同输入G `.work/c011/T39-astrafinal20260909loop-test.log`（受测`CURRENT_HEAD=4bd3a713f12121f8fc082626d8f0d8154e79fead`、全量库`ai_drama_studio_c011_t39_full_20260909_183354_38988`、PID23652）；该G实际记录前端全量exit 0、build68 modules、Alembic upgrade/current/check各exit 0、完整pytest `348 passed in 239.87s (0:03:59)`、git diff check exit 0。此前T37同输入记录的392.73秒及旧审计文字保留为历史，不作为最终G归属；T38及其后相关提交未改变backend/fixture/runtime，故按最新频率规则未重复执行 `run_checks.ps1 -Task T39`；`AGENTS.md`和`.work`未提交。
 
 
 ## 第二轮审查修复任务（优先按开头派发顺序执行）
