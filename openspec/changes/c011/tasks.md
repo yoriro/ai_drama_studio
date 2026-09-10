@@ -297,7 +297,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/tasks/taskList.test.ts`；G；普通浏览器选控件并核对实际 GET、匹配集合/数量/组别/空态。同步在普通顺序下可用，竞态完整验收单列 T18。
   - 验收归属：AC-10 的控件/分组/窗口说明完整；T18 前不能宣称 AC-16 完成。
 
-- [ ] **T18 落实任务中心列表与详情的 WS 权威同步**
+- [x] **T18 落实任务中心列表与详情的 WS 权威同步**
   - 依赖：T02、T17。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5；D-008。
   - 交付范围：把 TasksPage 已有同步按需整理到 features/tasks，实际页面消费同一协调器。明确初连/重连缓冲、过滤代次/socket身份、未知详情去重、terminal替代读取、列表窗口补足、过期请求不写状态、最新失败可见、卸载清理与无轮询。新增独立挂载 TasksPage 的 `frontend/src/features/tasks/taskObservation.test.tsx`；不用测试副本替代生产 action/parser。
@@ -307,6 +307,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收归属：AC-15/16/17 完整；输出明确仅 DOM/传输 mock，真实进程见 T22/T23。
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskObservation.test.tsx` 退出码0，1 file/5 tests passed，原始输出见 `.work/c011/T18-rerun-current-20260909.log`。测试继续验证生产TasksPage/观察协调器在DOM与传输mock中的socket-first、事件缓冲/去重、终态替代、过滤/重连/卸载边界；真实跨进程通路仍引用T22/T23，不以本定向测试冒称。
+
+  **2026-09-10重验：** 当前受测代码再次执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskObservation.test.tsx`，结果见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/5 tests passed，exit 0；T23-T45 B16同页组合和T45七探针补足当前真实REST/WS/重连观察，未把DOM mock冒称跨进程证据。
 
 - [ ] **T19 接入任务详情与严格错误呈现**
   - 依赖：T15、T18。
