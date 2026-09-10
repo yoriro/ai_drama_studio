@@ -187,7 +187,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 四模板生产消费：M6 一集剧本→资产→出图→分镜→两个片段视频全链路分别实际读取四份正式模板且无后台人工干预或 fallback。
 
-- [ ] T24 示范集真实生成整集分镜并预检创建两个片段
+- [x] T24 示范集真实生成整集分镜并预检创建两个片段
   - 依赖：T23。交付：真实script2shots任务、整集分镜、两个目标连续同场景片段的preview/request/slots/current参考证据；记录精确Shot/Asset/Clip ID，不硬编码历史ID。
   - R：R1、R3、R5、R5a、R6、R7、R8、R9；PRD §3.1/3.4、§7、§9、§11 M6；AC-18（中段）。
   - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`；真实UI“生成分镜”→分镜内容核对→A/B分别preview/create；回读顺序、候选、1..9引用、duration与固定slot映射；本轮按spec §6.2仅经正式UI修改原Shot description补齐抬眼/指向，不重跑整集分镜生成、不改其他字段；GET/DB逐字段核验revision及changed/stale后才重勾T24。原动作预检漏检及旧分镜证据保留，不能直接种分镜或混合场景。
