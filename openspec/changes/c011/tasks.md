@@ -266,7 +266,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
 
   **2026-09-10重验：** 当前受测代码定向命令 `npm.cmd --prefix frontend run test -- src/features/status/statusPresentation.test.ts` 见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/7 tests passed，exit 0；覆盖 normal/changed、五种生成态、fresh/stale 独立性。既有 T14 浏览器批次覆盖 Clips 五状态、fresh/stale 与 null/当前/旧 revision，T43 当前浏览器批次覆盖最新 Director changed/normal 标签，T38 普通批次覆盖当前状态矩阵；T45 后无相关生产范围差异。无新增生产或测试改动。
 
-- [ ] **T15 统一全局加载错误空态与媒体失败展示**
+- [x] **T15 统一全局加载错误空态与媒体失败展示**
   - 依赖：T08、T09、T10、T11、T12、T13。
   - R：无；PRD：§2.1、§5 通用、§9、§11 M5。
   - 交付范围：整理 ApiErrorMessage/EmptyState 及各页呈现接线：主错误直显原 message、code 另列；loading/error/empty 区分，长错误换行；现有媒体 onError 在真实页面可见。保留原业务表单和动作，缺数据不渲染假卡片，不增加自动重试或业务 fallback。
@@ -276,6 +276,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收归属：AC-19；Task 页异步/协议自动验证由 T19/T21 提供，本 task 不替代。
 
   **2026-09-09重验：** `.work/c011/T15-current-scope-audit-20260909.log`保留一次rg参数顺序错误及更正后的只读源码核对。当前普通隔离批次`.work/c011/T38-ordinary-browser-20260909_143450.log`逐页记录正常、空态、后端停止读失败、资产动作失败、图片/视频失败与文件恢复的实际观测；受控生成证据单独归属T38，不替代普通错误矩阵。T37完整G按最新频率规则覆盖当前代码，未重复同输入G。
+
+  **2026-09-10重验：** 当前完整普通异常矩阵以`.work/c011/T44-browser-matrix-20260909.log`及T44A后导演台补证为准，逐页保留加载/空态/读失败/动作失败、原始message/code、草稿/URL和恢复观察；T45影响的任务页详情/取消/断线恢复由`.work/c011/T23-T45-B16-combo-20260910.log`补齐。`.work/c011/T38-ordinary-browser-20260909_143450.log`仅复用其中未变化的正常/媒体失败切片，不冒称覆盖全部动作矩阵。当前源范围扫描更正见`.work/c011/T15-current-scope-audit-20260909.log`，exit 0；T45后无其他全局错误/媒体生产差异，未新增自动测试。
 
 - [x] **T16 接入任务过滤读取客户端并验证既有 API 窗口**
   - 依赖：T02、T04。
