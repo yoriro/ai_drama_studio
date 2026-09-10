@@ -460,7 +460,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收：挂载实际TasksPage；对同task在途cancel分别切status/type/limit且仍匹配，再鼠标/键盘激活：POST精确1且无body；另一task可独立取消；迟到404/409/网络错误归属不变、离开页不污染。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelFilterOwnership.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T29 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
 
-- [ ] **T30 让取消确认使用取消后的权威详情**
+- [x] **T30 让取消确认使用取消后的权威详情**
   - 依赖：T29完成；问题/验收：B02；AC-12/13。
   - R：无；PRD：§2.1(8)、§5「任务」、§6.1、§6.4、§9、§11 M5。
   - 交付：使取消前已发出的详情请求不能消费取消确认、解除提交保护；旧请求完成后合并或补发必要的最新读取，继续维持每task最多一个在途GET；不直接凭取消响应伪造终态。 生产文件限frontend/src/features/tasks/taskObservation.ts；独立新增`frontend/src/features/tasks/taskCancelAuthority.test.tsx`实现下述回归，不修改既有测试。
@@ -468,6 +468,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 追溯行：`C011 任务取消交互与终态竞争`。
   - 验收：deferred先发详情再cancel，旧queued详情迟到；在最新读取前再次激活时POST仍1、确认状态仍在；后续真实读取分别返回canceled和running+cancel_requested_at，DOM与权威值逐字段相等；读取失败可见。
   - 命令：`npm --prefix frontend run test -- src/features/tasks/taskCancelAuthority.test.tsx`；`powershell.exe -NoProfile -File .work/c011/run_checks.ps1 -Task T30 -EvidenceLabel ('repair'+(Get-Date -Format 'yyyyMMdd_HHmmss'))`。原始stdout/stderr/exit保留；定向与G全过后回填本次实际测试ID和证据。
+
+  **2026-09-10重验：** 当前受测代码执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskCancelAuthority.test.tsx`，见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/3 tests passed，exit 0；覆盖取消前详情迟到不解除保护、canceled与running+cancel_requested权威详情逐字段呈现，以及权威读取失败可见。T45全前端回归与七探针覆盖当前实现；按最新频率规则不重复G。
 
 - [x] **T31 按事件与读取先后合并任务详情**
   - 依赖：T30完成；问题/验收：B03；AC-13/17。
