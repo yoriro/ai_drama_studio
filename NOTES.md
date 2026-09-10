@@ -201,3 +201,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T09 在独立临时数据库覆盖空库、合法旧库、名称碰撞/空白预检及down/up；迁移回归`1 passed`，migration acceptance与Alembic upgrade/current/check均exit 0，T01隔离库已升级至`c012_asset_name_unique`，原始证据见`.work/c012/T09-test.log`、`.work/c012/T09-acceptance.stdout.log`、`.work/c012/T09-alembic.log`。
 - 2026-09-10 C012 T10 在 T01 隔离库运行资产创建/改名合同回归`1 passed`、退出码0；精确409、跨项目/大小写/内部空格、strip/no-op及空白/NUL/超长422与失败改名下游无损均有断言，证据见`.work/c012/T10-test.log`。
 - 2026-09-10 C012 T11 在 T01 隔离库运行 gen_assets 新旧回归`11 passed`、退出码0；一次生产handler mock调用覆盖合法existing_id、候选去重/warning、跨类型整批回滚及生成名称边界，证据见`.work/c012/T11-test.log`。
+- 2026-09-10 C012 T12 在 T01 隔离库运行指定 B `4 passed`、退出码0；两个正式 API 竞争及手动/生成竞争均由独立 PostgreSQL 连接观察到 `Lock/transactionid` 等待，取消分支保留原 marker 且零本批资产，done 分支提交两项新资产与 marker，证据见`.work/c012/T12-test.log`。
+- 2026-09-10 C012 T12 R `python -X utf8 .work/c012/acceptance.py names` 退出码0；自检记录实际库与 T01 DATA_DIR，子进程 `3 passed`，测试后独立数据库连接仍可用，证据见`.work/c012/T12-acceptance.log`与`.work/c012/names-acceptance.json`。

@@ -89,7 +89,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 R2 生成候选去重与冲突失败。
 
-- [ ] T12 验证名称竞争与取消/提交原子性
+- [x] T12 验证名称竞争与取消/提交原子性
   - 依赖：T11。交付：独立`backend/tests/task_system/test_c012_asset_name_races.py`，覆盖两个正式API写入、手动与生成竞争、取消与marker提交；如失败只修T10/T11归属的根因，保留原失败且不改既有测试。
   - R：R2；PRD §3.1、§3.2、§6.1/6.4；AC-08/09。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_asset_name_races.py tests/task_system/test_c005_cancel_commit_race.py`；R `python -X utf8 .work/c012/acceptance.py names`。实际独立连接锁等待、一胜一409/生成同类型复用、异类型failed及精确DB行/marker必须有原始结果。

@@ -794,6 +794,49 @@ async def command_migration(
             evidence.add("migration_cleanup", database=database, dropped=True)
 
 
+async def command_names(
+    _arguments: argparse.Namespace,
+    evidence: RunEvidence,
+) -> None:
+    raw_url, data_dir, url_identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add(
+        "runtime_identity",
+        database_url=url_identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+    )
+    if database_identity["current_database"] != url_identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+
+    child_env = os.environ.copy()
+    child_env.update(
+        {
+            "DATABASE_URL": raw_url,
+            "DATA_DIR": str(data_dir),
+            "PYTHONUTF8": "1",
+        }
+    )
+    result = run_child(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-s",
+            "-q",
+            "tests/task_system/test_c012_asset_name_races.py",
+        ],
+        cwd=BACKEND,
+        env=child_env,
+        timeout=120.0,
+    )
+    evidence.add("names_probe", **child_observation(result))
+    assert_child_success(result, "C012 names probe")
+    evidence.add("post_probe_connection", database=await read_database_identity(raw_url))
+
+
 async def command_selfcheck(
     arguments: argparse.Namespace, evidence: RunEvidence
 ) -> None:
@@ -1061,6 +1104,9 @@ async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
         return
     if arguments.command == "migration":
         await command_migration(arguments, evidence)
+        return
+    if arguments.command == "names":
+        await command_names(arguments, evidence)
         return
     raise AcceptanceFailure(
         f"C012 acceptance command {arguments.command!r} is reserved for its scheduled task"
