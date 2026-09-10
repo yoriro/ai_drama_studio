@@ -255,7 +255,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/director`；G；人工四视口比较三轨列与 duration 比例、滚动对齐；按 §4.1 Director 清单操作原 preview/create、设置、槽位、take/current/delete，记录每项入口和请求不变。
   - 验收归属：AC-05/06/07/08 的导演台切片；不声称真实视频生成链路在本 task 重新验收。
 
-- [ ] **T14 统一既有新鲜态与生成态展示**
+- [x] **T14 统一既有新鲜态与生成态展示**
   - 依赖：T10、T11、T12、T13。
   - R：R8、R12；PRD：§2.1(4,6,7)、§3.2、§3.3、§3.4、§9、§11 M5。
   - 交付范围：最小共享状态文案/Badge，仅消费已知状态；新增独立 `frontend/src/features/status/statusPresentation.test.ts`，把 Shots/Director 的标签统一到 spec §4.2，并保持剧本/资产旧剧本原文、R8 黄色、R12 已删原文。不把业务 freshness 判定迁入通用组件。
@@ -263,6 +263,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 追溯行：`C011 既有功能入口与状态呈现不变`。
   - 验收方式与命令：`npm --prefix frontend run test -- src/features/status/statusPresentation.test.ts`；G；穷举 normal/changed、五种生成态×fresh/stale 和 null/旧/当前 revision 展示，人工确认 generating+stale 共存且 stale 本身不禁用。
   - 验收归属：AC-09 完整；纯函数只证明文案/状态投影，页面集成由人工与 T24 补足。
+
+  **2026-09-10重验：** 当前受测代码定向命令 `npm.cmd --prefix frontend run test -- src/features/status/statusPresentation.test.ts` 见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/7 tests passed，exit 0；覆盖 normal/changed、五种生成态、fresh/stale 独立性。既有 T14 浏览器批次覆盖 Clips 五状态、fresh/stale 与 null/当前/旧 revision，T43 当前浏览器批次覆盖最新 Director changed/normal 标签，T38 普通批次覆盖当前状态矩阵；T45 后无相关生产范围差异。无新增生产或测试改动。
 
 - [ ] **T15 统一全局加载错误空态与媒体失败展示**
   - 依赖：T08、T09、T10、T11、T12、T13。
