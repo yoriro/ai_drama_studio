@@ -19,8 +19,8 @@ read again after the lock.
 |---|---|---|---|
 | L1 | `enqueue_generate_clip_video` | enabled slot assets → Clip (`backend/app/services/generate_clip_video.py:554-558`) | Asset → Clip |
 | L1 | `commit_generated_clip_video` | Task → Episode → Asset (ascending id) → Shot (ascending id) → Clip → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | Baseline Clip → Shot → Asset; T04 source order now follows the common order |
-| L2 | asset edit/current/delete | edit/current: Asset → dependent bulk Shot/Clip updates; delete: Episode → Shot → Asset → AssetImage (`backend/app/services/assets.py:85-136`, `179-205`, `391-422`, `452-483`) | Asset-path mutations can wait on a Clip/Shot already held by commit while commit waits on Asset |
-| L2 | video commit | Task → Clip → Shot → Asset → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | reverse edge against asset-dependent mutation |
+| L2 | asset edit/current/delete | candidate Episode locks → Asset → current dependent Shots → current dependent Clips → AssetImage/media (`backend/app/services/assets.py:49-181`, `207-232`, `422-454`, `481-521`); slot-only assets omit Shots | T05 uses the same order for shot-bound and slot-only assets; locked relationships are re-read before dependent updates |
+| L2 | video commit | Task → Episode → Asset → Shot → Clip → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | T04 removed the reverse source edge |
 | L3 | shot text/binding edit | Episode → Shot → Asset → dependent Clip update (`backend/app/services/shots.py:69-147`) | Shot → Asset against commit's Clip → Shot → Asset |
 | L3 | video commit | Task → Clip → Shot → Asset (`backend/app/services/clip_video_commit.py:214-272`) | Clip → Shot |
 | L4 | clip create/slot/delete | create selection locks Episode/Shot/Asset and then relation/Clip rows (`backend/app/services/clips.py:206-285`, `353-435`); delete locks Clip, relation rows, Shot, slots, and videos (`backend/app/services/clips.py:884-990`) | relation and source-row order differs by entry point |
@@ -69,4 +69,16 @@ L1 probe completed commit-first and enqueue-first with one done task, one
 queued follow-up, one current formal take, and no temporary file.  The C009
 commit/enqueue regression completed 24 tests.  Raw evidence is in
 `.work/c012/T04-L1.stdout.log`, `.work/c012/T04-C009.stdout.log`, and
+`.work/c012/locks-acceptance.json`.
+
+## T05 result
+
+`backend/app/services/assets.py` now discovers episode dependencies before any
+row lock, locks `Episode → Asset → Shot → Clip`, and obtains current
+dependent IDs after each parent-level lock.  Asset patch, current-image, and
+delete were exercised for both shot-bound and slot-only assets in both start
+directions; each produced one committed video, a stale Clip, and the expected
+revision/slot result.  The existing C009 enqueue-lock regression completed 13
+tests.  Raw evidence is `.work/c012/T05-L2.stdout.log`,
+`.work/c012/T05-C009.stdout.log`, and the L2 event in
 `.work/c012/locks-acceptance.json`.

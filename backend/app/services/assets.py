@@ -47,31 +47,35 @@ def _is_visible_asset(asset: Asset) -> bool:
 
 
 async def _mark_asset_dependents_changed(
-    session: AsyncSession, asset_id: int
+    session: AsyncSession,
+    asset_id: int,
+    *,
+    shot_ids: list[int] | None = None,
+    clip_ids: set[int] | None = None,
 ) -> None:
-    shot_result = await session.execute(
-        select(ShotAsset.shot_id).where(ShotAsset.asset_id == asset_id)
-    )
-    shot_ids = [row[0] for row in shot_result.all()]
-
-    slot_result = await session.execute(
-        select(ClipRefSlot.clip_id)
-        .where(ClipRefSlot.asset_id == asset_id)
-        .order_by(ClipRefSlot.clip_id, ClipRefSlot.slot_no, ClipRefSlot.id)
-    )
-    slot_clip_ids = [row[0] for row in slot_result.all()]
-
-    clip_ids: set[int] = set(slot_clip_ids)
-    if shot_ids:
-        clip_result = await session.execute(
-            select(ClipShot.clip_id)
-            .where(ClipShot.shot_id.in_(shot_ids))
-            .distinct()
+    if shot_ids is None:
+        shot_result = await session.execute(
+            select(ShotAsset.shot_id).where(ShotAsset.asset_id == asset_id)
         )
-        clip_ids.update(row[0] for row in clip_result.all())
+        shot_ids = sorted({int(row[0]) for row in shot_result.all()})
+    if clip_ids is None:
+        slot_result = await session.execute(
+            select(ClipRefSlot.clip_id)
+            .where(ClipRefSlot.asset_id == asset_id)
+            .order_by(ClipRefSlot.clip_id, ClipRefSlot.slot_no, ClipRefSlot.id)
+        )
+        clip_ids = {int(row[0]) for row in slot_result.all()}
+        if shot_ids:
+            clip_result = await session.execute(
+                select(ClipShot.clip_id)
+                .where(ClipShot.shot_id.in_(shot_ids))
+                .distinct()
+            )
+            clip_ids.update(int(row[0]) for row in clip_result.all())
+    if shot_ids:
         await session.execute(
             update(Shot)
-            .where(Shot.id.in_(shot_ids))
+            .where(Shot.id.in_(sorted(shot_ids)))
             .values(status="changed", revision=Shot.revision + 1)
         )
     if clip_ids:
@@ -84,7 +88,7 @@ async def _mark_asset_dependents_changed(
 
 async def _lock_asset_source_dependencies(
     session: AsyncSession, asset_id: int
-) -> Asset:
+) -> tuple[Asset, list[int], set[int]]:
     identity_result = await session.execute(
         select(Asset.id, Asset.type).where(Asset.id == asset_id)
     )
@@ -92,38 +96,24 @@ async def _lock_asset_source_dependencies(
     if identity is None or identity.type not in _VISIBLE_ASSET_TYPES:
         raise _asset_not_found()
 
-    shot_result = await session.execute(
-        select(Shot.id, Shot.episode_id)
+    episode_result = await session.execute(
+        select(Episode.id)
+        .join(Shot, Shot.episode_id == Episode.id)
         .join(ShotAsset, ShotAsset.shot_id == Shot.id)
         .where(ShotAsset.asset_id == asset_id)
-        .order_by(Shot.id)
+        .union(
+            select(Episode.id)
+            .join(Clip, Clip.episode_id == Episode.id)
+            .join(ClipRefSlot, ClipRefSlot.clip_id == Clip.id)
+            .where(ClipRefSlot.asset_id == asset_id)
+        )
     )
-    shot_rows = list(shot_result.all())
-    shot_ids = sorted({int(row.id) for row in shot_rows})
-    episode_ids = {int(row.episode_id) for row in shot_rows}
-
-    slot_result = await session.execute(
-        select(ClipRefSlot.clip_id, Clip.episode_id)
-        .join(Clip, Clip.id == ClipRefSlot.clip_id)
-        .where(ClipRefSlot.asset_id == asset_id)
-        .order_by(ClipRefSlot.clip_id, ClipRefSlot.slot_no, ClipRefSlot.id)
-    )
-    slot_rows = list(slot_result.all())
-    episode_ids.update(int(row.episode_id) for row in slot_rows)
-
-    sorted_episode_ids = sorted(episode_ids)
-    if sorted_episode_ids:
+    episode_ids = sorted({int(row[0]) for row in episode_result.all()})
+    if episode_ids:
         await session.execute(
             select(Episode)
-            .where(Episode.id.in_(sorted_episode_ids))
+            .where(Episode.id.in_(episode_ids))
             .order_by(Episode.id)
-            .with_for_update()
-        )
-    if shot_ids:
-        await session.execute(
-            select(Shot)
-            .where(Shot.id.in_(shot_ids))
-            .order_by(Shot.id)
             .with_for_update()
         )
 
@@ -133,7 +123,44 @@ async def _lock_asset_source_dependencies(
     asset = asset_result.scalar_one_or_none()
     if asset is None or not _is_visible_asset(asset):
         raise _asset_not_found()
-    return asset
+
+    shot_result = await session.execute(
+        select(Shot.id)
+        .join(ShotAsset, ShotAsset.shot_id == Shot.id)
+        .where(ShotAsset.asset_id == asset_id)
+        .order_by(Shot.id)
+    )
+    shot_ids = sorted({int(row[0]) for row in shot_result.all()})
+    if shot_ids:
+        await session.execute(
+            select(Shot)
+            .where(Shot.id.in_(shot_ids))
+            .order_by(Shot.id)
+            .with_for_update()
+        )
+
+    slot_clip_result = await session.execute(
+        select(ClipRefSlot.clip_id)
+        .where(ClipRefSlot.asset_id == asset_id)
+        .order_by(ClipRefSlot.clip_id, ClipRefSlot.slot_no, ClipRefSlot.id)
+    )
+    clip_ids = {int(row[0]) for row in slot_clip_result.all()}
+    if shot_ids:
+        clip_result = await session.execute(
+            select(ClipShot.clip_id)
+            .where(ClipShot.shot_id.in_(shot_ids))
+            .distinct()
+        )
+        clip_ids.update(int(row[0]) for row in clip_result.all())
+    if clip_ids:
+        await session.execute(
+            select(Clip)
+            .where(Clip.id.in_(sorted(clip_ids)))
+            .order_by(Clip.id)
+            .with_for_update()
+        )
+
+    return asset, shot_ids, clip_ids
 
 
 async def list_assets(session: AsyncSession, project_id: int) -> list[Asset]:
@@ -180,12 +207,9 @@ async def update_asset(
     session: AsyncSession, asset_id: int, payload: AssetPatch
 ) -> Asset:
     async with session.begin():
-        result = await session.execute(
-            select(Asset).where(Asset.id == asset_id).with_for_update()
+        asset, shot_ids, clip_ids = await _lock_asset_source_dependencies(
+            session, asset_id
         )
-        asset = result.scalar_one_or_none()
-        if asset is None or not _is_visible_asset(asset):
-            raise _asset_not_found()
 
         changed = False
         if "name" in payload.model_fields_set and payload.name != asset.name:
@@ -200,7 +224,12 @@ async def update_asset(
         if changed:
             asset.revision += 1
             asset.updated_at = datetime.now(timezone.utc)
-            await _mark_asset_dependents_changed(session, asset.id)
+            await _mark_asset_dependents_changed(
+                session,
+                asset.id,
+                shot_ids=shot_ids,
+                clip_ids=clip_ids,
+            )
         await session.flush()
     return asset
 
@@ -392,12 +421,9 @@ async def set_current_asset_image(
     session: AsyncSession, asset_id: int, image_id: int
 ) -> AssetImage:
     async with session.begin():
-        asset_result = await session.execute(
-            select(Asset).where(Asset.id == asset_id).with_for_update()
+        asset, shot_ids, clip_ids = await _lock_asset_source_dependencies(
+            session, asset_id
         )
-        asset = asset_result.scalar_one_or_none()
-        if asset is None or not _is_visible_asset(asset):
-            raise _asset_not_found()
 
         image = await session.get(AssetImage, image_id)
         if image is None:
@@ -417,7 +443,12 @@ async def set_current_asset_image(
             image.is_current = True
             asset.revision += 1
             asset.updated_at = datetime.now(timezone.utc)
-            await _mark_asset_dependents_changed(session, asset.id)
+            await _mark_asset_dependents_changed(
+                session,
+                asset.id,
+                shot_ids=shot_ids,
+                clip_ids=clip_ids,
+            )
             await session.flush()
     return image
 
@@ -452,9 +483,16 @@ async def delete_asset_image(session: AsyncSession, image_id: int) -> None:
 async def delete_asset(session: AsyncSession, asset_id: int) -> None:
     try:
         async with session.begin():
-            asset = await _lock_asset_source_dependencies(session, asset_id)
+            asset, shot_ids, clip_ids = await _lock_asset_source_dependencies(
+                session, asset_id
+            )
 
-            await _mark_asset_dependents_changed(session, asset.id)
+            await _mark_asset_dependents_changed(
+                session,
+                asset.id,
+                shot_ids=shot_ids,
+                clip_ids=clip_ids,
+            )
 
             image_result = await session.execute(
                 select(AssetImage)

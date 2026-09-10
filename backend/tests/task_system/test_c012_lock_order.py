@@ -17,7 +17,9 @@ from app.core.config import settings
 from app.db.session import engine
 from app.integrations.workflow_binding import load_minimax_binding_snapshot
 from app.services.asset_files import asset_image_relative_path
+from app.schemas.assets import AssetPatch
 from app.services.clip_video_commit import commit_generated_clip_video
+from app.services.assets import delete_asset, set_current_asset_image, update_asset
 from app.services.generate_clip_video import enqueue_generate_clip_video
 from app.services.video_files import temporary_clip_video_path
 from app.tasks.gen_clip_video import GeneratedClipVideo
@@ -527,6 +529,175 @@ async def _assert_direction(
     assert state["videos"][0]["is_current"] is True
 
 
+async def _prepare_l2_variant(
+    fixture: dict[str, object], *, operation: str, slot_only: bool
+) -> int | None:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        if slot_only:
+            await connection.execute(
+                "DELETE FROM shot_assets WHERE asset_id = $1 AND shot_id = ANY($2::int[])",
+                fixture["character_id"],
+                fixture["shot_ids"],
+            )
+        if operation != "current":
+            return None
+        image_id = await connection.fetchval(
+            """
+            INSERT INTO asset_images
+                (asset_id, file_path, sha256, source, is_current)
+            VALUES ($1, 'non-current.png', $2, 'uploaded', false)
+            RETURNING id
+            """,
+            fixture["character_id"],
+            "0" * 64,
+        )
+        assert image_id is not None
+        return int(image_id)
+    finally:
+        await connection.close()
+
+
+async def _read_l2_state(fixture: dict[str, object]) -> dict[str, object]:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        asset = await connection.fetchrow(
+            "SELECT name, revision FROM assets WHERE id = $1",
+            fixture["character_id"],
+        )
+        shot = await connection.fetchrow(
+            "SELECT status, revision FROM shots WHERE id = $1",
+            fixture["shot_ids"][0],
+        )
+        clip = await connection.fetchrow(
+            "SELECT freshness FROM clips WHERE id = $1", fixture["clip_id"]
+        )
+        slot = await connection.fetchrow(
+            "SELECT asset_id FROM clip_ref_slots WHERE clip_id = $1 AND slot_no = 1",
+            fixture["clip_id"],
+        )
+        videos = await connection.fetch(
+            "SELECT id, is_current FROM clip_videos WHERE clip_id = $1",
+            fixture["clip_id"],
+        )
+        tasks = await connection.fetch(
+            "SELECT status FROM tasks WHERE target_id = $1 AND type = 'gen_clip_video'",
+            fixture["clip_id"],
+        )
+        assert shot is not None and clip is not None and slot is not None
+        return {
+            "asset": None if asset is None else dict(asset),
+            "shot": dict(shot),
+            "clip": dict(clip),
+            "slot": dict(slot),
+            "videos": [dict(video) for video in videos],
+            "tasks": [dict(task) for task in tasks],
+        }
+    finally:
+        await connection.close()
+
+
+async def _run_l2_variant(
+    fixture: dict[str, object],
+    data_dir: Path,
+    *,
+    operation: str,
+    slot_only: bool,
+    first: str,
+) -> None:
+    second_image_id = await _prepare_l2_variant(
+        fixture, operation=operation, slot_only=slot_only
+    )
+    task = await _insert_commit_task(fixture)
+    temp_path = temporary_clip_video_path(data_dir, task.id)
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path.write_bytes(_video_bytes())
+    label = f"c012-l2-{uuid4().hex[:12]}"
+
+    async def commit_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-commit")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                return await commit_generated_clip_video(
+                    session,
+                    TaskQueue(),
+                    task,
+                    GeneratedClipVideo(temp_path, "C012 L2 prompt"),
+                    data_dir=data_dir,
+                )
+        finally:
+            await connection.close()
+
+    async def mutation_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-mutation")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                if operation == "patch":
+                    return await update_asset(
+                        session,
+                        int(fixture["character_id"]),
+                        AssetPatch(name=f"L2改名{uuid4().hex[:6]}"),
+                    )
+                if operation == "current":
+                    assert second_image_id is not None
+                    return await set_current_asset_image(
+                        session,
+                        int(fixture["character_id"]),
+                        second_image_id,
+                    )
+                await delete_asset(session, int(fixture["character_id"]))
+                return None
+        finally:
+            await connection.close()
+
+    if first == "mutation":
+        mutation_task = asyncio.create_task(mutation_worker())
+        await asyncio.sleep(0)
+        commit_task = asyncio.create_task(commit_worker())
+    else:
+        commit_task = asyncio.create_task(commit_worker())
+        await asyncio.sleep(0)
+        mutation_task = asyncio.create_task(mutation_worker())
+    results = await asyncio.wait_for(
+        asyncio.gather(commit_task, mutation_task, return_exceptions=True),
+        timeout=10,
+    )
+    errors = [repr(result) for result in results if isinstance(result, BaseException)]
+    state = await _read_l2_state(fixture)
+    if errors:
+        pytest.fail(
+            f"C012 L2 {operation}/{slot_only}/{first} failed: "
+            f"errors={errors}; state={json.dumps(state, ensure_ascii=False, default=str)}"
+        )
+    assert len(state["videos"]) == 1
+    assert state["tasks"] == [{"status": "done"}]
+    assert state["clip"]["freshness"] == "stale"
+    assert state["shot"]["status"] == ("normal" if slot_only else "changed")
+    assert state["shot"]["revision"] == (1 if slot_only else 2)
+    if operation == "delete":
+        assert state["asset"] is None
+        assert state["slot"]["asset_id"] is None
+    else:
+        assert state["asset"]["revision"] == 2
+
+
+async def _assert_l2(data_dir: Path) -> None:
+    for operation in ("patch", "current", "delete"):
+        for slot_only in (False, True):
+            for first in ("mutation", "commit"):
+                fixture = await _create_fixture(data_dir)
+                try:
+                    await _run_l2_variant(
+                        fixture,
+                        data_dir,
+                        operation=operation,
+                        slot_only=slot_only,
+                        first=first,
+                    )
+                finally:
+                    await _cleanup_fixture(fixture)
+
+
 @pytest.mark.parametrize("lock_case", LOCK_CASES, ids=LOCK_CASES)
 def test_c012_lock_order(
     lock_case: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -534,6 +705,9 @@ def test_c012_lock_order(
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
 
     async def run() -> None:
+        if lock_case == "L2":
+            await _assert_l2(tmp_path)
+            return
         fixture = await _create_fixture(tmp_path)
         try:
             if lock_case != "L1":

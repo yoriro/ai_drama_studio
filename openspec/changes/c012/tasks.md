@@ -40,7 +40,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T05 对齐资产编辑、换图和删除的关联锁顺序
+- [x] T05 对齐资产编辑、换图和删除的关联锁顺序
   - 依赖：T04。交付：`services/assets.py`内上述三类路径按spec偏序取必要行锁、锁后重读；保留no-op、revision、changed/stale、R12与文件补偿。不新增全项目锁。
   - R：R12；PRD §3.2、§3.3、§6.4；AC-04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L2`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L2`；含shot-bound/slot-only资产的双向交错。
