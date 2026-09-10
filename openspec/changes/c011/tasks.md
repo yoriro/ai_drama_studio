@@ -323,7 +323,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
 
   **2026-09-10重验：** 当前受测代码再次执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskBoundary.test.tsx`，结果见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/14 tests passed，exit 0；覆盖正式详情/null时间/长错误、未知状态/越界进度/unsafe ID/extra字段、畸形JSON、422/500和WS协议错误的可见性与无伪空态。
 
-- [ ] **T20 接入单任务取消基本交互**
+- [x] **T20 接入单任务取消基本交互**
   - 依赖：T19。
   - R：无；PRD：§2.1(8)、§5 任务、§6.1、§9、§11 M5。
   - 交付范围：新增复用 requestJson/parser 的 cancelTask helper（无 body POST），在 TasksPage 实际按钮接线；每task in-flight、queued/running/已请求/终态按钮状态与等待文案；取消成功后权威读取详情和当前窗口，确认前无成功提示。新增独立 `frontend/src/features/tasks/taskCancel.test.tsx`。
@@ -333,6 +333,8 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 验收归属：AC-12 完整；竞争/失败不夹带为未列出的修复，后续T21独立验收。
 
   **2026-09-09重验：** 当前定向命令 `npm --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx` 退出码0，1 file/3 tests passed，原始输出见 `.work/c011/T20-rerun-current-20260909.log`。保留生产cancelTask/TasksPage的单次无body POST、取消中状态、权威详情/列表读取及多任务隔离断言；竞争场景仍单列T21。
+
+  **2026-09-10重验：** 当前受测代码再次执行 `npm.cmd --prefix frontend run test -- src/features/tasks/taskCancel.test.tsx`，结果见 `.work/c011/T14-T15-T18-T21-T30-T32-current-revalidation-20260910.log`，1 file/3 tests passed，exit 0；覆盖queued取消一次无body POST、确认详情/列表、running+cancel_requested不伪造canceled及多任务控制隔离。
 
 - [ ] **T21 封闭取消竞争错误与当前页面隔离**
   - 依赖：T20。
