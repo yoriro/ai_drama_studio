@@ -149,7 +149,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 真实外部依赖与GPU资源归属。
 
-- [ ] T20 现场验证真实外部依赖与资源归属
+- [x] T20 现场验证真实外部依赖与资源归属
   - 依赖：T19；外部依赖实际满足。交付：本轮DB/DATA_DIR/配置、vLLM模型/sleep、Comfy队列/节点/绑定/LoRA和端口进程归属报告。只启动缺失且明确属于本轮的服务，不终止用户未知任务。
   - R：无；PRD §6.3、§8、§10、§12.1/12.3/12.4；AC-16。
   - 验收：R `python -X utf8 .work/c012/acceptance.py preflight --real`；实际health、object_info、queue、sleep(level1)/wake/is_sleeping和独立DB身份逐项记录；地址/模型/权重缺失保持spec外部依赖阻塞，不修改workflow或猜参数绕过。

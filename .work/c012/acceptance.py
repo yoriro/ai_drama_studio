@@ -282,11 +282,12 @@ async def real_http_request(
     path: str,
     *,
     params: Mapping[str, object] | None = None,
+    timeout: float = 10.0,
 ) -> HttpObservation:
     url = f"{base_url.rstrip('/')}{path}"
     try:
         async with httpx.AsyncClient(
-            timeout=10.0,
+            timeout=timeout,
             trust_env=False,
         ) as client:
             response = await client.request(method, url, params=params)
@@ -1753,7 +1754,7 @@ async def command_preflight(
         "vLLM /is_sleeping initial",
     )
     sleep_response = await real_http_request(
-        vllm_url, "POST", "/sleep", params={"level": 1}
+        vllm_url, "POST", "/sleep", params={"level": 1}, timeout=120.0
     )
     require_http_success(sleep_response, method="POST", url=f"{vllm_url}/sleep?level=1")
     after_sleep_response = await real_http_request(vllm_url, "GET", "/is_sleeping")
@@ -1765,7 +1766,9 @@ async def command_preflight(
         ),
         "vLLM /is_sleeping after level-1 sleep",
     )
-    wake_response = await real_http_request(vllm_url, "POST", "/wake_up")
+    wake_response = await real_http_request(
+        vllm_url, "POST", "/wake_up", timeout=120.0
+    )
     require_http_success(wake_response, method="POST", url=f"{vllm_url}/wake_up")
     after_wake_response = await real_http_request(vllm_url, "GET", "/is_sleeping")
     after_waking = require_sleeping(
@@ -1777,7 +1780,7 @@ async def command_preflight(
         "vLLM /is_sleeping after wake_up",
     )
     final_sleep_response = await real_http_request(
-        vllm_url, "POST", "/sleep", params={"level": 1}
+        vllm_url, "POST", "/sleep", params={"level": 1}, timeout=120.0
     )
     require_http_success(
         final_sleep_response, method="POST", url=f"{vllm_url}/sleep?level=1"
