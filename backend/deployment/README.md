@@ -22,3 +22,15 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 ```
 
 `install` 先完整读取并校验四个文件，再按 `script2assets`、`script2shots`、`zimage`、`minimaxh3` 顺序各 PATCH 一次，最后 GET 逐字核对；任一步失败立即非零，不重试、不回滚已成功的独立提交，也不自动重启后端。`verify` 只 GET 和逐字比较，不发送 PATCH。
+
+## M6 真实输入与观察命令
+
+`m6-script.txt` 与 C012 spec §6.1 的 `text` 代码块逐字保存，当前 `SCRIPT_CHAR_LIMIT` 由验收驱动读取并检查。三连跑的唯一追加句为“球馆内，工作人员陈宁走到芳嘉蔓身边递给她一张入场券。”；两个片段目标依次为“芳嘉蔓进门催促、乔彦茜抬眼回应后继续吃饭”和“芳嘉蔓指向出场球员、乔彦茜由平静变为僵住”。
+
+```powershell
+python -X utf8 .work/c012/acceptance.py verify-inputs
+python -X utf8 .work/c012/acceptance.py preflight --real
+python -X utf8 .work/c012/acceptance.py observe --real
+```
+
+`preflight --real` 读取当前绑定、Comfy 节点/LoRA、队列和 vLLM sleep/wake 状态；`observe --real` 只做 GET 与数据库 SELECT，不创建任务、不生成、不写业务数据，也不接入生成重放器。

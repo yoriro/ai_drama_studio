@@ -142,7 +142,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位。
 
-- [ ] T19 交付真实输入与被动验收观测能力
+- [x] T19 交付真实输入与被动验收观测能力
   - 依赖：T18。交付：同一`.work/c012/acceptance.py`扩展spec §8的preflight --real/verify-inputs/observe --real；从spec §6.1逐字保存`backend/deployment/m6-script.txt`，记录三连跑追加句与两个动作片段目标。只新增观测能力，不接入生成重放器。
   - R：无；PRD §7、§10、§11 M6、§12；AC-02/16/18。
   - 验收：R `python -X utf8 .work/c012/acceptance.py verify-inputs`、`python -X utf8 .work/c012/acceptance.py selfcheck`；全文与spec逐字相等且不超实际SCRIPT_CHAR_LIMIT，observer无mutation、无DB种业务数据，来源/失败/清理自检通过。自检使用隔离端点，不冒充真实服务通过。

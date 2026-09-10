@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -28,6 +29,7 @@ from uuid import uuid4
 
 import asyncpg
 import httpx
+from pydantic import ValidationError
 import websockets.asyncio.client
 
 
@@ -40,6 +42,15 @@ if str(BACKEND) not in sys.path:
 
 class AcceptanceFailure(RuntimeError):
     """A deterministic acceptance observation did not meet its contract."""
+
+
+C012_SPEC_PATH = ROOT / "openspec" / "changes" / "c012" / "spec.md"
+M6_SCRIPT_PATH = BACKEND / "deployment" / "m6-script.txt"
+M6_APPEND_SENTENCE = "球馆内，工作人员陈宁走到芳嘉蔓身边递给她一张入场券。"
+M6_CLIP_TARGETS = (
+    "芳嘉蔓进门催促、乔彦茜抬眼回应后继续吃饭",
+    "芳嘉蔓指向出场球员、乔彦茜由平静变为僵住",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +170,210 @@ async def read_database_identity(raw_url: str) -> dict[str, object]:
         "current_user": row[1],
         "server_address": row[2],
         "server_port": row[3],
+    }
+
+
+async def read_database_tasks(raw_url: str) -> list[dict[str, object]]:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", ""))
+    try:
+        rows = await connection.fetch(
+            "SELECT id, type, target_id, request_id, status, progress, "
+            "error_msg, cancel_requested_at, created_at, started_at, "
+            "finished_at, payload FROM tasks ORDER BY id"
+        )
+    finally:
+        await connection.close()
+    result: list[dict[str, object]] = []
+    for row in rows:
+        result.append(
+            {
+                "id": row["id"],
+                "type": row["type"],
+                "target_id": row["target_id"],
+                "request_id": row["request_id"],
+                "status": row["status"],
+                "progress": row["progress"],
+                "error_msg": row["error_msg"],
+                "cancel_requested_at": (
+                    row["cancel_requested_at"].isoformat()
+                    if row["cancel_requested_at"] is not None
+                    else None
+                ),
+                "created_at": row["created_at"].isoformat(),
+                "started_at": (
+                    row["started_at"].isoformat()
+                    if row["started_at"] is not None
+                    else None
+                ),
+                "finished_at": (
+                    row["finished_at"].isoformat()
+                    if row["finished_at"] is not None
+                    else None
+                ),
+                "payload": row["payload"],
+            }
+        )
+    return result
+
+
+def runtime_settings() -> Any:
+    """Load the same settings file used by a backend process started in backend/."""
+
+    from app.core.config import Settings
+
+    try:
+        return Settings(_env_file=BACKEND / ".env")
+    except ValidationError as exc:
+        raise AcceptanceFailure(
+            f"backend settings are invalid: {exc}"
+        ) from exc
+
+
+def read_frozen_m6_script() -> tuple[str, dict[str, object]]:
+    try:
+        spec_text = C012_SPEC_PATH.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise AcceptanceFailure(
+            f"cannot read UTF-8 C012 spec for script provenance: {exc}"
+        ) from exc
+    match = re.search(
+        r"### 6\.1 冻结首轮剧本\r?\n.*?```text\r?\n"
+        r"(?P<body>.*?)\r?\n```",
+        spec_text,
+        flags=re.DOTALL,
+    )
+    if match is None:
+        raise AcceptanceFailure("C012 spec §6.1 script code block was not found")
+    script = match.group("body")
+    if "```" in script:
+        raise AcceptanceFailure("C012 spec §6.1 script contains a nested fence")
+    return script, {
+        "path": str(C012_SPEC_PATH),
+        "section": "§6.1 冻结首轮剧本",
+        "code_fence": "text",
+        "characters": len(script),
+        "utf8_bytes": len(script.encode("utf-8")),
+        "ends_with_lf": script.endswith("\n"),
+        "ends_with_crlf": script.endswith("\r\n"),
+    }
+
+
+def read_utf8_file(path: Path, label: str) -> str:
+    try:
+        return path.read_bytes().decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise AcceptanceFailure(f"{label} is not valid UTF-8: {path}") from exc
+    except OSError as exc:
+        raise AcceptanceFailure(f"cannot read {label} {path}: {exc}") from exc
+
+
+def safe_service_url(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        raise AcceptanceFailure(f"{label} is not a text URL")
+    parsed = urlsplit(value.rstrip("/"))
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise AcceptanceFailure(f"{label} is not an HTTP URL")
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", ""))
+
+
+async def real_http_request(
+    base_url: str,
+    method: str,
+    path: str,
+    *,
+    params: Mapping[str, object] | None = None,
+) -> HttpObservation:
+    url = f"{base_url.rstrip('/')}{path}"
+    try:
+        async with httpx.AsyncClient(
+            timeout=10.0,
+            trust_env=False,
+        ) as client:
+            response = await client.request(method, url, params=params)
+    except (httpx.RequestError, TimeoutError) as exc:
+        raise AcceptanceFailure(f"{method} {url} failed: {exc}") from exc
+    try:
+        body: object = response.json()
+    except ValueError:
+        body = response.text
+    return HttpObservation(response.status_code, body)
+
+
+def require_http_success(
+    observation: HttpObservation, *, method: str, url: str
+) -> object:
+    if not 200 <= observation.status_code < 300:
+        raise AcceptanceFailure(
+            f"{method} {url} returned HTTP {observation.status_code}: "
+            f"{observation.body!r}"
+        )
+    return observation.body
+
+
+def require_mapping(value: object, label: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise AcceptanceFailure(f"{label} was not a JSON object")
+    return value
+
+
+def listener_ports(urls: Sequence[str]) -> list[int]:
+    ports: set[int] = set()
+    for url in urls:
+        parsed = urlsplit(url)
+        if parsed.port is not None:
+            ports.add(parsed.port)
+        elif parsed.scheme == "https":
+            ports.add(443)
+        else:
+            ports.add(80)
+    return sorted(ports)
+
+
+def observe_windows_listeners(ports: Sequence[int]) -> dict[str, object]:
+    """Read listener/PID ownership without starting or stopping any process."""
+
+    if not ports:
+        return {"ports": [], "listeners": []}
+    port_list = ",".join(str(port) for port in ports)
+    script = (
+        "$ports=@(" + port_list + "); "
+        "$rows=Get-NetTCPConnection -State Listen -ErrorAction Stop | "
+        "Where-Object {$ports -contains $_.LocalPort} | "
+        "Select-Object LocalAddress,LocalPort,OwningProcess; "
+        "@($rows) | ConvertTo-Json -Compress"
+    )
+    result = run_child(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            script,
+        ],
+        timeout=10.0,
+    )
+    if result.timed_out or result.returncode != 0:
+        raise AcceptanceFailure(
+            "listener ownership query failed: "
+            f"rc={result.returncode} timeout={result.timed_out} "
+            f"stderr={result.text_stderr()!r}"
+        )
+    try:
+        value = json.loads(result.text_stdout() or "[]")
+    except json.JSONDecodeError as exc:
+        raise AcceptanceFailure(
+            f"listener ownership query returned invalid JSON: {result.text_stdout()!r}"
+        ) from exc
+    if isinstance(value, Mapping):
+        listeners: object = [value]
+    elif isinstance(value, list):
+        listeners = value
+    else:
+        raise AcceptanceFailure("listener ownership query returned an invalid list")
+    return {
+        "ports": list(ports),
+        "listeners": listeners,
+        "query": child_observation(result),
     }
 
 
@@ -1241,6 +1456,448 @@ async def command_selfcheck(
         raise AcceptanceFailure("selfcheck owned temporary resources were not released")
 
 
+def binding_report() -> tuple[dict[str, object], dict[str, str]]:
+    from app.integrations.workflow_binding import (
+        WorkflowBindingError,
+        load_binding_snapshot,
+        load_minimax_binding_snapshot,
+    )
+
+    try:
+        zimage = load_binding_snapshot()
+        minimaxh3 = load_minimax_binding_snapshot()
+    except WorkflowBindingError as exc:
+        raise AcceptanceFailure(f"workflow binding validation failed: {exc}") from exc
+
+    node_ids = {
+        "zimage_prompt": zimage.prompt_path.split(".", 1)[0],
+        "zimage_seed": zimage.seed_path.split(".", 1)[0],
+        "zimage_output": zimage.output_node,
+        "minimaxh3_prompt": minimaxh3.prompt_path.split(".", 1)[0],
+        "minimaxh3_seed": minimaxh3.seed_path.split(".", 1)[0],
+        "minimaxh3_duration": minimaxh3.duration_path.split(".", 1)[0],
+        "minimaxh3_output": minimaxh3.output_node,
+        "minimaxh3_lora": "310",
+    }
+
+    def node_class(snapshot: object, node_id: str, label: str) -> str:
+        definition = getattr(snapshot, "definition", None)
+        if not isinstance(definition, Mapping):
+            raise AcceptanceFailure(f"{label} workflow definition is not an object")
+        node = definition.get(node_id)
+        if not isinstance(node, Mapping) or not isinstance(
+            node.get("class_type"), str
+        ):
+            raise AcceptanceFailure(f"{label} workflow node {node_id} is invalid")
+        return node["class_type"]
+
+    classes = {
+        label: node_class(
+            zimage if label.startswith("zimage") else minimaxh3,
+            node_id,
+            label,
+        )
+        for label, node_id in node_ids.items()
+    }
+
+    def workflow_metadata(snapshot: object, label: str) -> dict[str, object]:
+        return {
+            "name": getattr(snapshot, "name"),
+            "workflow_path": str(getattr(snapshot, "workflow_path")),
+            "workflow_hash": getattr(snapshot, "workflow_hash"),
+            "prompt_path": getattr(snapshot, "prompt_path"),
+            "seed_path": getattr(snapshot, "seed_path"),
+            "duration_path": getattr(snapshot, "duration_path", None),
+            "output_node": getattr(snapshot, "output_node"),
+            "reference_count": len(getattr(snapshot, "ref_image_paths", ())),
+            "node_classes": {
+                key: value
+                for key, value in classes.items()
+                if key.startswith(label)
+            },
+        }
+
+    definition = minimaxh3.definition
+    lora_node = definition.get("310") if isinstance(definition, Mapping) else None
+    if not isinstance(lora_node, Mapping):
+        raise AcceptanceFailure("MiniMax workflow node 310 is missing")
+    lora_inputs = lora_node.get("inputs")
+    lora_name = (
+        lora_inputs.get("lora_name")
+        if isinstance(lora_inputs, Mapping)
+        else None
+    )
+    if not isinstance(lora_name, str) or not lora_name:
+        raise AcceptanceFailure("MiniMax workflow node 310 LoRA name is invalid")
+
+    return (
+        {
+            "zimage": workflow_metadata(zimage, "zimage"),
+            "minimaxh3": workflow_metadata(minimaxh3, "minimaxh3"),
+            "required_node_ids": node_ids,
+            "required_node_classes": classes,
+            "minimaxh3_lora": {
+                "node_id": "310",
+                "class_type": classes["minimaxh3_lora"],
+                "configured_name": lora_name,
+            },
+        },
+        {"minimaxh3_lora_class": classes["minimaxh3_lora"], "minimaxh3_lora_name": lora_name},
+    )
+
+
+def validate_object_info(
+    object_info: object, *, binding_nodes: Mapping[str, object], lora: Mapping[str, str]
+) -> dict[str, object]:
+    info = require_mapping(object_info, "Comfy /object_info")
+    missing_classes = sorted(
+        {
+            value
+            for value in binding_nodes.values()
+            if isinstance(value, str) and value not in info
+        }
+    )
+    if missing_classes:
+        raise AcceptanceFailure(
+            f"Comfy /object_info is missing workflow node classes: {missing_classes}"
+        )
+    lora_class = lora["minimaxh3_lora_class"]
+    class_info = require_mapping(info[lora_class], f"Comfy object_info[{lora_class}]")
+    input_info = require_mapping(
+        class_info.get("input"), f"Comfy object_info[{lora_class}].input"
+    )
+    required = require_mapping(
+        input_info.get("required"),
+        f"Comfy object_info[{lora_class}].input.required",
+    )
+    lora_spec = required.get("lora_name")
+    if not isinstance(lora_spec, list) or not lora_spec:
+        raise AcceptanceFailure(
+            f"Comfy object_info[{lora_class}] has no lora_name options"
+        )
+    allowed = lora_spec[0]
+    if not isinstance(allowed, list) or lora["minimaxh3_lora_name"] not in allowed:
+        raise AcceptanceFailure(
+            "configured MiniMax LoRA is not registered by Comfy /object_info: "
+            f"{lora['minimaxh3_lora_name']}"
+        )
+    return {
+        "class_count": len(info),
+        "workflow_classes_present": sorted(set(binding_nodes.values())),
+        "lora_class": lora_class,
+        "lora_name": lora["minimaxh3_lora_name"],
+        "lora_registered": True,
+    }
+
+
+def require_model_id(value: object, expected: str) -> list[str]:
+    body = require_mapping(value, "vLLM /v1/models")
+    entries = body.get("data")
+    if not isinstance(entries, list):
+        raise AcceptanceFailure("vLLM /v1/models data was not a list")
+    model_ids: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping) or not isinstance(entry.get("id"), str):
+            raise AcceptanceFailure("vLLM /v1/models contained an invalid model entry")
+        model_ids.append(entry["id"])
+    if expected not in model_ids:
+        raise AcceptanceFailure(
+            f"configured vLLM model is not registered: expected={expected!r} "
+            f"actual={model_ids!r}"
+        )
+    return model_ids
+
+
+def require_queue_empty(value: object, label: str) -> dict[str, int]:
+    body = require_mapping(value, label)
+    running = body.get("queue_running")
+    pending = body.get("queue_pending")
+    if not isinstance(running, list) or not isinstance(pending, list):
+        raise AcceptanceFailure(f"{label} did not contain queue_running/queue_pending lists")
+    counts = {"queue_running": len(running), "queue_pending": len(pending)}
+    if any(counts.values()):
+        raise AcceptanceFailure(f"{label} contains tasks owned by another run: {counts}")
+    return counts
+
+
+def require_sleeping(value: object, label: str) -> bool:
+    body = require_mapping(value, label)
+    sleeping = body.get("is_sleeping")
+    if not isinstance(sleeping, bool):
+        raise AcceptanceFailure(f"{label} did not return a boolean is_sleeping")
+    return sleeping
+
+
+async def command_verify_inputs(
+    _arguments: argparse.Namespace, evidence: RunEvidence
+) -> None:
+    expected, source = read_frozen_m6_script()
+    actual = read_utf8_file(M6_SCRIPT_PATH, "M6 script")
+    settings = runtime_settings()
+    evidence.add(
+        "frozen_m6_script",
+        path=str(M6_SCRIPT_PATH),
+        source=source,
+        actual_characters=len(actual),
+        actual_utf8_bytes=len(actual.encode("utf-8")),
+        actual_ends_with_lf=actual.endswith("\n"),
+        actual_ends_with_crlf=actual.endswith("\r\n"),
+        exact_match=actual == expected,
+        script_char_limit=settings.SCRIPT_CHAR_LIMIT,
+    )
+    evidence.add(
+        "m6_real_input_plan",
+        three_run_append_sentence=M6_APPEND_SENTENCE,
+        clip_targets=list(M6_CLIP_TARGETS),
+    )
+    if actual != expected:
+        raise AcceptanceFailure(
+            "backend/deployment/m6-script.txt does not exactly match C012 spec §6.1"
+        )
+    if len(actual) > settings.SCRIPT_CHAR_LIMIT:
+        raise AcceptanceFailure(
+            "M6 script exceeds the configured SCRIPT_CHAR_LIMIT: "
+            f"characters={len(actual)} limit={settings.SCRIPT_CHAR_LIMIT}"
+        )
+
+
+async def command_preflight(
+    _arguments: argparse.Namespace, evidence: RunEvidence
+) -> None:
+    raw_url, data_dir, identity = explicit_runtime()
+    settings = runtime_settings()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add(
+        "runtime_identity",
+        database_url=identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+    )
+    if database_identity["current_database"] != identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+
+    vllm_url = safe_service_url(str(settings.VLLM_BASE_URL), "VLLM_BASE_URL")
+    comfy_url = safe_service_url(str(settings.COMFY_BASE_URL), "COMFY_BASE_URL")
+    evidence.add(
+        "runtime_configuration",
+        vllm_base_url=vllm_url,
+        vllm_model=settings.VLLM_MODEL,
+        vllm_temperature=settings.VLLM_TEMPERATURE,
+        comfy_base_url=comfy_url,
+        script_char_limit=settings.SCRIPT_CHAR_LIMIT,
+        data_dir=str(data_dir),
+    )
+
+    binding_metadata, lora = binding_report()
+    evidence.add("workflow_bindings", **binding_metadata)
+
+    ports = listener_ports([vllm_url, comfy_url])
+    evidence.add("listener_ownership_before", **observe_windows_listeners(ports))
+
+    vllm_health = await real_http_request(vllm_url, "GET", "/health")
+    require_http_success(vllm_health, method="GET", url=f"{vllm_url}/health")
+    vllm_models = await real_http_request(vllm_url, "GET", "/v1/models")
+    models = require_http_success(
+        vllm_models, method="GET", url=f"{vllm_url}/v1/models"
+    )
+    model_ids = require_model_id(models, settings.VLLM_MODEL)
+    evidence.add(
+        "vllm_health_and_model",
+        health_status=vllm_health.status_code,
+        health_body=vllm_health.body,
+        models_status=vllm_models.status_code,
+        model_ids=model_ids,
+        configured_model=settings.VLLM_MODEL,
+    )
+
+    comfy_health = await real_http_request(comfy_url, "GET", "/system_stats")
+    require_http_success(
+        comfy_health, method="GET", url=f"{comfy_url}/system_stats"
+    )
+    object_info_response = await real_http_request(comfy_url, "GET", "/object_info")
+    object_info = require_http_success(
+        object_info_response, method="GET", url=f"{comfy_url}/object_info"
+    )
+    binding_nodes = binding_metadata["required_node_classes"]
+    object_info_summary = validate_object_info(
+        object_info,
+        binding_nodes=binding_nodes,
+        lora=lora,
+    )
+    queue_response = await real_http_request(comfy_url, "GET", "/queue")
+    queue = require_http_success(
+        queue_response, method="GET", url=f"{comfy_url}/queue"
+    )
+    queue_counts_before = require_queue_empty(queue, "Comfy /queue before preflight")
+    evidence.add(
+        "comfy_health_binding_queue",
+        health_status=comfy_health.status_code,
+        health_body=comfy_health.body,
+        object_info_status=object_info_response.status_code,
+        object_info_body=object_info,
+        object_info=object_info_summary,
+        queue_status=queue_response.status_code,
+        queue_body=queue,
+        queue_counts=queue_counts_before,
+    )
+
+    initial_sleep_response = await real_http_request(vllm_url, "GET", "/is_sleeping")
+    initial_sleeping = require_sleeping(
+        require_http_success(
+            initial_sleep_response,
+            method="GET",
+            url=f"{vllm_url}/is_sleeping",
+        ),
+        "vLLM /is_sleeping initial",
+    )
+    sleep_response = await real_http_request(
+        vllm_url, "POST", "/sleep", params={"level": 1}
+    )
+    require_http_success(sleep_response, method="POST", url=f"{vllm_url}/sleep?level=1")
+    after_sleep_response = await real_http_request(vllm_url, "GET", "/is_sleeping")
+    after_sleeping = require_sleeping(
+        require_http_success(
+            after_sleep_response,
+            method="GET",
+            url=f"{vllm_url}/is_sleeping",
+        ),
+        "vLLM /is_sleeping after level-1 sleep",
+    )
+    wake_response = await real_http_request(vllm_url, "POST", "/wake_up")
+    require_http_success(wake_response, method="POST", url=f"{vllm_url}/wake_up")
+    after_wake_response = await real_http_request(vllm_url, "GET", "/is_sleeping")
+    after_waking = require_sleeping(
+        require_http_success(
+            after_wake_response,
+            method="GET",
+            url=f"{vllm_url}/is_sleeping",
+        ),
+        "vLLM /is_sleeping after wake_up",
+    )
+    final_sleep_response = await real_http_request(
+        vllm_url, "POST", "/sleep", params={"level": 1}
+    )
+    require_http_success(
+        final_sleep_response, method="POST", url=f"{vllm_url}/sleep?level=1"
+    )
+    final_sleep_response = await real_http_request(vllm_url, "GET", "/is_sleeping")
+    final_sleeping = require_sleeping(
+        require_http_success(
+            final_sleep_response,
+            method="GET",
+            url=f"{vllm_url}/is_sleeping",
+        ),
+        "vLLM /is_sleeping final",
+    )
+    evidence.add(
+        "vllm_sleep_wake",
+        initial_sleeping=initial_sleeping,
+        after_level1_sleep=after_sleeping,
+        after_wake=after_waking,
+        final_sleeping=final_sleeping,
+        operations=[
+            "GET /is_sleeping",
+            "POST /sleep?level=1",
+            "GET /is_sleeping",
+            "POST /wake_up",
+            "GET /is_sleeping",
+            "POST /sleep?level=1",
+            "GET /is_sleeping",
+        ],
+    )
+    if not after_sleeping or after_waking or not final_sleeping:
+        raise AcceptanceFailure(
+            "vLLM sleep/wake state contract failed: "
+            f"initial={initial_sleeping} after_sleep={after_sleeping} "
+            f"after_wake={after_waking} final={final_sleeping}"
+        )
+
+    final_queue_response = await real_http_request(comfy_url, "GET", "/queue")
+    final_queue = require_http_success(
+        final_queue_response, method="GET", url=f"{comfy_url}/queue"
+    )
+    final_queue_counts = require_queue_empty(final_queue, "Comfy /queue after preflight")
+    evidence.add(
+        "preflight_final_state",
+        queue_counts=final_queue_counts,
+        queue_body=final_queue,
+        vllm_sleeping=final_sleeping,
+        listener_ownership_after=observe_windows_listeners(ports),
+        owned_processes_started=[],
+        owned_processes_stopped=[],
+    )
+
+
+async def command_observe(
+    _arguments: argparse.Namespace, evidence: RunEvidence
+) -> None:
+    raw_url, data_dir, identity = explicit_runtime()
+    settings = runtime_settings()
+    database_identity = await read_database_identity(raw_url)
+    if database_identity["current_database"] != identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+    tasks = await read_database_tasks(raw_url)
+    vllm_url = safe_service_url(str(settings.VLLM_BASE_URL), "VLLM_BASE_URL")
+    comfy_url = safe_service_url(str(settings.COMFY_BASE_URL), "COMFY_BASE_URL")
+    vllm_health = await real_http_request(vllm_url, "GET", "/health")
+    vllm_models = await real_http_request(vllm_url, "GET", "/v1/models")
+    vllm_sleeping = await real_http_request(vllm_url, "GET", "/is_sleeping")
+    comfy_health = await real_http_request(comfy_url, "GET", "/system_stats")
+    comfy_queue = await real_http_request(comfy_url, "GET", "/queue")
+    for method, base_url, path, result in (
+        ("GET", vllm_url, "/health", vllm_health),
+        ("GET", vllm_url, "/v1/models", vllm_models),
+        ("GET", vllm_url, "/is_sleeping", vllm_sleeping),
+        ("GET", comfy_url, "/system_stats", comfy_health),
+        ("GET", comfy_url, "/queue", comfy_queue),
+    ):
+        require_http_success(result, method=method, url=f"{base_url}{path}")
+    queue_counts = require_queue_empty(comfy_queue.body, "Comfy /queue observer")
+    sleeping = require_sleeping(vllm_sleeping.body, "vLLM /is_sleeping observer")
+    evidence.add(
+        "observer_contract",
+        http_methods=["GET"],
+        database_statements=[
+            "SELECT current_database(), current_user, inet_server_addr(), inet_server_port()",
+            "SELECT id,type,target_id,request_id,status,progress,error_msg,"
+            "cancel_requested_at,created_at,started_at,finished_at,payload FROM tasks ORDER BY id",
+        ],
+        database_mutations=[],
+        generation_replay=False,
+        task_count=len(tasks),
+    )
+    evidence.add(
+        "runtime_observation",
+        database_url=identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+        vllm={
+            "base_url": vllm_url,
+            "model": settings.VLLM_MODEL,
+            "health_status": vllm_health.status_code,
+            "health_body": vllm_health.body,
+            "models_status": vllm_models.status_code,
+            "models_body": vllm_models.body,
+            "is_sleeping": sleeping,
+        },
+        comfy={
+            "base_url": comfy_url,
+            "health_status": comfy_health.status_code,
+            "health_body": comfy_health.body,
+            "queue_status": comfy_queue.status_code,
+            "queue_counts": queue_counts,
+        },
+        tasks=tasks,
+        listener_ownership=observe_windows_listeners(
+            listener_ports([vllm_url, comfy_url])
+        ),
+    )
+
+
 async def command_locks(
     arguments: argparse.Namespace, evidence: RunEvidence
 ) -> None:
@@ -1340,6 +1997,19 @@ async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
         return
     if arguments.command == "ws":
         await command_ws(arguments, evidence)
+        return
+    if arguments.command == "verify-inputs":
+        await command_verify_inputs(arguments, evidence)
+        return
+    if arguments.command == "preflight":
+        if not arguments.real:
+            raise AcceptanceFailure("preflight requires --real")
+        await command_preflight(arguments, evidence)
+        return
+    if arguments.command == "observe":
+        if not arguments.real:
+            raise AcceptanceFailure("observe requires --real")
+        await command_observe(arguments, evidence)
         return
     raise AcceptanceFailure(
         f"C012 acceptance command {arguments.command!r} is reserved for its scheduled task"
