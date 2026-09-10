@@ -218,3 +218,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T24：未提交视频生成任务；`observe --real` exit 0，真实库仍为`ai_drama_studio_c012_m6_20260910`、DATA_DIR为`D:\ai_drama_studio\.work\c012\t21-m6-data`且队列为空。
 - 2026-09-10 C012 T25：task #11/#12 经正式 UI 分别生成 Clip #1/#2；真实 MP4 均可解码且 DB sha256、current take、REST/DB 槽位回读一致，`preflight --real`/`observe --real` exit 0。
 - 2026-09-10 C012 T25：独立只读核对 `DATA_DIR\tmp` file_count=0；AX 重渲染后额外空 Clip #3（shots 4–6、无 task/video）保留原状并单独留证，未删除或补生成。
+- 2026-09-10 C012 T22：按最新 AC-17 只读复核 task #1/#2/#3，第二次新增0、第三次最终新增0且原集合不变；task #3 原始模型响应缺失，task #4 完整采集仅证明该次模型漏提陈宁，边界见 `.work/c012/T22-reassessment.md`。
