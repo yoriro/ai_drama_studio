@@ -128,7 +128,7 @@
 
 ## C. 正式输入、部署与真实 M6
 
-- [ ] T17 整理四份批准模板为正式部署输入
+- [x] T17 整理四份批准模板为正式部署输入
   - 依赖：T16及spec外部依赖中的批准正文。交付：`backend/deployment/templates/`四个固定key的UTF-8 txt与`backend/deployment/README.md`批准来源说明；恢复C007单一zimage原文，逐字核对，不根据长度或spec概述重新创作。
   - R：R11；PRD §7、§11 M6、§12.2；AC-13。
   - 验收：人工逐字对照原批准正文与四文件，记录换行/末尾换行及来源；R `git diff -- backend/alembic backend/workflows`确认此task无迁移/workflow变化；缺原文保持阻塞，不提交伪造文件。模板部署驱动验收尚未到本task。
