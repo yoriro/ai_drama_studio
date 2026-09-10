@@ -612,7 +612,7 @@ Luna每个阶段必须向调用方提交报告：根因、改动文件/commit、
   - 2026-09-09调用修复授权：`T44-fixture-final-verify.log`已记录恢复后端漏传`DEBUG_PROMPTS=true`造成的正式verify失败。只修正自有后端启动调用，必须在子进程启动前同时恢复原`DATABASE_URL`、`DATA_DIR`、`DEBUG_PROMPTS=true`；不能仅向verify客户端传变量。保留失败输出与受影响记录，以新标签重新verify并补验依赖DEBUG的切片；其他真实草稿/错误/URL观测注明其实际环境，不冒称已满足DEBUG门槛。这类根因明确、保持既定配置的调用修复在当前任务内完成后继续，不要求用户再次许可；禁止无输入变化的重复试跑、业务mutation自动重放或修改生产/测试/校验断言。
   - 命令：带人工媒体fixture的新/恢复批次执行`python -X utf8 .work/c011/ui_fixture.py verify`（按既有显式环境）。首页无项目/设置无风格另用仅迁移空库和普通后端：运行现有`alembic upgrade head`、`alembic current`、`alembic check`，独立`SELECT current_database()`核对实际库名，正式`GET /api/projects`、`GET /api/styles`均精确`[]`，`GET /api/prompt-templates`仍含四固定key，再由真实浏览器观察空态和设置链接；按spec §10.7不对空库运行要求人工资产存在的verify，不另写驱动。任务逻辑定向`npm --prefix frontend run test -- src/features/tasks`可引用本轮同输入T42；真实浏览器逐页人工检查；`git diff --check`。不新跑G，后续T39统一运行顶部六探针与完整G。若当前装置不能提供必须的观测，向Astra报告具体缺格与能力，不自行伪造或造第二套装置。
 
-- [ ] **T45 失效连接重建前的收起详情缓存**
+- [x] **T45 失效连接重建前的收起详情缓存**
   - 依赖：T40–T44A已交付，当前T23失败；B16；AC-11/15，取消建缓存关联AC-12/13。本项→当前T23受影响重验→T44/T38/T39及其余退回项核对→Astra复审→T25→T26–T28。
   - R：无；PRD：§2.1(8)、§5任务、§6.1、§9、§11 M5；spec §6、§10.8。
   - 交付：生产范围仅`frontend/src/features/tasks/taskObservation.ts`，沿现有connect/详情状态边界失效旧连接的ready详情，显式展开经正式detail GET取得当前值；不自动读取所有收起任务、不增加持久缓存/版本字段/轮询、无mutation重放。新增独立`frontend/src/features/tasks/taskClosedDetailReconnect.test.tsx`；不修改已存在测试或Astra探针。

@@ -395,7 +395,7 @@ class TaskObservation implements TaskObservationController {
     this.refreshScheduled = false;
     const resetDetails = { ...this.state.taskDetails };
     for (const [taskId, detail] of Object.entries(resetDetails)) {
-      if (detail.phase === "loading") {
+      if (detail.phase === "loading" || detail.phase === "ready") {
         resetDetails[Number(taskId)] = {
           phase: "idle",
           task: null,

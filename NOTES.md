@@ -184,3 +184,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-09 C011 T23 官方入队#144/#145后真实页面取消与屏障放行终态均与独立DB读回一致；服务显式shutdown退出码0，四个验收端口无监听，证据见`T23-current-browser-20260909.log`与`T23-cleanup-20260909.log`。
 - 2026-09-09 C011 T24 当前主题定向套件13 tests、Director套件72 tests均exit 0，reduced-motion源码审计记录动态媒体响应未验证，证据见`.work/c011/T24-final-revalidation-20260909.log`与`T24-reduced-motion-static-audit-20260909.log`。
 - 2026-09-09 C011 T25 基线审计确认`backend/app`、`backend/alembic`、`backend/workflows`相对`1ef70e5d5fad245d6e38e1472eaa16ffb523aa59`无diff，AC合同31条、C011主追溯17行，证据见`.work/c011/T25-final-scope-audit-20260909.log`。
+- 2026-09-10 C011 T45：`taskObservation.ts`在连接/过滤重建时将旧ready详情置为idle；独立回归覆盖断线、过滤、取消确认目标与当前展开任务，定向3 tests/3 passed，证据见`.work/c011/T45-targeted-test-final-20260910.log`。
+- 2026-09-10 C011 T45：前端全量34 files/174 tests、build 68 modules、git diff check均exit 0；修复前3项B16断言失败保留于`.work/c011/T45-pre-fix-red-20260910.log`。
+- 2026-09-10 C011 T45：Astra七发探针、runtime/template两批及closed-detail批次均RESULT PASS/exit 0，精确文件名见`.work/c011/probe-runtime-20260910_102734_25900.log`、`.work/c011/probe-template-contract-20260910_102734_20260.log`与对应probe日志。
