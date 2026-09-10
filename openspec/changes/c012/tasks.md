@@ -98,7 +98,7 @@
 
 ## B. 慢客户端保护与阶段回归
 
-- [ ] T13 实现有界订阅及溢出通知
+- [x] T13 实现有界订阅及溢出通知
   - 依赖：T12。交付：`tasks/events.py`的256容量、溢出注销/owner通知，健康发布顺序及非阻塞不变；新增`backend/tests/task_system/test_c012_event_bus.py`。沿用既有EventBus，不加第二通道或事件表。
   - R：无；PRD §5任务、§6.1/6.4；AC-10。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_event_bus.py`；发布256/257、两个订阅、重复unsubscribe、无QueueFull泄漏与无业务回放逐项精确断言。

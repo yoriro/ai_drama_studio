@@ -49,23 +49,33 @@ class EventBus:
 
     def __init__(self) -> None:
         self._subscribers: set[asyncio.Queue[dict[str, object]]] = set()
+        self._overflow_events: dict[
+            asyncio.Queue[dict[str, object]], asyncio.Event
+        ] = {}
 
-    def subscribe_queue(self) -> asyncio.Queue[dict[str, object]]:
+    def subscribe_queue(
+        self, *, overflow_event: asyncio.Event | None = None
+    ) -> asyncio.Queue[dict[str, object]]:
         """Create and register a queue for future events."""
 
-        queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=256)
         self._subscribers.add(queue)
+        if overflow_event is not None:
+            self._overflow_events[queue] = overflow_event
         return queue
 
-    def subscribe(self) -> asyncio.Queue[dict[str, object]]:
+    def subscribe(
+        self, *, overflow_event: asyncio.Event | None = None
+    ) -> asyncio.Queue[dict[str, object]]:
         """Readable alias for ``subscribe_queue`` for transport adapters."""
 
-        return self.subscribe_queue()
+        return self.subscribe_queue(overflow_event=overflow_event)
 
     def unsubscribe(self, queue: asyncio.Queue[dict[str, object]]) -> None:
         """Stop delivery to a previously subscribed queue."""
 
         self._subscribers.discard(queue)
+        self._overflow_events.pop(queue, None)
 
     @property
     def subscriber_count(self) -> int:
@@ -78,4 +88,10 @@ class EventBus:
 
         payload = event.as_dict() if isinstance(event, TaskEvent) else dict(event)
         for queue in tuple(self._subscribers):
-            queue.put_nowait(dict(payload))
+            try:
+                queue.put_nowait(dict(payload))
+            except asyncio.QueueFull:
+                self._subscribers.discard(queue)
+                overflow_event = self._overflow_events.pop(queue, None)
+                if overflow_event is not None:
+                    overflow_event.set()
