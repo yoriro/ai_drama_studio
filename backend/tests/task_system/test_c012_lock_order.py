@@ -18,9 +18,11 @@ from app.db.session import engine
 from app.integrations.workflow_binding import load_minimax_binding_snapshot
 from app.services.asset_files import asset_image_relative_path
 from app.schemas.assets import AssetPatch
+from app.schemas.shots import ShotPatch
 from app.services.clip_video_commit import commit_generated_clip_video
 from app.services.assets import delete_asset, set_current_asset_image, update_asset
 from app.services.generate_clip_video import enqueue_generate_clip_video
+from app.services.shots import update_shot
 from app.services.video_files import temporary_clip_video_path
 from app.tasks.gen_clip_video import GeneratedClipVideo
 from app.tasks.queue import ClaimedTask, TaskQueue
@@ -698,6 +700,134 @@ async def _assert_l2(data_dir: Path) -> None:
                     await _cleanup_fixture(fixture)
 
 
+async def _read_l3_state(fixture: dict[str, object]) -> dict[str, object]:
+    connection = await asyncpg.connect(_database_url())
+    try:
+        shot = await connection.fetchrow(
+            "SELECT status, revision, description FROM shots WHERE id = $1",
+            fixture["shot_ids"][0],
+        )
+        assets = await connection.fetch(
+            "SELECT asset_id FROM shot_assets WHERE shot_id = $1 ORDER BY asset_id",
+            fixture["shot_ids"][0],
+        )
+        clip = await connection.fetchrow(
+            "SELECT freshness FROM clips WHERE id = $1", fixture["clip_id"]
+        )
+        videos = await connection.fetch(
+            "SELECT id, is_current FROM clip_videos WHERE clip_id = $1",
+            fixture["clip_id"],
+        )
+        tasks = await connection.fetch(
+            "SELECT status FROM tasks WHERE target_id = $1 AND type = 'gen_clip_video'",
+            fixture["clip_id"],
+        )
+        assert shot is not None and clip is not None
+        return {
+            "shot": dict(shot),
+            "assets": [int(row[0]) for row in assets],
+            "clip": dict(clip),
+            "videos": [dict(video) for video in videos],
+            "tasks": [dict(task) for task in tasks],
+        }
+    finally:
+        await connection.close()
+
+
+async def _run_l3_variant(
+    fixture: dict[str, object],
+    data_dir: Path,
+    *,
+    operation: str,
+    first: str,
+) -> None:
+    task = await _insert_commit_task(fixture)
+    temp_path = temporary_clip_video_path(data_dir, task.id)
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path.write_bytes(_video_bytes())
+    label = f"c012-l3-{uuid4().hex[:12]}"
+
+    async def commit_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-commit")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                return await commit_generated_clip_video(
+                    session,
+                    TaskQueue(),
+                    task,
+                    GeneratedClipVideo(temp_path, "C012 L3 prompt"),
+                    data_dir=data_dir,
+                )
+        finally:
+            await connection.close()
+
+    async def mutation_worker() -> object:
+        connection = await _open_operation_connection(f"{label}-mutation")
+        try:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                if operation == "text":
+                    return await update_shot(
+                        session,
+                        int(fixture["shot_ids"][0]),
+                        ShotPatch(description="C012 L3 文本修改"),
+                    )
+                return await update_shot(
+                    session,
+                    int(fixture["shot_ids"][0]),
+                    ShotPatch(asset_ids=[int(fixture["scene_id"])]),
+                )
+        finally:
+            await connection.close()
+
+    if first == "mutation":
+        mutation_task = asyncio.create_task(mutation_worker())
+        await asyncio.sleep(0)
+        commit_task = asyncio.create_task(commit_worker())
+    else:
+        commit_task = asyncio.create_task(commit_worker())
+        await asyncio.sleep(0)
+        mutation_task = asyncio.create_task(mutation_worker())
+    results = await asyncio.wait_for(
+        asyncio.gather(commit_task, mutation_task, return_exceptions=True),
+        timeout=10,
+    )
+    errors = [repr(result) for result in results if isinstance(result, BaseException)]
+    state = await _read_l3_state(fixture)
+    if errors:
+        pytest.fail(
+            f"C012 L3 {operation}/{first} failed: errors={errors}; "
+            f"state={json.dumps(state, ensure_ascii=False, default=str)}"
+        )
+    assert state["shot"]["revision"] == 2
+    assert state["shot"]["status"] == "changed"
+    assert state["shot"]["description"] == (
+        "C012 L3 文本修改" if operation == "text" else "锁测入门"
+    )
+    assert state["assets"] == (
+        [int(fixture["character_id"]), int(fixture["scene_id"])]
+        if operation == "text"
+        else [int(fixture["scene_id"])]
+    )
+    assert state["clip"]["freshness"] == "stale"
+    assert len(state["videos"]) == 1
+    assert state["tasks"] == [{"status": "done"}]
+
+
+async def _assert_l3(data_dir: Path) -> None:
+    for operation in ("text", "binding"):
+        for first in ("mutation", "commit"):
+            fixture = await _create_fixture(data_dir)
+            try:
+                await _run_l3_variant(
+                    fixture,
+                    data_dir,
+                    operation=operation,
+                    first=first,
+                )
+            finally:
+                await _cleanup_fixture(fixture)
+
+
 @pytest.mark.parametrize("lock_case", LOCK_CASES, ids=LOCK_CASES)
 def test_c012_lock_order(
     lock_case: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -707,6 +837,9 @@ def test_c012_lock_order(
     async def run() -> None:
         if lock_case == "L2":
             await _assert_l2(tmp_path)
+            return
+        if lock_case == "L3":
+            await _assert_l3(tmp_path)
             return
         fixture = await _create_fixture(tmp_path)
         try:

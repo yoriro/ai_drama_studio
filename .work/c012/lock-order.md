@@ -21,8 +21,8 @@ read again after the lock.
 | L1 | `commit_generated_clip_video` | Task → Episode → Asset (ascending id) → Shot (ascending id) → Clip → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | Baseline Clip → Shot → Asset; T04 source order now follows the common order |
 | L2 | asset edit/current/delete | candidate Episode locks → Asset → current dependent Shots → current dependent Clips → AssetImage/media (`backend/app/services/assets.py:49-181`, `207-232`, `422-454`, `481-521`); slot-only assets omit Shots | T05 uses the same order for shot-bound and slot-only assets; locked relationships are re-read before dependent updates |
 | L2 | video commit | Task → Episode → Asset → Shot → Clip → ClipVideo (`backend/app/services/clip_video_commit.py:214-272`) | T04 removed the reverse source edge |
-| L3 | shot text/binding edit | Episode → Shot → Asset → dependent Clip update (`backend/app/services/shots.py:69-147`) | Shot → Asset against commit's Clip → Shot → Asset |
-| L3 | video commit | Task → Clip → Shot → Asset (`backend/app/services/clip_video_commit.py:214-272`) | Clip → Shot |
+| L3 | shot text/binding edit | candidate current/requested Assets → Episode → Asset (ascending id) → Shot → related Clips (`backend/app/services/shots.py:69-176`) | T06 re-reads the current ShotAsset rows after parent locks before applying binding changes |
+| L3 | video commit | Task → Episode → Asset → Shot → Clip (`backend/app/services/clip_video_commit.py:214-272`) | both paths now share the source-row order |
 | L4 | clip create/slot/delete | create selection locks Episode/Shot/Asset and then relation/Clip rows (`backend/app/services/clips.py:206-285`, `353-435`); delete locks Clip, relation rows, Shot, slots, and videos (`backend/app/services/clips.py:884-990`) | relation and source-row order differs by entry point |
 | L4 | source mutation | shot/asset operations lock their source rows before dependent Clip updates | the same Clip/Shot/Asset cycle can be reached through a slot-only asset |
 | L5 | `gen_shots` replacement | Episode → Shot → Clip → ClipVideo/slot override, then output Assets (`backend/app/tasks/gen_shots.py:155-235`, `253-273`) | API edits can acquire Asset/Shot/Clip in the opposite order |
@@ -82,3 +82,12 @@ revision/slot result.  The existing C009 enqueue-lock regression completed 13
 tests.  Raw evidence is `.work/c012/T05-L2.stdout.log`,
 `.work/c012/T05-C009.stdout.log`, and the L2 event in
 `.work/c012/locks-acceptance.json`.
+
+## T06 result
+
+`backend/app/services/shots.py` now discovers current and requested asset IDs
+without locks, then locks the Episode, Assets, Shot, and related Clips in
+ascending order.  Text and binding edits were each interleaved with the real
+video commit in both start directions; the resulting Shot was revision
+2/changed, the Clip stale, and one committed take remained.  Raw evidence is
+`.work/c012/T06-L3.stdout.log`.

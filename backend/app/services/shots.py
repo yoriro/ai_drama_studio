@@ -77,12 +77,47 @@ async def update_shot(
         if identity is None:
             raise _shot_not_found()
 
+        current_asset_result = await session.execute(
+            select(ShotAsset.asset_id)
+            .where(ShotAsset.shot_id == shot_id)
+            .order_by(ShotAsset.asset_id)
+        )
+        current_asset_ids = {
+            int(row[0]) for row in current_asset_result.all()
+        }
+        requested_asset_ids = payload.asset_ids
+        candidate_asset_ids = current_asset_ids | (
+            set(requested_asset_ids) if requested_asset_ids is not None else set()
+        )
+
         episode_result = await session.execute(
             select(Episode).where(Episode.id == identity.episode_id).with_for_update()
         )
         episode = episode_result.scalar_one_or_none()
         if episode is None:
             raise _shot_not_found()
+
+        assets: list[Asset] = []
+        if candidate_asset_ids:
+            asset_result = await session.execute(
+                select(Asset)
+                .where(
+                    Asset.id.in_(sorted(candidate_asset_ids)),
+                    Asset.project_id == episode.project_id,
+                    Asset.type.in_(_VISIBLE_ASSET_TYPES),
+                )
+                .order_by(Asset.id)
+                .with_for_update()
+            )
+            assets = list(asset_result.scalars().all())
+            if requested_asset_ids is not None and len(assets) != len(
+                candidate_asset_ids
+            ):
+                raise _asset_validation_error()
+            if requested_asset_ids is None and len(assets) != len(
+                current_asset_ids
+            ):
+                raise _asset_validation_error()
 
         result = await session.execute(
             select(Shot).where(Shot.id == shot_id).with_for_update()
@@ -91,20 +126,32 @@ async def update_shot(
         if shot is None:
             raise _shot_not_found()
 
-        requested_asset_ids = payload.asset_ids
-        if requested_asset_ids is not None:
-            asset_result = await session.execute(
-                select(Asset)
-                .where(
-                    Asset.id.in_(requested_asset_ids),
-                    Asset.project_id == episode.project_id,
-                    Asset.type.in_(_VISIBLE_ASSET_TYPES),
-                )
+        clip_result = await session.execute(
+            select(ClipShot.clip_id)
+            .where(ClipShot.shot_id == shot.id)
+            .order_by(ClipShot.clip_id)
+        )
+        clip_ids = sorted({int(row[0]) for row in clip_result.all()})
+        if clip_ids:
+            await session.execute(
+                select(Clip)
+                .where(Clip.id.in_(clip_ids))
+                .order_by(Clip.id)
                 .with_for_update()
             )
-            assets = list(asset_result.scalars().all())
-            if len(assets) != len(requested_asset_ids):
-                raise _asset_validation_error()
+
+        locked_asset_result = await session.execute(
+            select(ShotAsset.asset_id)
+            .where(ShotAsset.shot_id == shot.id)
+            .order_by(ShotAsset.asset_id)
+        )
+        locked_current_asset_ids = {
+            int(row[0]) for row in locked_asset_result.all()
+        }
+        if requested_asset_ids is not None and locked_current_asset_ids != set(
+            requested_asset_ids
+        ):
+            current_asset_ids = locked_current_asset_ids
 
         changed = False
         for field in ("shot_type", "camera", "description", "dialogue"):
@@ -115,13 +162,7 @@ async def update_shot(
                     changed = True
 
         if requested_asset_ids is not None:
-            current_result = await session.execute(
-                select(ShotAsset.asset_id)
-                .where(ShotAsset.shot_id == shot.id)
-                .order_by(ShotAsset.asset_id)
-            )
-            current_asset_ids = [row[0] for row in current_result.all()]
-            if set(current_asset_ids) != set(requested_asset_ids):
+            if current_asset_ids != set(requested_asset_ids):
                 await session.execute(
                     delete(ShotAsset).where(ShotAsset.shot_id == shot.id)
                 )
@@ -133,10 +174,6 @@ async def update_shot(
             shot.revision += 1
             shot.status = "changed"
             shot.updated_at = datetime.now(timezone.utc)
-            clip_result = await session.execute(
-                select(ClipShot.clip_id).where(ClipShot.shot_id == shot.id)
-            )
-            clip_ids = [row[0] for row in clip_result.all()]
             if clip_ids:
                 await session.execute(
                     update(Clip)
