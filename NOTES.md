@@ -244,3 +244,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-11 C012 T45：CLI参数、JSONB字符串读取、PostgreSQL`datconfig`/只读恢复和临时目录时点的失败证据分别保留在`.work/c012/T45-recovery-lifecycle-failure-01.*`至`failure-04.*`与`pass-01.*`。
 - 2026-09-11 C012 T46：新隔离库`ai_drama_studio_c012_t46_20260911`的指定恢复回归为`11 passed in 1.42s`、exit 0；四个新增worker恢复用例与原四个C012恢复用例、`test_task_queue.py`一并执行。
 - 2026-09-11 C012 T46：`recovery --case lifecycle` exit 0；running/queued重启、自然advisory拒绝、单一generated资产、只读数据库heartbeat不变与最终临时目录不存在均在`.work/c012/T46-recovery-acceptance.json`记录。
+- 2026-09-11 C012 T47：只读比较当前`minimaxh3.txt`与D-014/C009下载批准源，14245/13248 UTF-8 bytes、92/113行、SHA-256不同；完整`git diff --no-index`及退出码1见`.work/c012/T47-candidate-approved-diff.*`。
+- 2026-09-11 C012 T47：直接回读同库`ai_drama_studio_c012_m6_20260910`显示四key非占位且minimaxh3仍为批准源；未部署、未重启验证、未新调用模型或生成任务，T47/AC-26保持阻塞。

@@ -399,6 +399,9 @@
   - 验收：B `python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deployment/templates --mode verify` 两次均0（正式安装后/安全重启后）；精确四key/正文与批准输入、DB/DATA_DIR身份、实际消费源相符。运行地址现场核实；真实模型/Comfy按既有§6.3批准边界且独占，无其他任务时才操作；遇产品取舍保持阻塞而非循环抽取或覆盖模板。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位；C012 MiniMax 模板动作与逐镜保真。
+  - 2026-09-11只读核对：当前候选 `backend/deployment/templates/minimaxh3.txt` 为 14245 bytes/92 行、SHA-256 `3bebbc2f0412610b465acd623aa89a79342f9d994e78723582092e022ebbdb9d`；D-014/C009 指定来源 `C:\Users\Administrator\Downloads\minimaxh3-流水线适配版模板.md` 为 13248 bytes/113 行、SHA-256 `e2a1638cf13e2853a263ebe7db383d2c7ce222780bc4a937ca38845c48d63f7a`。`git diff --no-index --unified=3` exit 1，完整差异保留于 `.work/c012/T47-candidate-approved-diff.stdout.log`，stderr/exit 同名文件；未以长度或摘要替代逐字比较。
+  - 运行库只读回读实际为 `ai_drama_studio_c012_m6_20260910`、`127.0.0.1:5432`：四个 key 均非占位；运行库 `minimaxh3` 为 13248 bytes、SHA-256 `e2a1638cf13e2853a263ebe7db383d2c7ce222780bc4a937ca38845c48d63f7a`，其余三 key 与当前三份部署输入的 SHA-256 一致。T21 的同库/DATA_DIR 重启回读仍记录四 key 精确、无占位、verify 零 PATCH；完整本次数据库原始回读见 `.work/c012/T47-runtime-template-readback.stdout.log`，摘要见 `.work/c012/T47-read-only-summary.stdout.log`及stderr/exit。
+  - `T26C-clip2-20260911_122039` 原始 prompt/request/response/checks 只读核对为 model=`Qwen3-30B-A3B-Instruct-2507-AWQ-4bit`、temperature=`0.2`、`template_matches_request=true`、`raw_response_unchanged=true`、结构/映射/英文检查为 true；`video_generated=false`。本次 T47 未运行 install、重启后 verify、新模型调用或新生成任务。批准正文与当前候选的差异没有得到新的明确批准，故 T47/AC-26 仍阻塞，不自动部署或覆盖运行库。
 
 - [ ] T48 核查准确用例ID、修复证据与旧任务状态（B7）
   - 依赖：T37–T46，T47的实际状态已记录。交付：核对本轮文档已补的14个准确ID，再逐条追加新增回归真实nodeid/参数；逐条将B1–B7映射到修复commit/原始输出/AC，按各修复任务恢复旧checkbox；失败/未运行保持未勾选，T26裁决不撤销。
