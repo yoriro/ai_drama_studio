@@ -234,7 +234,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 M6 错误与敌意输入回归。
 
-- [ ] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
+- [x] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
   - 依赖：T28、T02A。交付：新增`backend/tests/task_system/test_c012_recovery.py`，真实应用进程/DB/文件；queued/running取消与成功竞争、心跳错误/DB不可用时的真实限制、同库重启和第二实例拒绝。不加入心跳重试或伪造failed。
   - R：无；PRD §3.2、§6.1、§6.4、§11 M6；AC-22。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_recovery.py`；R `python -X utf8 .work/c012/acceptance.py recovery`。确定性进程屏障验证running→failed、queued保留/claim一次、副作用一次、advisory锁释放/拒绝、temp与连接退出；只使用本轮owned隔离进程。
