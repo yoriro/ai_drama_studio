@@ -262,7 +262,7 @@
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [ ] T33 G2 最终完整回归与最终输入归属
+- [x] T33 G2 最终完整回归与最终输入归属
   - 依赖：T32。交付：最终实现、测试、依赖、装置与配置的完整回归证据；若与G1相应输入完全相同，按AGENTS逐套引用实际原始结果，后加测试/部署驱动对应套件必须更新。真实M6专项失败不能用G2覆盖。
   - R：R1–R12（含R5a，回归覆盖）；PRD §3、§6、§7、§11 M6；AC-25。
   - 验收：在新隔离回归库B `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；R `npm.cmd --prefix frontend run test`、`npm.cmd --prefix frontend run build`、`git diff --check`；原始exit全部0，记录实际数量与受测commit，不固定348/174，媒体示范库不参与pytest。
