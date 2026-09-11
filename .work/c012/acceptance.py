@@ -28,7 +28,7 @@ import tempfile
 import threading
 import time
 from typing import Any, Mapping, Sequence
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 from uuid import uuid4
 
 import asyncpg
@@ -419,12 +419,26 @@ def stop_process(process: subprocess.Popen[bytes], timeout: float = 10.0) -> Chi
     if termination_requested:
         process.terminate()
     timed_out = False
-    try:
-        stdout, stderr = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        process.kill()
-        stdout, stderr = process.communicate()
+    drain_state = getattr(process, "_c012_drain_state", None)
+    if drain_state is None:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            process.kill()
+            stdout, stderr = process.communicate()
+    else:
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            process.kill()
+            process.wait()
+        stdout_buffer, stderr_buffer, stdout_thread, stderr_thread = drain_state
+        stdout_thread.join(timeout=1.0)
+        stderr_thread.join(timeout=1.0)
+        stdout = bytes(stdout_buffer)
+        stderr = bytes(stderr_buffer)
     return ChildResult(
         command=tuple(str(part) for part in process.args),
         returncode=process.returncode,
@@ -466,6 +480,15 @@ class HealthStubHandler(BaseHTTPRequestHandler):
                     prompt_id: {
                         "status": {"status_str": "success"},
                         "outputs": {
+                            "9": {
+                                "images": [
+                                    {
+                                        "filename": "controlled.png",
+                                        "subfolder": "",
+                                        "type": "output",
+                                    }
+                                ]
+                            },
                             "168": {
                                 "gifs": [
                                     {
@@ -753,6 +776,16 @@ def controlled_mp4_bytes() -> bytes:
     return output.getvalue()
 
 
+def controlled_png_bytes() -> bytes:
+    """Create one legal, deterministic offline image for the controlled path."""
+
+    from PIL import Image
+
+    output = io.BytesIO()
+    Image.new("RGB", (320, 180), (160, 64, 32)).save(output, format="PNG")
+    return output.getvalue()
+
+
 class ControlledComfyStub:
     """A local HTTP/WebSocket Comfy boundary for the real worker path."""
 
@@ -761,9 +794,12 @@ class ControlledComfyStub:
     def __init__(self, *, response_mode: str = "empty") -> None:
         self.server: asyncio.AbstractServer | None = None
         self.video = controlled_mp4_bytes()
+        self.image = controlled_png_bytes()
         self.upload_count = 0
         self.response_mode = response_mode
         self.chat_observations: list[dict[str, object]] = []
+        self.http_observations: list[dict[str, object]] = []
+        self.model_errors: list[dict[str, object]] = []
 
     @property
     def base_url(self) -> str:
@@ -817,10 +853,7 @@ class ControlledComfyStub:
             writer.close()
         finally:
             if not is_websocket:
-                try:
-                    await writer.wait_closed()
-                except ConnectionError:
-                    pass
+                writer.close()
 
     async def _handle_http(
         self,
@@ -830,6 +863,18 @@ class ControlledComfyStub:
         writer: asyncio.StreamWriter,
     ) -> None:
         path = urlsplit(raw_path).path
+        request_observation: dict[str, object] = {
+            "method": method,
+            "path": path,
+            "body_bytes": len(body),
+            "body_sha256": hashlib.sha256(body).hexdigest(),
+        }
+        if body:
+            try:
+                request_observation["json"] = json.loads(body)
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                pass
+        self.http_observations.append(request_observation)
         payload: object
         status = 200
         content_type = "application/json"
@@ -853,6 +898,15 @@ class ControlledComfyStub:
                     prompt_id: {
                         "status": {"status_str": "success"},
                         "outputs": {
+                            "9": {
+                                "images": [
+                                    {
+                                        "filename": "controlled.png",
+                                        "subfolder": "",
+                                        "type": "output",
+                                    }
+                                ]
+                            },
                             "168": {
                                 "gifs": [
                                     {
@@ -868,8 +922,14 @@ class ControlledComfyStub:
                 }
             ).encode("utf-8")
         elif method == "GET" and path == "/view":
-            content_type = "video/mp4"
-            response_body = self.video
+            query = parse_qs(urlsplit(raw_path).query)
+            filename = query.get("filename", [""])[0]
+            if filename.endswith(".mp4"):
+                content_type = "video/mp4"
+                response_body = self.video
+            else:
+                content_type = "image/png"
+                response_body = self.image
         elif method == "POST" and path == "/prompt":
             try:
                 request_body = json.loads(body or b"{}")
@@ -895,7 +955,17 @@ class ControlledComfyStub:
             json_schema = response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
             schema_name = json_schema.get("name") if isinstance(json_schema, dict) else None
             if schema_name == "script2assets":
-                model_content = self._model_content(request_body, schema_name)
+                try:
+                    model_content = self._model_content(request_body, schema_name)
+                except ValueError as exc:
+                    self.model_errors.append(
+                        {
+                            "schema_name": schema_name,
+                            "error": str(exc),
+                            "request": request_body,
+                        }
+                    )
+                    raise
             elif schema_name == "script2shots":
                 model_content = self._model_content(request_body, schema_name)
             else:
@@ -931,7 +1001,19 @@ class ControlledComfyStub:
         else:
             status = 404
             response_body = b'{"detail":"controlled route not provided"}'
+        request_observation.update(
+            {
+                "raw_path": raw_path,
+                "response_status": status,
+                "response_content_type": content_type,
+                "response_body_bytes": len(response_body),
+                "response_body_sha256": hashlib.sha256(response_body).hexdigest(),
+                "response_body_prefix_hex": response_body[:16].hex(),
+                "response_prepared": True,
+            }
+        )
         await self._write_http_response(writer, status, content_type, response_body)
+        request_observation["response_sent"] = True
 
     def _model_content(
         self,
@@ -957,6 +1039,8 @@ class ControlledComfyStub:
                     raise ValueError("T27 browser assets prompt snapshot header is incomplete")
                 content = content[line_end + 1 :]
             content = content.lstrip()
+            if content.startswith("existing="):
+                content = content[len("existing=") :]
             try:
                 existing_assets, _end = json.JSONDecoder().raw_decode(content)
             except json.JSONDecodeError as exc:
@@ -3802,9 +3886,15 @@ async def cascade_cleanup_fixture(raw_url: str, fixture: Mapping[str, object]) -
     connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
     try:
         project_id = int(fixture["project_id"])
+        task_targets = [
+            int(fixture["edit_episode_id"]),
+            int(fixture["generation_episode_id"]),
+            int(fixture["success_clip_id"]),
+            *[int(asset_id) for asset_id in fixture["asset_ids"]],
+        ]
         await connection.execute(
-            "DELETE FROM tasks WHERE target_id IN ($1, $2, $3)",
-            fixture["edit_episode_id"], fixture["generation_episode_id"], fixture["success_clip_id"],
+            "DELETE FROM tasks WHERE target_id = ANY($1::integer[])",
+            task_targets,
         )
         for table, predicate in (
             ("clip_shots", "clip_id IN (SELECT id FROM clips WHERE episode_id IN (SELECT id FROM episodes WHERE project_id = $1))"),
@@ -3820,6 +3910,39 @@ async def cascade_cleanup_fixture(raw_url: str, fixture: Mapping[str, object]) -
         await connection.execute("DELETE FROM episodes WHERE project_id = $1", project_id)
         await connection.execute("DELETE FROM projects WHERE id = $1", project_id)
         await connection.execute("DELETE FROM styles WHERE id = $1", fixture["style_id"])
+    finally:
+        await connection.close()
+
+
+async def cascade_cache_seed_current_image(
+    raw_url: str, fixture: Mapping[str, object], runtime_dir: Path
+) -> None:
+    from app.services.asset_files import asset_image_relative_path
+
+    asset_id = int(fixture["asset_ids"][0])
+    project_id = int(fixture["project_id"])
+    image_bytes = controlled_png_bytes()
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    try:
+        async with connection.transaction():
+            image_id = await connection.fetchval(
+                "INSERT INTO asset_images "
+                "(asset_id, file_path, sha256, source, is_current) "
+                "VALUES ($1, 'pending', $2, 'uploaded', true) RETURNING id",
+                asset_id,
+                hashlib.sha256(image_bytes).hexdigest(),
+            )
+            relative_path = asset_image_relative_path(
+                project_id, asset_id, int(image_id), "png"
+            )
+            image_path = runtime_dir / relative_path
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            image_path.write_bytes(image_bytes)
+            await connection.execute(
+                "UPDATE asset_images SET file_path = $1 WHERE id = $2",
+                relative_path.as_posix(),
+                image_id,
+            )
     finally:
         await connection.close()
 
@@ -3843,6 +3966,433 @@ async def cascade_wait_task(client: httpx.AsyncClient, base_url: str, task_id: i
             return dict(observation.body)
         await asyncio.sleep(0.1)
     raise AcceptanceFailure(f"task {task_id} did not reach a terminal state")
+
+
+def _cascade_json_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _cascade_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_cascade_json_value(item) for item in value]
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise AcceptanceFailure(
+        f"cascade cache readback encountered a non-JSON database value: {type(value).__name__}"
+    )
+
+
+def _cascade_task_payload(value: object) -> dict[str, object]:
+    if not isinstance(value, str):
+        raise AcceptanceFailure(
+            f"cascade cache task payload is not JSON text: {type(value).__name__}"
+        )
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise AcceptanceFailure("cascade cache task payload is invalid JSON") from exc
+    if not isinstance(decoded, dict):
+        raise AcceptanceFailure("cascade cache task payload is not an object")
+    return decoded
+
+
+def _cascade_file_observation(runtime_dir: Path, relative_path: object) -> dict[str, object]:
+    if not isinstance(relative_path, str) or not relative_path:
+        raise AcceptanceFailure(f"cascade cache file path is invalid: {relative_path!r}")
+    path = (runtime_dir / Path(relative_path)).resolve()
+    root = runtime_dir.resolve()
+    if path != root and root not in path.parents:
+        raise AcceptanceFailure(f"cascade cache file path escaped fixture: {path}")
+    exists = path.is_file()
+    content = path.read_bytes() if exists else b""
+    return {
+        "path": str(path),
+        "relative_path": relative_path,
+        "exists": exists,
+        "bytes": len(content),
+        "sha256": hashlib.sha256(content).hexdigest() if exists else None,
+    }
+
+
+async def cascade_cache_read_state(
+    raw_url: str,
+    fixture: Mapping[str, object],
+    runtime_dir: Path,
+) -> dict[str, object]:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
+    episode_ids = [
+        int(fixture["edit_episode_id"]),
+        int(fixture["generation_episode_id"]),
+    ]
+    asset_ids = [int(asset_id) for asset_id in fixture["asset_ids"]]
+    clip_ids = [
+        int(fixture["clip_id"]),
+        int(fixture["success_clip_id"]),
+    ]
+    target_ids = [*episode_ids, *asset_ids, *clip_ids]
+    try:
+        style_row = await connection.fetchrow(
+            "SELECT id, name, prompt_fragment FROM styles WHERE id = $1",
+            int(fixture["style_id"]),
+        )
+        template_rows = await connection.fetch(
+            "SELECT key, content FROM prompt_templates ORDER BY key"
+        )
+        episode_rows = await connection.fetch(
+            "SELECT id, seq, script_text, script_revision, "
+            "assets_generated_script_revision, shots_generated_script_revision "
+            "FROM episodes WHERE id = ANY($1::integer[]) ORDER BY id",
+            episode_ids,
+        )
+        asset_rows = await connection.fetch(
+            "SELECT id, type, name, description, source, revision, "
+            "image_prompt_cache, image_prompt_hash "
+            "FROM assets WHERE project_id = $1 ORDER BY id",
+            int(fixture["project_id"]),
+        )
+        image_rows = await connection.fetch(
+            "SELECT id, asset_id, file_path, sha256, seed, source, is_current, "
+            "built_prompt, input_hash, input_snapshot, user_note "
+            "FROM asset_images WHERE asset_id = ANY($1::integer[]) ORDER BY id",
+            asset_ids,
+        )
+        shot_rows = await connection.fetch(
+            "SELECT id, episode_id, order_index, duration_est, shot_type, camera, "
+            "description, dialogue, status, revision "
+            "FROM shots WHERE episode_id = ANY($1::integer[]) ORDER BY id",
+            episode_ids,
+        )
+        shot_ids = [int(row["id"]) for row in shot_rows]
+        shot_asset_rows = await connection.fetch(
+            "SELECT shot_id, asset_id FROM shot_assets "
+            "WHERE shot_id = ANY($1::integer[]) ORDER BY shot_id, asset_id",
+            shot_ids,
+        )
+        clip_rows = await connection.fetch(
+            "SELECT id, episode_id, generation_mode, user_note, requested_duration, "
+            "prompt_cache, prompt_input_hash, generation_state, freshness, revision "
+            "FROM clips WHERE id = ANY($1::integer[]) ORDER BY id",
+            clip_ids,
+        )
+        clip_shot_rows = await connection.fetch(
+            "SELECT clip_id, shot_id, position FROM clip_shots "
+            "WHERE clip_id = ANY($1::integer[]) ORDER BY clip_id, position",
+            clip_ids,
+        )
+        slot_rows = await connection.fetch(
+            "SELECT id, clip_id, slot_no, asset_id, asset_name_snapshot, "
+            "asset_type_snapshot, override_image_path, override_sha256, enabled "
+            "FROM clip_ref_slots WHERE clip_id = ANY($1::integer[]) "
+            "ORDER BY clip_id, slot_no, id",
+            clip_ids,
+        )
+        video_rows = await connection.fetch(
+            "SELECT id, clip_id, file_path, sha256, seed, requested_duration, "
+            "actual_duration, is_current, built_prompt, input_hash, input_snapshot "
+            "FROM clip_videos WHERE clip_id = ANY($1::integer[]) ORDER BY id",
+            clip_ids,
+        )
+        task_rows = await connection.fetch(
+            "SELECT id, type, target_id, request_id, status, progress, error_msg, payload "
+            "FROM tasks WHERE target_id = ANY($1::integer[]) ORDER BY id",
+            target_ids,
+        )
+    finally:
+        await connection.close()
+
+    images = [
+        {
+            "id": int(row["id"]),
+            "asset_id": int(row["asset_id"]),
+            "file_path": row["file_path"],
+            "sha256": row["sha256"],
+            "seed": row["seed"],
+            "source": row["source"],
+            "is_current": row["is_current"],
+            "built_prompt": row["built_prompt"],
+            "input_hash": row["input_hash"],
+            "input_snapshot": _cascade_json_value(row["input_snapshot"]),
+            "user_note": row["user_note"],
+        }
+        for row in image_rows
+    ]
+    videos = [
+        {
+            "id": int(row["id"]),
+            "clip_id": int(row["clip_id"]),
+            "file_path": row["file_path"],
+            "sha256": row["sha256"],
+            "seed": row["seed"],
+            "requested_duration": row["requested_duration"],
+            "actual_duration": row["actual_duration"],
+            "is_current": row["is_current"],
+            "built_prompt": row["built_prompt"],
+            "input_hash": row["input_hash"],
+            "input_snapshot": _cascade_json_value(row["input_snapshot"]),
+        }
+        for row in video_rows
+    ]
+    return {
+        "style": None
+        if style_row is None
+        else {
+            "id": int(style_row["id"]),
+            "name": style_row["name"],
+            "prompt_fragment": style_row["prompt_fragment"],
+        },
+        "templates": {
+            row["key"]: row["content"] for row in template_rows
+        },
+        "episodes": [
+            {
+                "id": int(row["id"]),
+                "seq": row["seq"],
+                "script_text": row["script_text"],
+                "script_revision": row["script_revision"],
+                "assets_generated_script_revision": row[
+                    "assets_generated_script_revision"
+                ],
+                "shots_generated_script_revision": row[
+                    "shots_generated_script_revision"
+                ],
+            }
+            for row in episode_rows
+        ],
+        "assets": [
+            {
+                "id": int(row["id"]),
+                "type": row["type"],
+                "name": row["name"],
+                "description": row["description"],
+                "source": row["source"],
+                "revision": row["revision"],
+                "image_prompt_cache": row["image_prompt_cache"],
+                "image_prompt_hash": row["image_prompt_hash"],
+            }
+            for row in asset_rows
+        ],
+        "asset_images": images,
+        "shots": [
+            {
+                "id": int(row["id"]),
+                "episode_id": int(row["episode_id"]),
+                "order_index": row["order_index"],
+                "duration_est": row["duration_est"],
+                "shot_type": row["shot_type"],
+                "camera": row["camera"],
+                "description": row["description"],
+                "dialogue": row["dialogue"],
+                "status": row["status"],
+                "revision": row["revision"],
+            }
+            for row in shot_rows
+        ],
+        "shot_assets": [
+            {"shot_id": int(row["shot_id"]), "asset_id": int(row["asset_id"])}
+            for row in shot_asset_rows
+        ],
+        "clips": [
+            {
+                "id": int(row["id"]),
+                "episode_id": int(row["episode_id"]),
+                "generation_mode": row["generation_mode"],
+                "user_note": row["user_note"],
+                "requested_duration": row["requested_duration"],
+                "prompt_cache": row["prompt_cache"],
+                "prompt_input_hash": row["prompt_input_hash"],
+                "generation_state": row["generation_state"],
+                "freshness": row["freshness"],
+                "revision": row["revision"],
+            }
+            for row in clip_rows
+        ],
+        "clip_shots": [
+            {
+                "clip_id": int(row["clip_id"]),
+                "shot_id": int(row["shot_id"]),
+                "position": row["position"],
+            }
+            for row in clip_shot_rows
+        ],
+        "clip_ref_slots": [
+            {
+                "id": int(row["id"]),
+                "clip_id": int(row["clip_id"]),
+                "slot_no": row["slot_no"],
+                "asset_id": row["asset_id"],
+                "asset_name_snapshot": row["asset_name_snapshot"],
+                "asset_type_snapshot": row["asset_type_snapshot"],
+                "override_image_path": row["override_image_path"],
+                "override_sha256": row["override_sha256"],
+                "enabled": row["enabled"],
+            }
+            for row in slot_rows
+        ],
+        "clip_videos": videos,
+        "tasks": [
+            {
+                "id": int(row["id"]),
+                "type": row["type"],
+                "target_id": int(row["target_id"]),
+                "request_id": row["request_id"],
+                "status": row["status"],
+                "progress": row["progress"],
+                "error_msg": row["error_msg"],
+                "payload": _cascade_task_payload(row["payload"]),
+            }
+            for row in task_rows
+        ],
+        "files": [
+            *[
+                _cascade_file_observation(runtime_dir, row["file_path"])
+                for row in images
+            ],
+            *[
+                _cascade_file_observation(runtime_dir, row["file_path"])
+                for row in videos
+            ],
+        ],
+    }
+
+
+def cascade_stub_counts(stub: ControlledComfyStub) -> dict[str, object]:
+    by_schema: dict[str, int] = {}
+    by_route: dict[str, int] = {}
+    for observation in stub.chat_observations:
+        key = str(observation.get("schema_name"))
+        by_schema[key] = by_schema.get(key, 0) + 1
+    for observation in stub.http_observations:
+        key = f"{observation['method']} {observation['path']}"
+        by_route[key] = by_route.get(key, 0) + 1
+    return {
+        "chat_total": len(stub.chat_observations),
+        "chat_by_schema": by_schema,
+        "http_total": len(stub.http_observations),
+        "http_by_route": by_route,
+    }
+
+
+def _cascade_cache_task_record(
+    state: Mapping[str, object], task_id: int
+) -> Mapping[str, object]:
+    tasks = state.get("tasks")
+    if not isinstance(tasks, list):
+        raise AcceptanceFailure("cascade cache task readback is not a list")
+    for task in tasks:
+        if isinstance(task, Mapping) and task.get("id") == task_id:
+            return task
+    raise AcceptanceFailure(f"cascade cache task {task_id} missing from database")
+
+
+async def cascade_cache_run_task(
+    client: httpx.AsyncClient,
+    base_url: str,
+    raw_url: str,
+    fixture: Mapping[str, object],
+    runtime_dir: Path,
+    stub: ControlledComfyStub,
+    evidence: RunEvidence,
+    *,
+    operation: str,
+    path: str,
+    payload: object,
+) -> tuple[int, dict[str, object], dict[str, object]]:
+    before_chat = len(stub.chat_observations)
+    before_http = len(stub.http_observations)
+    observation = await cascade_http_json(
+        client, "POST", f"{base_url}{path}", payload
+    )
+    if observation.status_code != 202:
+        raise AcceptanceFailure(
+            f"cascade cache {operation} enqueue returned "
+            f"{observation.status_code}: {observation.body!r}"
+        )
+    body = require_mapping(observation.body, f"cascade cache {operation} enqueue")
+    task_id = body.get("task_id")
+    if isinstance(task_id, bool) or not isinstance(task_id, int) or task_id <= 0:
+        raise AcceptanceFailure(
+            f"cascade cache {operation} returned an invalid task id: {body!r}"
+        )
+    try:
+        task = await cascade_wait_task(client, base_url, task_id)
+    except httpx.ReadTimeout as exc:
+        timeout_state = await cascade_cache_read_state(
+            raw_url, fixture, runtime_dir
+        )
+        evidence.add(
+            "cache_task_timeout",
+            operation=operation,
+            path=path,
+            task_id=task_id,
+            error=repr(exc),
+            state=timeout_state,
+            external={
+                "chat_delta": list(stub.chat_observations[before_chat:]),
+                "http_delta": list(stub.http_observations[before_http:]),
+                "model_errors": list(stub.model_errors),
+                "counts_after": cascade_stub_counts(stub),
+            },
+        )
+        raise AcceptanceFailure(
+            f"cascade cache {operation} task polling timed out: task_id={task_id}"
+        ) from exc
+    if task.get("status") != "done":
+        evidence.add(
+            "cache_task_failure",
+            operation=operation,
+            path=path,
+            request_payload=payload,
+            api_task=task,
+            external={
+                "chat_delta": list(stub.chat_observations[before_chat:]),
+                "http_delta": list(stub.http_observations[before_http:]),
+                "model_errors": list(stub.model_errors),
+                "counts_after": cascade_stub_counts(stub),
+            },
+        )
+        raise AcceptanceFailure(
+            f"cascade cache {operation} task did not complete: {task!r}"
+        )
+    state = await cascade_cache_read_state(raw_url, fixture, runtime_dir)
+    task_record = _cascade_cache_task_record(state, task_id)
+    if task_record.get("status") != "done":
+        raise AcceptanceFailure(
+            f"cascade cache {operation} database task is not done: {task_record!r}"
+        )
+    evidence.add(
+        "cache_task",
+        operation=operation,
+        path=path,
+        request_payload=payload,
+        enqueue={"status": observation.status_code, "body": observation.body},
+        api_task=task,
+        database_task=task_record,
+        state=state,
+        external={
+            "chat_delta": list(stub.chat_observations[before_chat:]),
+            "http_delta": list(stub.http_observations[before_http:]),
+            "counts_after": cascade_stub_counts(stub),
+        },
+    )
+    return task_id, dict(task_record), state
+
+
+def cascade_cache_rows_without_tasks(state: Mapping[str, object]) -> dict[str, object]:
+    return {
+        key: state[key]
+        for key in (
+            "style",
+            "templates",
+            "episodes",
+            "assets",
+            "asset_images",
+            "shots",
+            "shot_assets",
+            "clips",
+            "clip_shots",
+            "clip_ref_slots",
+            "clip_videos",
+            "files",
+        )
+    }
 
 
 def start_backend_process(
@@ -3876,10 +4426,626 @@ def start_backend_process(
         cwd=BACKEND, env=child_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
     )
+    stdout_buffer = bytearray()
+    stderr_buffer = bytearray()
+
+    def drain(stream: Any, buffer: bytearray) -> None:
+        while True:
+            chunk = stream.read(65536)
+            if not chunk:
+                return
+            buffer.extend(chunk)
+
+    stdout_thread = threading.Thread(
+        target=drain,
+        args=(process.stdout, stdout_buffer),
+        daemon=True,
+    )
+    stderr_thread = threading.Thread(
+        target=drain,
+        args=(process.stderr, stderr_buffer),
+        daemon=True,
+    )
+    setattr(
+        process,
+        "_c012_drain_state",
+        (stdout_buffer, stderr_buffer, stdout_thread, stderr_thread),
+    )
+    stdout_thread.start()
+    stderr_thread.start()
     return process, port
 
 
+async def command_cascade_cache(
+    _arguments: argparse.Namespace,
+    evidence: RunEvidence,
+) -> None:
+    raw_url, data_dir, identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add(
+        "runtime_identity",
+        database_url=identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+    )
+    if database_identity["current_database"] != identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+
+    with tempfile.TemporaryDirectory(
+        prefix="c012-cascade-cache-", dir=str(data_dir)
+    ) as runtime_name:
+        runtime_dir = Path(runtime_name)
+        fixture = await cascade_seed_fixture(raw_url, runtime_dir)
+        await cascade_cache_seed_current_image(raw_url, fixture, runtime_dir)
+        process: subprocess.Popen[bytes] | None = None
+        stopped: ChildResult | None = None
+        try:
+            async with ControlledComfyStub(response_mode="t27-browser") as stub:
+                process, port = start_backend_process(
+                    raw_url,
+                    runtime_dir,
+                    stub,
+                    comfy_dependency_stub=stub,
+                )
+                base_url = f"http://127.0.0.1:{port}"
+                health = await wait_for_http(f"{base_url}/api/system/health")
+                if health.status_code != 200:
+                    raise AcceptanceFailure(
+                        f"cascade cache backend health returned {health.status_code}"
+                    )
+                evidence.add(
+                    "production_process",
+                    pid=process.pid,
+                    port=port,
+                    health=health.body,
+                    dependency_stub=stub.base_url,
+                )
+                async with httpx.AsyncClient(timeout=20, trust_env=False) as client:
+                    baseline_templates = {
+                        "script2assets": (
+                            "existing={{existing_assets}}|style={{style}}|"
+                            "script={{script}}|cache-baseline"
+                        ),
+                        "script2shots": (
+                            "assets={{assets}}|style={{style}}|"
+                            "script={{script}}|cache-baseline"
+                        ),
+                        "zimage": (
+                            "asset={{asset}}|style={{style}}|"
+                            "user={{user_note}}|cache-baseline"
+                        ),
+                        "minimaxh3": (
+                            "shots={{shots}}|references={{references}}|"
+                            "style={{style}}|requested_duration={{requested_duration}}|"
+                            "user_note={{user_note}}|cache-baseline"
+                        ),
+                    }
+                    baseline_changes: dict[str, object] = {}
+                    for key, content in baseline_templates.items():
+                        baseline_path = f"{base_url}/api/prompt-templates/{key}"
+                        baseline = await cascade_http_json(
+                            client,
+                            "PATCH",
+                            baseline_path,
+                            {"content": content},
+                        )
+                        if baseline.status_code != 200:
+                            raise AcceptanceFailure(
+                                f"cascade cache baseline template {key} PATCH returned "
+                                f"{baseline.status_code}: {baseline.body!r}"
+                            )
+                        baseline_changes[key] = {
+                            "path": f"/api/prompt-templates/{key}",
+                            "status": baseline.status_code,
+                            "body": baseline.body,
+                        }
+                    evidence.add(
+                        "settings_baseline_install",
+                        templates=baseline_changes,
+                    )
+                    before_state = await cascade_cache_read_state(
+                        raw_url, fixture, runtime_dir
+                    )
+                    evidence.add("cache_state", phase="before", state=before_state)
+
+                    image_path = f"/api/assets/{fixture['asset_ids'][0]}/generate-image"
+                    image_first_id, image_first_task, image_first_state = (
+                        await cascade_cache_run_task(
+                            client,
+                            base_url,
+                            raw_url,
+                            fixture,
+                            runtime_dir,
+                            stub,
+                            evidence,
+                            operation="image_miss_initial",
+                            path=image_path,
+                            payload={},
+                        )
+                    )
+                    image_hit_id, image_hit_task, image_hit_state = (
+                        await cascade_cache_run_task(
+                            client,
+                            base_url,
+                            raw_url,
+                            fixture,
+                            runtime_dir,
+                            stub,
+                            evidence,
+                            operation="image_hit",
+                            path=image_path,
+                            payload={},
+                        )
+                    )
+
+                    video_path = (
+                        f"/api/clips/{fixture['success_clip_id']}/generate-video"
+                    )
+                    video_first_id, video_first_task, video_first_state = (
+                        await cascade_cache_run_task(
+                            client,
+                            base_url,
+                            raw_url,
+                            fixture,
+                            runtime_dir,
+                            stub,
+                            evidence,
+                            operation="video_miss_initial",
+                            path=video_path,
+                            payload={},
+                        )
+                    )
+                    video_hit_id, video_hit_task, video_hit_state = (
+                        await cascade_cache_run_task(
+                            client,
+                            base_url,
+                            raw_url,
+                            fixture,
+                            runtime_dir,
+                            stub,
+                            evidence,
+                            operation="video_hit",
+                            path=video_path,
+                            payload={},
+                        )
+                    )
+                    pre_change_state = await cascade_cache_read_state(
+                        raw_url, fixture, runtime_dir
+                    )
+                    evidence.add(
+                        "cache_state",
+                        phase="after_initial_miss_and_hit",
+                        state=pre_change_state,
+                    )
+
+                    style_change = await cascade_http_json(
+                        client,
+                        "PATCH",
+                        f"{base_url}/api/styles/{fixture['style_id']}",
+                        {"prompt_fragment": "cache cascade style changed"},
+                    )
+                    if style_change.status_code != 200:
+                        raise AcceptanceFailure(
+                            f"cascade cache style PATCH returned "
+                            f"{style_change.status_code}: {style_change.body!r}"
+                        )
+                    changed_templates = {
+                        "script2assets": (
+                            "existing={{existing_assets}}|style={{style}}|"
+                            "script={{script}}|cache-change"
+                        ),
+                        "script2shots": (
+                            "assets={{assets}}|style={{style}}|"
+                            "script={{script}}|cache-change"
+                        ),
+                        "zimage": (
+                            "asset={{asset}}|style={{style}}|"
+                            "user={{user_note}}|cache-change"
+                        ),
+                        "minimaxh3": (
+                            "shots={{shots}}|references={{references}}|"
+                            "style={{style}}|requested_duration={{requested_duration}}|"
+                            "user_note={{user_note}}|cache-change"
+                        ),
+                    }
+                    template_changes: dict[str, object] = {}
+                    for key, content in changed_templates.items():
+                        template_path = f"{base_url}/api/prompt-templates/{key}"
+                        template_change = await cascade_http_json(
+                            client,
+                            "PATCH",
+                            template_path,
+                            {"content": content},
+                        )
+                        if template_change.status_code != 200:
+                            raise AcceptanceFailure(
+                                f"cascade cache template {key} PATCH returned "
+                                f"{template_change.status_code}: {template_change.body!r}"
+                            )
+                        template_changes[key] = {
+                            "path": f"/api/prompt-templates/{key}",
+                            "status": template_change.status_code,
+                            "body": template_change.body,
+                        }
+                    changed_state = await cascade_cache_read_state(
+                        raw_url, fixture, runtime_dir
+                    )
+                    pre_without_tasks = cascade_cache_rows_without_tasks(
+                        pre_change_state
+                    )
+                    changed_without_tasks = cascade_cache_rows_without_tasks(
+                        changed_state
+                    )
+                    for key in (
+                        "episodes",
+                        "assets",
+                        "asset_images",
+                        "shots",
+                        "shot_assets",
+                        "clips",
+                        "clip_shots",
+                        "clip_ref_slots",
+                        "clip_videos",
+                        "files",
+                    ):
+                        if changed_without_tasks[key] != pre_without_tasks[key]:
+                            raise AcceptanceFailure(
+                                f"style/template edit changed downstream {key}"
+                            )
+                    evidence.add(
+                        "settings_mutation",
+                        style={
+                            "path": f"/api/styles/{fixture['style_id']}",
+                            "status": style_change.status_code,
+                            "body": style_change.body,
+                        },
+                        templates=template_changes,
+                        state=changed_state,
+                    )
+
+                    image_miss_id, image_miss_task, image_miss_state = (
+                        await cascade_cache_run_task(
+                            client,
+                            base_url,
+                            raw_url,
+                            fixture,
+                            runtime_dir,
+                            stub,
+                            evidence,
+                            operation="image_miss_after_style_template_change",
+                            path=image_path,
+                            payload={},
+                        )
+                    )
+                    video_miss_id, video_miss_task, video_miss_state = (
+                        await cascade_cache_run_task(
+                            client,
+                            base_url,
+                            raw_url,
+                            fixture,
+                            runtime_dir,
+                            stub,
+                            evidence,
+                            operation="video_miss_after_style_template_change",
+                            path=video_path,
+                            payload={},
+                        )
+                    )
+                    assets_path = (
+                        f"/api/episodes/{fixture['generation_episode_id']}/generate-assets"
+                    )
+                    assets_id, assets_task, assets_state = await cascade_cache_run_task(
+                        client,
+                        base_url,
+                        raw_url,
+                        fixture,
+                        runtime_dir,
+                        stub,
+                        evidence,
+                        operation="extract_assets_after_template_change",
+                        path=assets_path,
+                        payload=None,
+                    )
+                    impact_path = (
+                        f"/api/episodes/{fixture['generation_episode_id']}"
+                        "/generate-shots/impact"
+                    )
+                    impact = await cascade_http_json(
+                        client, "POST", f"{base_url}{impact_path}", None
+                    )
+                    if impact.status_code != 200:
+                        raise AcceptanceFailure(
+                            f"cascade cache shots impact returned "
+                            f"{impact.status_code}: {impact.body!r}"
+                        )
+                    impact_body = require_mapping(impact.body, "cascade cache shots impact")
+                    if impact_body.get("confirm_token") is not None:
+                        raise AcceptanceFailure(
+                            f"cascade cache fixture unexpectedly requires a shots token: {impact.body!r}"
+                        )
+                    shots_path = (
+                        f"/api/episodes/{fixture['generation_episode_id']}/generate-shots"
+                    )
+                    shots_id, shots_task, shots_state = await cascade_cache_run_task(
+                        client,
+                        base_url,
+                        raw_url,
+                        fixture,
+                        runtime_dir,
+                        stub,
+                        evidence,
+                        operation="extract_shots_after_template_change",
+                        path=shots_path,
+                        payload={"confirm_token": None},
+                    )
+                    final_state = await cascade_cache_read_state(
+                        raw_url, fixture, runtime_dir
+                    )
+                    evidence.add(
+                        "cache_state",
+                        phase="after_template_mismatch_handlers",
+                        state=final_state,
+                    )
+
+                    first_image_record = _cascade_cache_task_record(
+                        image_first_state, image_first_id
+                    )
+                    hit_image_record = _cascade_cache_task_record(
+                        image_hit_state, image_hit_id
+                    )
+                    changed_image_record = _cascade_cache_task_record(
+                        image_miss_state, image_miss_id
+                    )
+                    first_video_record = _cascade_cache_task_record(
+                        video_first_state, video_first_id
+                    )
+                    hit_video_record = _cascade_cache_task_record(
+                        video_hit_state, video_hit_id
+                    )
+                    changed_video_record = _cascade_cache_task_record(
+                        video_miss_state, video_miss_id
+                    )
+                    for label, record in (
+                        ("image-first", first_image_record),
+                        ("image-hit", hit_image_record),
+                        ("image-changed", changed_image_record),
+                        ("video-first", first_video_record),
+                        ("video-hit", hit_video_record),
+                        ("video-changed", changed_video_record),
+                    ):
+                        if record["status"] != "done":
+                            raise AcceptanceFailure(
+                                f"cascade cache {label} task was not done: {record!r}"
+                            )
+                    first_image_snapshot = first_image_record["payload"]["input_snapshot"]
+                    hit_image_snapshot = hit_image_record["payload"]["input_snapshot"]
+                    changed_image_snapshot = changed_image_record["payload"]["input_snapshot"]
+                    first_video_snapshot = first_video_record["payload"]["input_snapshot"]
+                    hit_video_snapshot = hit_video_record["payload"]["input_snapshot"]
+                    changed_video_snapshot = changed_video_record["payload"]["input_snapshot"]
+                    if (
+                        first_image_snapshot["cached_prompt"] is not None
+                        or not isinstance(hit_image_snapshot["cached_prompt"], str)
+                        or changed_image_snapshot["cached_prompt"] is not None
+                        or first_image_record["payload"]["input_hash"]
+                        != hit_image_record["payload"]["input_hash"]
+                        or first_image_record["payload"]["input_hash"]
+                        == changed_image_record["payload"]["input_hash"]
+                    ):
+                        raise AcceptanceFailure(
+                            "zimage cache miss/hit/mismatch payload evidence is inconsistent"
+                        )
+                    if (
+                        first_video_snapshot["cached_prompt"] is not None
+                        or not isinstance(hit_video_snapshot["cached_prompt"], str)
+                        or changed_video_snapshot["cached_prompt"] is not None
+                        or first_video_record["payload"]["input_hash"]
+                        != hit_video_record["payload"]["input_hash"]
+                        or first_video_record["payload"]["input_hash"]
+                        == changed_video_record["payload"]["input_hash"]
+                    ):
+                        raise AcceptanceFailure(
+                            "minimaxh3 cache miss/hit/mismatch payload evidence is inconsistent"
+                        )
+
+                    changed_assets_record = _cascade_cache_task_record(
+                        assets_state, assets_id
+                    )
+                    changed_shots_record = _cascade_cache_task_record(
+                        shots_state, shots_id
+                    )
+                    for label, record, template_key in (
+                        ("script2assets", changed_assets_record, "script2assets"),
+                        ("script2shots", changed_shots_record, "script2shots"),
+                    ):
+                        payload_record = record["payload"]
+                        if payload_record["input_hash"] is not None:
+                            raise AcceptanceFailure(
+                                f"{label} task input_hash is not null: {record!r}"
+                            )
+                        snapshot = payload_record["input_snapshot"]
+                        if snapshot["template_content"] != changed_templates[template_key]:
+                            raise AcceptanceFailure(
+                                f"{label} task did not freeze the changed template"
+                            )
+                        if snapshot["style"] != "cache cascade style changed":
+                            raise AcceptanceFailure(
+                                f"{label} task did not freeze the changed style"
+                            )
+
+                    counts = cascade_stub_counts(stub)
+                    expected_schema_counts = {
+                        "zimage": 2,
+                        "minimaxh3": 2,
+                        "script2assets": 1,
+                        "script2shots": 1,
+                    }
+                    if counts["chat_by_schema"] != expected_schema_counts:
+                        raise AcceptanceFailure(
+                            f"cascade cache external chat counts mismatch: {counts!r}"
+                        )
+                    for label, schema_name in (
+                        ("zimage", "zimage"),
+                        ("minimaxh3", "minimaxh3"),
+                    ):
+                        changed_chats = [
+                            item
+                            for item in stub.chat_observations
+                            if item.get("schema_name") == schema_name
+                        ]
+                        if not changed_chats:
+                            raise AcceptanceFailure(
+                                f"{label} changed request was not observed"
+                            )
+                        request = changed_chats[-1].get("request")
+                        messages = (
+                            request.get("messages")
+                            if isinstance(request, Mapping)
+                            else None
+                        )
+                        if (
+                            not isinstance(messages, list)
+                            or not messages
+                            or not isinstance(messages[0], Mapping)
+                            or "cache-change" not in str(messages[0].get("content"))
+                        ):
+                            raise AcceptanceFailure(
+                                f"{label} changed template was absent from rendered external request"
+                            )
+                    for event in evidence.events:
+                        if (
+                            event.get("name") == "cache_task"
+                            and event.get("operation") in {"image_hit", "video_hit"}
+                            and event.get("external", {}).get("chat_delta")
+                        ):
+                            raise AcceptanceFailure(
+                                "a cache hit unexpectedly made an external chat request"
+                            )
+
+                    initial_asset_images = [
+                        row
+                        for row in before_state["asset_images"]
+                        if row["asset_id"] == fixture["asset_ids"][0]
+                    ]
+                    final_asset_images = [
+                        row
+                        for row in final_state["asset_images"]
+                        if row["asset_id"] == fixture["asset_ids"][0]
+                    ]
+                    initial_videos = [
+                        row
+                        for row in before_state["clip_videos"]
+                        if row["clip_id"] == fixture["success_clip_id"]
+                    ]
+                    final_videos = [
+                        row
+                        for row in final_state["clip_videos"]
+                        if row["clip_id"] == fixture["success_clip_id"]
+                    ]
+                    if (
+                        len(initial_asset_images) != 1
+                        or len(final_asset_images) != 4
+                        or len(initial_videos) != 0
+                        or len(final_videos) != 3
+                    ):
+                        raise AcceptanceFailure(
+                            "cache image/video persistence counts did not show miss, hit, mismatch"
+                        )
+                    if any(
+                        not item["exists"] or item["bytes"] <= 0
+                        for item in final_state["files"]
+                    ):
+                        raise AcceptanceFailure(
+                            "cache final database media rows do not have readable files"
+                        )
+                    evidence.add(
+                        "cache_assertions",
+                        task_ids={
+                            "image_first": image_first_id,
+                            "image_hit": image_hit_id,
+                            "image_changed": image_miss_id,
+                            "video_first": video_first_id,
+                            "video_hit": video_hit_id,
+                            "video_changed": video_miss_id,
+                            "assets_changed": assets_id,
+                            "shots_changed": shots_id,
+                        },
+                        expected_schema_counts=expected_schema_counts,
+                        observed_counts=counts,
+                        cache_payloads={
+                            "image_first": first_image_snapshot,
+                            "image_hit": hit_image_snapshot,
+                            "image_changed": changed_image_snapshot,
+                            "video_first": first_video_snapshot,
+                            "video_hit": hit_video_snapshot,
+                            "video_changed": changed_video_snapshot,
+                        },
+                        changed_extraction_payloads={
+                            "script2assets": changed_assets_record["payload"],
+                            "script2shots": changed_shots_record["payload"],
+                        },
+                        storage_counts={
+                            "asset_images_before": len(initial_asset_images),
+                            "asset_images_after": len(final_asset_images),
+                            "clip_videos_before": len(initial_videos),
+                            "clip_videos_after": len(final_videos),
+                        },
+                    )
+                evidence.add(
+                    "external_stub_observations",
+                    chat=list(stub.chat_observations),
+                    http=list(stub.http_observations),
+                    counts=cascade_stub_counts(stub),
+                )
+        finally:
+            if process is not None:
+                stopped = stop_process(process)
+                evidence.add(
+                    "production_process_shutdown",
+                    **child_observation(stopped),
+                    process_exited=process.poll() is not None,
+                )
+            await cascade_cleanup_fixture(raw_url, fixture)
+        if (
+            stopped is None
+            or stopped.timed_out
+            or process is None
+            or process.poll() is None
+        ):
+            raise AcceptanceFailure(
+                "cascade cache owned production process did not cleanly stop"
+            )
+    evidence.add(
+        "owned_resource_cleanup",
+        production_process_stopped=True,
+        runtime_directory_exists=runtime_dir.exists(),
+    )
+    intentional_failure = run_child(
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.stderr.write('c012 intentional child failure\\n'); "
+            "raise SystemExit(17)",
+        ],
+        cwd=ROOT,
+        timeout=10.0,
+    )
+    evidence.add("intentional_child_failure", **child_observation(intentional_failure))
+    if (
+        intentional_failure.returncode == 0
+        or intentional_failure.timed_out
+        or "c012 intentional child failure" not in intentional_failure.text_stderr()
+    ):
+        raise AcceptanceFailure(
+            "cascade cache intentional child failure did not return the expected non-zero result"
+        )
+
 async def command_cascade(_arguments: argparse.Namespace, evidence: RunEvidence) -> None:
+    if getattr(_arguments, "case", "matrix") == "cache":
+        await command_cascade_cache(_arguments, evidence)
+        return
     raw_url, data_dir, identity = explicit_runtime()
     database_identity = await read_database_identity(raw_url)
     evidence.add("runtime_identity", database_url=identity, database=database_identity, data_dir=str(data_dir))
@@ -4265,12 +5431,13 @@ def parser() -> argparse.ArgumentParser:
     for name in (
         "migration",
         "names",
-        "cascade",
         "recovery",
         "trash",
         "verify-inputs",
     ):
         subparsers.add_parser(name)
+    cascade = subparsers.add_parser("cascade")
+    cascade.add_argument("--case", choices=("matrix", "cache"), default="matrix")
     ws = subparsers.add_parser("ws")
     ws.add_argument(
         "--case",

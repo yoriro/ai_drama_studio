@@ -355,10 +355,11 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T43 交付缓存与模板级联验收分支（B6前置）
+- [x] T43 交付缓存与模板级联验收分支（B6前置）
   - 依赖：T42。交付：仅扩展既有 `.work/c012/acceptance.py cascade --case cache`，支持同一隔离app中先生成并建立缓存，再经正式设置API改变风格/对应模板，随后调用生产四类生成handler，采集真实外部请求次数/内容、payload、缓存和下游前后行/文件。仅外部stub和释放屏障受控。
   - R：R2、R3、R4、R11；PRD §3.2、§3.3、§6.2、§7；AC-02/20。
   - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py cascade --case cache`；图/视频第一次缓存、命中、失配有实际请求/存储证据；提取模板有渲染后请求及null hash；故意子进程失败非零，无假passed、无资源残留。交付后才进入T44。
+  - 2026-09-11完成：受测提交 `5afff508d586af0923a608fa28dcebc9ee38c27d` 上 py_compile 与 cascade 均 exit 0；隔离库 `ai_drama_studio_c012_t43_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t43-data-20260911` 的任务 #80/#81/#84 为图 miss/hit/失配、#82/#83/#85 为视频 miss/hit/失配、#86/#87 为 script2assets/script2shots，外部 schema 次数 `zimage=2,minimaxh3=2,script2assets=1,script2shots=1`，图片行 `1→4`、视频行 `0→3`；故意子进程 returncode=17，生产进程退出且临时目录删除。原始 `.work/c012/T43-pycompile.*`、`.work/c012/T43-cascade-cache.*` 与 `.work/c012/cascade-acceptance.json`，此前 placeholder/output-node/video-duration/timeout/采集类型失败证据均保留。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵。
 
