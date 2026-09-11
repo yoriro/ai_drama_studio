@@ -332,7 +332,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
-- [ ] T40 交付真实慢关闭页面验收装置（B5前置）
+- [x] T40 交付真实慢关闭页面验收装置（B5前置）
   - 依赖：T39。交付：仅扩展现有 `.work/c012/acceptance.py ws --case slow-page` 的参数、受控ASGI send闸门、生产进度发布和handler释放；独立默认app/DB/DATA_DIR与真实网络WS，外部服务stub，无新增生产端点/handler替换/第二runner。输出浏览器地址、任务ID、真实overflow/关闭原因/请求日志、终态独立回读与shutdown通路。
   - R：无；PRD §6.1、§6.4、§11 M6；AC-02/11/12。
   - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py ws --case slow-page`；原生WS实际收到1013，任务终态来自生产handler，装置事件与DB身份可核查；故意失败非零，无owned进程/连接残留。先完成装置自检，再交T41实际浏览器消费；ASGI闸门不宣称TCP拥塞。

@@ -15,6 +15,7 @@ import base64
 import hashlib
 import io
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass, field
@@ -552,6 +553,69 @@ class ControlledHTTPStub:
         self.thread.join(timeout=5)
         if self.thread.is_alive():
             raise AcceptanceFailure("owned HTTP stub thread did not stop")
+
+
+class SlowASGISendGate:
+    """Hold the first production task-event send at the ASGI boundary."""
+
+    def __init__(self, application: Any) -> None:
+        self.application = application
+        self.release = asyncio.Event()
+        self.first_send_started = asyncio.Event()
+        self.send_cancelled = asyncio.Event()
+        self.first_message: dict[str, object] | None = None
+        self.active_connections = 0
+        self.completed_connections = 0
+
+    async def __call__(
+        self,
+        scope: Mapping[str, object],
+        receive: Any,
+        send: Any,
+    ) -> None:
+        if scope.get("type") != "websocket" or scope.get("path") != "/ws/tasks":
+            await self.application(scope, receive, send)
+            return
+
+        self.active_connections += 1
+
+        async def gated_send(message: Mapping[str, object]) -> None:
+            if (
+                message.get("type") == "websocket.send"
+                and not self.first_send_started.is_set()
+            ):
+                self.first_message = {
+                    "type": message.get("type"),
+                    "text_length": (
+                        len(message["text"])
+                        if isinstance(message.get("text"), str)
+                        else None
+                    ),
+                }
+                self.first_send_started.set()
+                try:
+                    await self.release.wait()
+                except asyncio.CancelledError:
+                    self.send_cancelled.set()
+                    raise
+            await send(message)
+
+        try:
+            await self.application(scope, receive, gated_send)
+        finally:
+            self.active_connections -= 1
+            self.completed_connections += 1
+
+
+class CapturedLogHandler(logging.Handler):
+    """Capture only selected production log records for acceptance evidence."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
 
 
 def controlled_mp4_bytes() -> bytes:
@@ -1545,6 +1609,593 @@ async def ws_delete_task(raw_url: str, task_id: int) -> str:
         )
     finally:
         await connection.close()
+
+
+SLOW_PAGE_TASK_COUNT = 90
+
+
+async def slow_page_http_json(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    payload: object | None = None,
+) -> tuple[int, object]:
+    if payload is None:
+        response = await client.request(method, url)
+    else:
+        response = await client.request(method, url, json=payload)
+    try:
+        body: object = response.json()
+    except ValueError:
+        body = response.text
+    return response.status_code, body
+
+
+async def slow_page_create_fixture(
+    client: httpx.AsyncClient,
+    base_url: str,
+    request_log: list[dict[str, object]],
+) -> dict[str, object]:
+    token = uuid4().hex
+    style_path = "/api/styles"
+    style_status, style_body = await slow_page_http_json(
+        client,
+        "POST",
+        f"{base_url}{style_path}",
+        {"name": f"C012 slow page {token}", "prompt_fragment": "受控慢连接"},
+    )
+    request_log.append(
+        {"method": "POST", "path": style_path, "status": style_status}
+    )
+    if style_status != 201:
+        raise AcceptanceFailure(
+            f"slow-page style creation returned {style_status}: {style_body!r}"
+        )
+    style = require_mapping(style_body, "slow-page style response")
+    style_id = style.get("id")
+    if not isinstance(style_id, int):
+        raise AcceptanceFailure(f"slow-page style id missing: {style_body!r}")
+
+    project_path = "/api/projects"
+    project_status, project_body = await slow_page_http_json(
+        client,
+        "POST",
+        f"{base_url}{project_path}",
+        {"name": f"C012 slow page project {token}", "style_id": style_id},
+    )
+    request_log.append(
+        {"method": "POST", "path": project_path, "status": project_status}
+    )
+    if project_status != 201:
+        raise AcceptanceFailure(
+            f"slow-page project creation returned {project_status}: {project_body!r}"
+        )
+    project = require_mapping(project_body, "slow-page project response")
+    project_id = project.get("id")
+    if not isinstance(project_id, int):
+        raise AcceptanceFailure(f"slow-page project id missing: {project_body!r}")
+
+    template_path = "/api/prompt-templates/script2assets"
+    template_status, template_body = await slow_page_http_json(
+        client,
+        "PATCH",
+        f"{base_url}{template_path}",
+        {"content": "{{existing_assets}} {{style}} {{script}}"},
+    )
+    request_log.append(
+        {"method": "PATCH", "path": template_path, "status": template_status}
+    )
+    if template_status != 200:
+        raise AcceptanceFailure(
+            f"slow-page template patch returned {template_status}: {template_body!r}"
+        )
+
+    episode_ids: list[int] = []
+    for sequence in range(1, SLOW_PAGE_TASK_COUNT + 1):
+        episode_path = f"/api/projects/{project_id}/episodes"
+        episode_status, episode_body = await slow_page_http_json(
+            client,
+            "POST",
+            f"{base_url}{episode_path}",
+            {
+                "seq": sequence,
+                "title": f"慢连接任务 {sequence}",
+                "script_text": f"slow-page controlled script {sequence}",
+            },
+        )
+        request_log.append(
+            {
+                "method": "POST",
+                "path": episode_path,
+                "status": episode_status,
+                "sequence": sequence,
+            }
+        )
+        if episode_status != 201:
+            raise AcceptanceFailure(
+                f"slow-page episode {sequence} creation returned "
+                f"{episode_status}: {episode_body!r}"
+            )
+        episode = require_mapping(episode_body, f"slow-page episode {sequence}")
+        episode_id = episode.get("id")
+        if not isinstance(episode_id, int):
+            raise AcceptanceFailure(
+                f"slow-page episode {sequence} id missing: {episode_body!r}"
+            )
+        episode_ids.append(episode_id)
+
+    return {
+        "style_id": style_id,
+        "project_id": project_id,
+        "episode_ids": episode_ids,
+        "task_count": SLOW_PAGE_TASK_COUNT,
+    }
+
+
+async def slow_page_read_state(
+    raw_url: str,
+    task_ids: Sequence[int],
+    episode_ids: Sequence[int],
+) -> dict[str, object]:
+    tasks = await read_database_tasks(raw_url)
+    task_id_set = set(task_ids)
+    selected_tasks = [task for task in tasks if task["id"] in task_id_set]
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", ""))
+    try:
+        episode_rows = await connection.fetch(
+            "SELECT id, script_revision, assets_generated_script_revision "
+            "FROM episodes WHERE id = ANY($1::int[]) ORDER BY id",
+            list(episode_ids),
+        )
+    finally:
+        await connection.close()
+    return {
+        "tasks": selected_tasks,
+        "episodes": [
+            {
+                "id": row["id"],
+                "script_revision": row["script_revision"],
+                "assets_generated_script_revision": row[
+                    "assets_generated_script_revision"
+                ],
+            }
+            for row in episode_rows
+        ],
+    }
+
+
+async def slow_page_wait_for_terminal(
+    raw_url: str,
+    task_ids: Sequence[int],
+    episode_ids: Sequence[int],
+    *,
+    timeout: float = 90.0,
+) -> dict[str, object]:
+    deadline = time.monotonic() + timeout
+    last_state: dict[str, object] | None = None
+    while time.monotonic() < deadline:
+        state = await slow_page_read_state(raw_url, task_ids, episode_ids)
+        last_state = state
+        tasks = state["tasks"]
+        if (
+            isinstance(tasks, list)
+            and len(tasks) == len(task_ids)
+            and all(
+                isinstance(task, Mapping)
+                and task.get("status") in {"done", "failed", "canceled"}
+                for task in tasks
+            )
+        ):
+            return state
+        await asyncio.sleep(0.1)
+    raise AcceptanceFailure(
+        f"slow-page tasks did not reach terminal states: {last_state!r}"
+    )
+
+
+async def slow_page_cleanup(
+    raw_url: str,
+    style_id: int | None,
+    project_id: int | None,
+    episode_ids: Sequence[int],
+    task_ids: Sequence[int],
+) -> str:
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", ""))
+    try:
+        async with connection.transaction():
+            if task_ids:
+                await connection.execute(
+                    "DELETE FROM tasks WHERE id = ANY($1::int[])",
+                    list(task_ids),
+                )
+            if episode_ids:
+                await connection.execute(
+                    "DELETE FROM episodes WHERE id = ANY($1::int[])",
+                    list(episode_ids),
+                )
+            if project_id is not None:
+                await connection.execute(
+                    "DELETE FROM projects WHERE id = $1", project_id
+                )
+            if style_id is not None:
+                await connection.execute(
+                    "DELETE FROM styles WHERE id = $1", style_id
+                )
+    finally:
+        await connection.close()
+    return "deleted"
+
+
+async def stop_slow_page_server(
+    server: Any,
+    server_task: asyncio.Task[Any],
+) -> dict[str, object]:
+    server.should_exit = True
+    try:
+        await asyncio.wait_for(server_task, timeout=30)
+    except asyncio.TimeoutError:
+        if not server_task.done():
+            server_task.cancel()
+        try:
+            await server_task
+        except asyncio.CancelledError:
+            pass
+        return {"server_task_done": server_task.done(), "timed_out": True}
+    if server_task.cancelled():
+        return {"server_task_done": True, "cancelled": True, "timed_out": False}
+    error = server_task.exception()
+    if error is not None:
+        return {
+            "server_task_done": True,
+            "timed_out": False,
+            "exception": repr(error),
+        }
+    return {"server_task_done": True, "timed_out": False, "exception": None}
+
+
+async def command_ws_slow_page(
+    _arguments: argparse.Namespace,
+    evidence: RunEvidence,
+) -> None:
+    raw_url, data_dir, url_identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add(
+        "runtime_identity",
+        database_url=url_identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+    )
+    if database_identity["current_database"] != url_identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+
+    request_log: list[dict[str, object]] = []
+    fixture: dict[str, object] = {}
+    task_ids: list[int] = []
+    episode_ids: list[int] = []
+    style_id: int | None = None
+    project_id: int | None = None
+    first_task_id: int | None = None
+    final_state: dict[str, object] | None = None
+    gate: SlowASGISendGate | None = None
+    server: Any | None = None
+    server_task: asyncio.Task[Any] | None = None
+    server_port: int | None = None
+    shutdown_result: dict[str, object] | None = None
+    cleanup_result: str | None = None
+    task_logger: logging.Logger | None = None
+    log_handler = CapturedLogHandler()
+
+    with tempfile.TemporaryDirectory(
+        prefix="c012-ws-slow-page-", dir=str(data_dir)
+    ) as runtime_name:
+        runtime_dir = Path(runtime_name)
+        try:
+            with ControlledHTTPStub() as dependency_stub:
+                os.environ.update(
+                    {
+                        "DATABASE_URL": raw_url,
+                        "PYTHONUTF8": "1",
+                        "DATA_DIR": str(runtime_dir),
+                        "VLLM_BASE_URL": dependency_stub.base_url,
+                        "COMFY_BASE_URL": dependency_stub.base_url,
+                    }
+                )
+                if "app.main" in sys.modules:
+                    raise AcceptanceFailure(
+                        "production app was imported before the isolated slow-page runtime"
+                    )
+                import uvicorn
+
+                from app.main import app as production_app
+
+                gate = SlowASGISendGate(production_app)
+                server_port = free_tcp_port()
+                server = uvicorn.Server(
+                    uvicorn.Config(
+                        gate,
+                        host="127.0.0.1",
+                        port=server_port,
+                        log_level="warning",
+                        lifespan="on",
+                        access_log=False,
+                    )
+                )
+                task_logger = logging.getLogger("app.api.tasks")
+                task_logger.addHandler(log_handler)
+                server_task = asyncio.create_task(
+                    server.serve(), name="c012-slow-page-production-server"
+                )
+                base_url = f"http://127.0.0.1:{server_port}"
+                health = await wait_for_http(
+                    f"{base_url}/api/system/health", timeout=30
+                )
+                if health.status_code != 200:
+                    raise AcceptanceFailure(
+                        f"slow-page production health returned {health.status_code}: "
+                        f"{health.body!r}"
+                    )
+                evidence.add(
+                    "production_runtime",
+                    pid=os.getpid(),
+                    port=server_port,
+                    health=health.body,
+                    app_module="app.main:app",
+                    lifespan=True,
+                    queue="production TaskQueue",
+                    handler="gen_assets_handler",
+                    event_bus="production EventBus",
+                    dependency_stub=dependency_stub.base_url,
+                    asgi_gate="websocket.send only",
+                )
+
+                async with httpx.AsyncClient(
+                    timeout=10, trust_env=False
+                ) as client:
+                    fixture = await slow_page_create_fixture(
+                        client, base_url, request_log
+                    )
+                    style_id = int(fixture["style_id"])
+                    project_id = int(fixture["project_id"])
+                    episode_ids = [int(value) for value in fixture["episode_ids"]]
+                    if len(episode_ids) != SLOW_PAGE_TASK_COUNT:
+                        raise AcceptanceFailure(
+                            "slow-page fixture did not create the requested episode count"
+                        )
+
+                    ws_uri = f"ws://127.0.0.1:{server_port}/ws/tasks"
+                    first_path = (
+                        f"/api/episodes/{episode_ids[0]}/generate-assets"
+                    )
+                    async with websockets.asyncio.client.connect(
+                        ws_uri, open_timeout=10, close_timeout=10
+                    ) as websocket:
+                        first_status, first_body = await slow_page_http_json(
+                            client, "POST", f"{base_url}{first_path}"
+                        )
+                        first_request: dict[str, object] = {
+                            "method": "POST",
+                            "path": first_path,
+                            "status": first_status,
+                        }
+                        if isinstance(first_body, Mapping):
+                            first_request["response"] = dict(first_body)
+                        request_log.append(first_request)
+                        if first_status != 202:
+                            raise AcceptanceFailure(
+                                f"slow-page first generation returned "
+                                f"{first_status}: {first_body!r}"
+                            )
+                        first_mapping = require_mapping(
+                            first_body, "slow-page first generation response"
+                        )
+                        raw_first_task_id = first_mapping.get("task_id")
+                        if not isinstance(raw_first_task_id, int):
+                            raise AcceptanceFailure(
+                                f"slow-page first task id missing: {first_body!r}"
+                            )
+                        first_task_id = raw_first_task_id
+                        task_ids.append(first_task_id)
+
+                        try:
+                            await asyncio.wait_for(
+                                gate.first_send_started.wait(), timeout=10
+                            )
+                        except asyncio.TimeoutError as exc:
+                            raise AcceptanceFailure(
+                                "production task-event send did not reach the ASGI gate"
+                            ) from exc
+
+                        for episode_id in episode_ids[1:]:
+                            generation_path = (
+                                f"/api/episodes/{episode_id}/generate-assets"
+                            )
+                            status_code, body = await slow_page_http_json(
+                                client,
+                                "POST",
+                                f"{base_url}{generation_path}",
+                            )
+                            request_entry: dict[str, object] = {
+                                "method": "POST",
+                                "path": generation_path,
+                                "status": status_code,
+                                "target_episode_id": episode_id,
+                            }
+                            if isinstance(body, Mapping):
+                                request_entry["response"] = dict(body)
+                            request_log.append(request_entry)
+                            if status_code != 202:
+                                raise AcceptanceFailure(
+                                    f"slow-page generation for episode {episode_id} "
+                                    f"returned {status_code}: {body!r}"
+                                )
+                            mapping = require_mapping(
+                                body,
+                                f"slow-page generation {episode_id} response",
+                            )
+                            raw_task_id = mapping.get("task_id")
+                            if not isinstance(raw_task_id, int):
+                                raise AcceptanceFailure(
+                                    f"slow-page task id missing for episode "
+                                    f"{episode_id}: {body!r}"
+                                )
+                            task_ids.append(raw_task_id)
+
+                        try:
+                            await asyncio.wait_for(websocket.recv(), timeout=30)
+                        except websockets.exceptions.ConnectionClosed as exc:
+                            close_observation = {
+                                "code": exc.code,
+                                "reason": exc.reason,
+                            }
+                        else:
+                            raise AcceptanceFailure(
+                                "slow-page WebSocket yielded a message instead of closing"
+                            )
+
+                        if close_observation["code"] != 1013:
+                            raise AcceptanceFailure(
+                                f"slow-page WebSocket close code mismatch: "
+                                f"{close_observation!r}"
+                            )
+                        try:
+                            await asyncio.wait_for(
+                                gate.send_cancelled.wait(), timeout=5
+                            )
+                        except asyncio.TimeoutError as exc:
+                            raise AcceptanceFailure(
+                                "ASGI-gated send was not cancelled after overflow close"
+                            ) from exc
+
+                        final_state = await slow_page_wait_for_terminal(
+                            raw_url, task_ids, episode_ids
+                        )
+                        task_rows = final_state["tasks"]
+                        if not isinstance(task_rows, list) or any(
+                            not isinstance(row, Mapping)
+                            or row.get("status") != "done"
+                            or row.get("error_msg") is not None
+                            for row in task_rows
+                        ):
+                            raise AcceptanceFailure(
+                                f"slow-page production handlers did not all finish done: "
+                                f"{task_rows!r}"
+                            )
+                        episode_rows = final_state["episodes"]
+                        if not isinstance(episode_rows, list) or any(
+                            not isinstance(row, Mapping)
+                            or row.get("script_revision") != 1
+                            or row.get("assets_generated_script_revision") != 1
+                            for row in episode_rows
+                        ):
+                            raise AcceptanceFailure(
+                                f"slow-page episode markers did not close through handlers: "
+                                f"{episode_rows!r}"
+                            )
+
+                        overflow_logs = [
+                            message
+                            for message in log_handler.messages
+                            if "subscription_overflow" in message
+                        ]
+                        if not overflow_logs:
+                            raise AcceptanceFailure(
+                                "production task WebSocket logs did not record subscription_overflow"
+                            )
+                        evidence.add(
+                            "slow_page_observation",
+                            browser_address=f"{base_url}/api/tasks/{first_task_id}",
+                            tasks_page_address="http://127.0.0.1:5173/tasks",
+                            tasks_page_note=(
+                                "existing Vite proxy is fixed to 127.0.0.1:8000; "
+                                "T41 must consume the isolated backend with a matching frontend route"
+                            ),
+                            websocket_uri=ws_uri,
+                            first_task_id=first_task_id,
+                            task_ids=task_ids,
+                            event_queue_capacity=256,
+                            submitted_task_count=len(task_ids),
+                            submitted_event_lower_bound=len(task_ids) * 3,
+                            first_gated_message=gate.first_message,
+                            send_cancelled=gate.send_cancelled.is_set(),
+                            websocket_close=close_observation,
+                            production_close_logs=overflow_logs,
+                            request_count=len(request_log),
+                        )
+
+                await asyncio.sleep(0)
+                if gate.active_connections != 0:
+                    raise AcceptanceFailure(
+                        f"slow-page WebSocket connections remained active: "
+                        f"{gate.active_connections}"
+                    )
+        finally:
+            if gate is not None:
+                gate.release.set()
+            if server is not None and server_task is not None:
+                shutdown_result = await stop_slow_page_server(
+                    server, server_task
+                )
+                evidence.add(
+                    "production_process_shutdown",
+                    **shutdown_result,
+                    process="in-process uvicorn server",
+                    port=server_port,
+                )
+            if task_logger is not None:
+                task_logger.removeHandler(log_handler)
+            if request_log:
+                evidence.add(
+                    "production_request_log",
+                    requests=request_log,
+                    count=len(request_log),
+                )
+            if final_state is not None:
+                evidence.add("terminal_database_readback", **final_state)
+            if style_id is not None or project_id is not None or task_ids:
+                cleanup_result = await slow_page_cleanup(
+                    raw_url,
+                    style_id,
+                    project_id,
+                    episode_ids,
+                    task_ids,
+                )
+                evidence.add(
+                    "task_fixture_cleanup",
+                    style_id=style_id,
+                    project_id=project_id,
+                    episode_count=len(episode_ids),
+                    task_count=len(task_ids),
+                    result=cleanup_result,
+                )
+
+        if shutdown_result is None or shutdown_result.get("timed_out"):
+            raise AcceptanceFailure(
+                f"slow-page production server did not stop cleanly: {shutdown_result!r}"
+            )
+        if shutdown_result.get("exception") is not None:
+            raise AcceptanceFailure(
+                f"slow-page production server raised during shutdown: "
+                f"{shutdown_result!r}"
+            )
+        listeners = observe_windows_listeners([server_port]) if server_port else {}
+        evidence.add("owned_listener_cleanup", **listeners)
+        if listeners.get("listeners"):
+            raise AcceptanceFailure(
+                f"slow-page owned port still has listeners: {listeners!r}"
+            )
+
+    if runtime_dir.exists():
+        raise AcceptanceFailure("slow-page runtime directory was not released")
+    evidence.add(
+        "owned_resource_cleanup",
+        runtime_directory_exists=runtime_dir.exists(),
+        dependency_stub_stopped=True,
+        production_server_stopped=True,
+        database_connections_closed=True,
+        cleanup=cleanup_result,
+    )
 
 
 async def command_ws(
@@ -2977,13 +3628,14 @@ def parser() -> argparse.ArgumentParser:
     for name in (
         "migration",
         "names",
-        "ws",
         "cascade",
         "recovery",
         "trash",
         "verify-inputs",
     ):
         subparsers.add_parser(name)
+    ws = subparsers.add_parser("ws")
+    ws.add_argument("--case", choices=("cancel", "slow-page"), default="cancel")
     real_preflight = subparsers.add_parser("preflight")
     real_preflight.add_argument("--real", action="store_true")
     observe = subparsers.add_parser("observe")
@@ -3005,6 +3657,9 @@ async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
         await command_names(arguments, evidence)
         return
     if arguments.command == "ws":
+        if arguments.case == "slow-page":
+            await command_ws_slow_page(arguments, evidence)
+            return
         await command_ws(arguments, evidence)
         return
     if arguments.command == "cascade":
