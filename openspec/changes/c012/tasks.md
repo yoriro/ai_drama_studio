@@ -248,7 +248,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 trash 启动与定时清理。
 
-- [ ] T31 真实视频生成期间的分镜编辑与 stale 验收
+- [x] T31 真实视频生成期间的分镜编辑与 stale 验收
   - 依赖：T22、T26、T30及真实资源前置仍满足。交付：在示范集既有一个Clip发起新的真实生成，确认owned任务running后经真实UI改相关Shot文本；记录旧payload、新take、changed/stale和双维UI，保留原示范take。
   - R：R4；PRD §3.2、§3.3、§6.2、§11 M6；AC-23。
   - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`；人工UI生成→确认真实running→编辑→终态，独立DB/REST逐字段比较，旧payload不变、产物保存而不回写normal/fresh；B `python -m pytest -q tests/task_system/test_c009_clip_video_commit.py`补齐Clip/Asset漂移与无变化既有分支。GPU失败不自动重跑。
