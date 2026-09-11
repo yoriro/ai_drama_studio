@@ -239,3 +239,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-11 C012 T43：多轮外部stub请求曾因MP4判别、stdout PIPE回压、script2assets解析和JSONB payload读取先后产生非零证据，均保留在`.work/c012/T43-cascade-cache-*.log`；最终未修改生产代码。
 - 2026-09-11 C012 T44：新隔离库`ai_drama_studio_c012_t44_20260911`经Alembic head后，模板级联定向B为`14 passed in 10.12s`、exit 0；新增测试覆盖三类模型hash失配重建、命中零chat、提取模板null hash及四类在途payload/下游不追溯。
 - 2026-09-11 C012 T44：复用T43隔离库`ai_drama_studio_c012_t43_20260911`与DATA_DIR`D:\ai_drama_studio\.work\c012\t43-data-20260911`执行`cascade --case cache`，输出`status=passed`、exit 0；T43快照与首轮失败日志保留，未改生产代码/模板/剧本/既有测试。
+- 2026-09-11 C012 T45：隔离库`ai_drama_studio_c012_t45_20260911`与DATA_DIR`D:\ai_drama_studio\.work\c012\t45-data-20260911`上，py_compile与`recovery --case lifecycle`均exit 0；自然互斥进程returncode=3，输出`AdvisoryLockNotAcquired`，未请求终止。
+- 2026-09-11 C012 T45：真实生产worker恢复running/queued后，重启使running变为`failed/server restarted`、queued变为done且仅一条generated资产；只读数据库故障期间heartbeat未变、handler=0，恢复可写后重启收口，最终临时目录不存在。
+- 2026-09-11 C012 T45：CLI参数、JSONB字符串读取、PostgreSQL`datconfig`/只读恢复和临时目录时点的失败证据分别保留在`.work/c012/T45-recovery-lifecycle-failure-01.*`至`failure-04.*`与`pass-01.*`。

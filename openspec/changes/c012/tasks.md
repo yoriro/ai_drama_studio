@@ -374,12 +374,13 @@
 
   - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_template_cascade.py`，覆盖 style/zimage/minimaxh3 的精确 hash 变化与单次重建、命中零 chat、script2assets/script2shots changed 正文与 `input_hash=null`，以及四类在途 payload 冻结和既有下游行/文件不追溯；并复用了已完成 T27 的九格回归与原始失败证据。隔离库 `ai_drama_studio_c012_t44_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py` 为 `14 passed in 10.12s`、exit 0，日志 `.work/c012/T44-test-targeted-final.log`；R 在 T43 受测库 `ai_drama_studio_c012_t43_20260911`/DATA_DIR `D:\ai_drama_studio\.work\c012\t43-data-20260911` 重用同一生产入口，`python -X utf8 .work/c012/acceptance.py cascade --case cache` 输出 `status=passed`、exit 0，原始 `.work/c012/T44-cascade-cache.log` 与 `.work/c012/T44-cascade-acceptance.json`，T43 原始快照另存 `.work/c012/T43-cascade-cache-before-T44.json`。首轮错误日志（日志落点、DATABASE_URL、旧库迁移约束、测试基线）均保留；未改生产代码、模板、剧本或既有测试。
 
-- [ ] T45 交付进程恢复与心跳故障验收装置（B6前置）
+- [x] T45 交付进程恢复与心跳故障验收装置（B6前置）
   - 依赖：T44。交付：扩展现有 `.work/c012/acceptance.py recovery --case lifecycle`；隔离真实后端/队列/handler先形成running+合法queued，终止/重启后释放queued完成真实业务产物；外部stub账本与独立DB/文件核对次数；生产worker监督中的数据库连接故障，handler及资源退出，恢复连通后重启恢复原running。不得用空payload或始终锁住queued代替。
   - R：无；PRD §6.1、§6.4、§11 M6；AC-02/22。
   - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py recovery --case lifecycle`；两个进程实际互斥、running→failed/server restarted、queued→done且副作用1、heartbeat失败真实非零/原因和资源清理；隔离故障不能影响用户数据库或GPU，清理本轮owned连接/端口。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 取消心跳失败与重启资源恢复。
+  - 2026-09-11完成：仅扩展 `.work/c012/acceptance.py`。隔离库 `ai_drama_studio_c012_t45_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t45-data-20260911` 上，`python -m py_compile .work/c012/acceptance.py` 与 `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle` 均 exit 0；`recovery-acceptance.json` 记录真实 running task #7 与 queued task #8，第二进程自然 returncode=3、未请求终止，输出 `AdvisoryLockNotAcquired`/`task worker advisory lock is already held`；首进程终止后 running/queued 保持，重启后 #7 为 `failed/server restarted`、#8 为 `done` 且仅 1 条 `source=generated` 资产。第三任务的数据库 `default_transaction_read_only=on` 故障记录 heartbeat 不变、任务仍 running、handler=0、无新增资产；恢复 off 后再次重启为 `failed/server restarted`。最终 owned 进程/连接/HTTP handler 清理，临时目录不存在。原始日志 `.work/c012/T45-acceptance-pycompile.*`、`.work/c012/T45-recovery-lifecycle.*`、`.work/c012/recovery-acceptance.json`；CLI、JSONB读取、PostgreSQL诊断兼容性与目录证据修正前失败分别保留在 `T45-recovery-lifecycle-failure-01.*` 至 `failure-04.*` 与 `pass-01.*`。
 
 - [ ] T46 补齐重启副作用及心跳监督回归（B6）
   - 依赖：T45。交付：新增 `backend/tests/task_system/test_c012_worker_recovery.py`，精确覆盖queued/完成先胜取消、真实进程重启后queued完成一次、心跳异常不吞/handler取消/DB不可达不假报failed/恢复后重启；保留原四个C012恢复测试。完成后复核恢复T29。

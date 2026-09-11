@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import select
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -576,6 +577,226 @@ class ControlledHTTPStub:
         self.thread.join(timeout=5)
         if self.thread.is_alive():
             raise AcceptanceFailure("owned HTTP stub thread did not stop")
+
+
+class RecoveryHTTPServer(ControlledHTTPServer):
+    def __init__(
+        self,
+        *args: object,
+        controller: "RecoveryHTTPStub",
+        **kwargs: object,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.controller = controller
+
+
+class RecoveryHTTPHandler(HealthStubHandler):
+    def _controller(self) -> "RecoveryHTTPStub":
+        server = self.server
+        if not isinstance(server, RecoveryHTTPServer):
+            raise AcceptanceFailure("recovery HTTP handler has an unexpected server")
+        return server.controller
+
+    def do_GET(self) -> None:  # noqa: N802 - stdlib handler contract
+        self._controller().record_http("GET", self.path)
+        super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802 - stdlib handler contract
+        controller = self._controller()
+        if self.path != "/v1/chat/completions":
+            controller.record_http("POST", self.path)
+            super().do_POST()
+            return
+
+        length = int(self.headers.get("Content-Length", "0"))
+        raw_body = self.rfile.read(length)
+        try:
+            body: object = json.loads(raw_body or b"{}")
+        except json.JSONDecodeError:
+            body = None
+        request_index = controller.record_chat(raw_body, body)
+        controller.chat_handlers_started += 1
+        try:
+            if controller.block_chat.is_set():
+                wait_result = controller.wait_for_release_or_disconnect(
+                    self.connection
+                )
+                if wait_result == "client_closed":
+                    controller.record_chat_disconnect(
+                        request_index, "client_closed_before_response"
+                    )
+                    return
+                if wait_result == "timed_out":
+                    controller.record_chat_timeout(request_index)
+                    self._send_json(
+                        504,
+                        {"detail": "recovery chat release was not observed"},
+                    )
+                    return
+
+            content = {
+                "assets": [
+                    {
+                        "existing_id": None,
+                        "type": "character",
+                        "name": f"C012 recovery generated asset {request_index}",
+                        "description": (
+                            f"recovery controlled generated asset {request_index}"
+                        ),
+                    }
+                ]
+            }
+            response_payload = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(content, ensure_ascii=False)
+                        }
+                    }
+                ]
+            }
+            controller.record_chat_response(request_index, response_payload)
+            try:
+                self._send_json(200, response_payload)
+            except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+                controller.record_chat_disconnect(
+                    request_index, "client_closed_during_response"
+                )
+        finally:
+            controller.chat_handlers_started -= 1
+
+
+class RecoveryHTTPStub:
+    """Controlled vLLM/Comfy boundary for real recovery lifecycle runs."""
+
+    def __init__(self) -> None:
+        self.block_chat = threading.Event()
+        self.chat_release = threading.Event()
+        self.chat_client_closed = threading.Event()
+        self.chat_requests: list[dict[str, object]] = []
+        self.chat_responses: list[dict[str, object]] = []
+        self.chat_disconnects: list[dict[str, object]] = []
+        self.chat_timeouts: list[int] = []
+        self.http_requests: list[dict[str, str]] = []
+        self.chat_handlers_started = 0
+        self._lock = threading.Lock()
+        self.server = RecoveryHTTPServer(
+            ("127.0.0.1", 0),
+            RecoveryHTTPHandler,
+            controller=self,
+        )
+        self.thread = threading.Thread(
+            target=self.server.serve_forever,
+            kwargs={"poll_interval": 0.05},
+            name="c012-recovery-http-stub",
+            daemon=True,
+        )
+
+    @property
+    def base_url(self) -> str:
+        host, port = self.server.server_address
+        return f"http://{host}:{port}"
+
+    def __enter__(self) -> "RecoveryHTTPStub":
+        self.thread.start()
+        return self
+
+    def __exit__(self, _type: object, _value: object, _traceback: object) -> None:
+        self.chat_release.set()
+        self.block_chat.clear()
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+        if self.thread.is_alive():
+            raise AcceptanceFailure("owned recovery HTTP stub thread did not stop")
+
+    def set_blocked(self) -> None:
+        self.chat_release.clear()
+        self.block_chat.set()
+
+    def release(self) -> None:
+        self.chat_release.set()
+        self.block_chat.clear()
+
+    def record_http(self, method: str, path: str) -> None:
+        with self._lock:
+            self.http_requests.append({"method": method, "path": path})
+
+    def record_chat(self, raw_body: bytes, body: object) -> int:
+        with self._lock:
+            request_index = len(self.chat_requests) + 1
+            self.chat_requests.append(
+                {
+                    "request_index": request_index,
+                    "method": "POST",
+                    "path": "/v1/chat/completions",
+                    "raw_body_utf8": raw_body.decode("utf-8", errors="replace"),
+                    "body": body,
+                }
+            )
+            self.http_requests.append(
+                {"method": "POST", "path": "/v1/chat/completions"}
+            )
+            return request_index
+
+    def record_chat_response(
+        self, request_index: int, response_payload: Mapping[str, object]
+    ) -> None:
+        with self._lock:
+            self.chat_responses.append(
+                {
+                    "request_index": request_index,
+                    "response": dict(response_payload),
+                }
+            )
+
+    def record_chat_disconnect(self, request_index: int, reason: str) -> None:
+        with self._lock:
+            self.chat_disconnects.append(
+                {"request_index": request_index, "reason": reason}
+            )
+        self.chat_client_closed.set()
+
+    def record_chat_timeout(self, request_index: int) -> None:
+        with self._lock:
+            self.chat_timeouts.append(request_index)
+
+    def wait_for_release_or_disconnect(self, connection: socket.socket) -> str:
+        deadline = time.monotonic() + 120.0
+        while time.monotonic() < deadline:
+            if self.chat_release.is_set():
+                return "released"
+            try:
+                readable, _, _ = select.select([connection], [], [], 0.05)
+            except (OSError, ValueError):
+                return "client_closed"
+            if not readable:
+                continue
+            try:
+                data = connection.recv(1, socket.MSG_PEEK)
+            except BlockingIOError:
+                continue
+            except (ConnectionAbortedError, ConnectionResetError, OSError):
+                return "client_closed"
+            if data == b"":
+                return "client_closed"
+        return "timed_out"
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            by_path: dict[str, int] = {}
+            for request in self.http_requests:
+                path = request["path"]
+                by_path[path] = by_path.get(path, 0) + 1
+            return {
+                "http_requests": list(self.http_requests),
+                "http_counts_by_path": by_path,
+                "chat_requests": list(self.chat_requests),
+                "chat_responses": list(self.chat_responses),
+                "chat_disconnects": list(self.chat_disconnects),
+                "chat_timeouts": list(self.chat_timeouts),
+                "chat_handlers_started": self.chat_handlers_started,
+            }
 
 
 class SlowASGISendGate:
@@ -5245,59 +5466,521 @@ async def command_cascade(_arguments: argparse.Namespace, evidence: RunEvidence)
     evidence.add("owned_resource_cleanup", production_process_stopped=True, runtime_directory_exists=runtime_dir.exists())
 
 
-async def recovery_seed_tasks(raw_url: str) -> tuple[int, int]:
+async def recovery_create_episode(
+    client: httpx.AsyncClient,
+    base_url: str,
+    project_id: int,
+    sequence: int,
+    request_log: list[dict[str, object]],
+) -> int:
+    path = f"/api/projects/{project_id}/episodes"
+    status, body = await slow_page_http_json(
+        client,
+        "POST",
+        f"{base_url}{path}",
+        {
+            "seq": sequence,
+            "title": f"恢复任务 {sequence}",
+            "script_text": f"recovery controlled script {sequence}",
+        },
+    )
+    entry: dict[str, object] = {
+        "method": "POST",
+        "path": path,
+        "status": status,
+        "sequence": sequence,
+    }
+    if isinstance(body, Mapping):
+        entry["response"] = dict(body)
+    request_log.append(entry)
+    if status != 201:
+        raise AcceptanceFailure(
+            f"recovery episode creation returned {status}: {body!r}"
+        )
+    episode = require_mapping(body, "recovery episode response")
+    episode_id = episode.get("id")
+    if not isinstance(episode_id, int):
+        raise AcceptanceFailure(f"recovery episode id missing: {body!r}")
+    return episode_id
+
+
+def recovery_file_manifest(data_dir: Path) -> list[dict[str, object]]:
+    manifest: list[dict[str, object]] = []
+    for path in sorted(data_dir.rglob("*")):
+        if path.is_file():
+            manifest.append(
+                {
+                    "path": path.relative_to(data_dir).as_posix(),
+                    "bytes": path.stat().st_size,
+                }
+            )
+    return manifest
+
+
+async def recovery_read_state(
+    raw_url: str,
+    project_id: int,
+    task_ids: Sequence[int],
+    data_dir: Path,
+) -> dict[str, object]:
+    tasks = await read_database_tasks(raw_url)
+    task_id_set = set(task_ids)
     connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
-    running_target_id = 2_000_000_000 + (uuid4().int % 100_000_000)
-    queued_target_id = 2_000_000_000 + (uuid4().int % 100_000_000)
-    while queued_target_id == running_target_id:
-        queued_target_id = 2_000_000_000 + (uuid4().int % 100_000_000)
+    try:
+        rows = await connection.fetch(
+            "SELECT id, project_id, type, name, description, source, revision "
+            "FROM assets WHERE project_id = $1 ORDER BY id",
+            project_id,
+        )
+    finally:
+        await connection.close()
+    selected_tasks: list[dict[str, object]] = []
+    for task in tasks:
+        if task["id"] not in task_id_set:
+            continue
+        selected_task = dict(task)
+        payload = selected_task.get("payload")
+        if isinstance(payload, str):
+            try:
+                selected_task["payload"] = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise AcceptanceFailure(
+                    f"recovery task {task['id']} payload is not valid JSON: {payload!r}"
+                ) from exc
+        selected_tasks.append(selected_task)
+    return {
+        "tasks": selected_tasks,
+        "assets": [
+            {
+                "id": row["id"],
+                "project_id": row["project_id"],
+                "type": row["type"],
+                "name": row["name"],
+                "description": row["description"],
+                "source": row["source"],
+                "revision": row["revision"],
+            }
+            for row in rows
+        ],
+        "file_manifest": recovery_file_manifest(data_dir),
+    }
+
+
+def recovery_task_row(
+    state: Mapping[str, object], task_id: int, label: str
+) -> Mapping[str, object]:
+    tasks = state.get("tasks")
+    if not isinstance(tasks, list):
+        raise AcceptanceFailure(f"{label} state has no task list")
+    for task in tasks:
+        if isinstance(task, Mapping) and task.get("id") == task_id:
+            return task
+    raise AcceptanceFailure(f"{label} task {task_id} was not found: {state!r}")
+
+
+def recovery_assert_legal_payload(
+    task: Mapping[str, object], episode_id: int, label: str
+) -> None:
+    payload = task.get("payload")
+    if not isinstance(payload, Mapping) or set(payload) != {
+        "input_snapshot",
+        "input_hash",
+        "source_revisions",
+    }:
+        raise AcceptanceFailure(f"{label} payload is not the frozen task contract: {task!r}")
+    snapshot = payload.get("input_snapshot")
+    if not isinstance(snapshot, Mapping) or not snapshot:
+        raise AcceptanceFailure(f"{label} payload input_snapshot is empty: {task!r}")
+    if snapshot.get("episode_id") != episode_id:
+        raise AcceptanceFailure(f"{label} payload episode identity mismatch: {task!r}")
+    if snapshot.get("template_key") != "script2assets":
+        raise AcceptanceFailure(f"{label} payload template snapshot mismatch: {task!r}")
+    if not isinstance(snapshot.get("rendered_prompt"), str) or not snapshot["rendered_prompt"]:
+        raise AcceptanceFailure(f"{label} payload rendered prompt is missing: {task!r}")
+    if not isinstance(payload.get("source_revisions"), Mapping):
+        raise AcceptanceFailure(f"{label} payload source revisions are invalid: {task!r}")
+
+
+async def recovery_wait_for_task_status(
+    raw_url: str,
+    project_id: int,
+    task_ids: Sequence[int],
+    data_dir: Path,
+    task_id: int,
+    expected: set[str],
+    *,
+    timeout: float,
+) -> Mapping[str, object]:
+    deadline = time.monotonic() + timeout
+    last_state: dict[str, object] | None = None
+    while time.monotonic() < deadline:
+        last_state = await recovery_read_state(
+            raw_url, project_id, task_ids, data_dir
+        )
+        row = recovery_task_row(last_state, task_id, "recovery wait")
+        if row.get("status") in expected:
+            return row
+        await asyncio.sleep(0.1)
+    raise AcceptanceFailure(
+        f"recovery task {task_id} did not reach {sorted(expected)}: {last_state!r}"
+    )
+
+
+async def recovery_wait_for_chat_count(
+    stub: RecoveryHTTPStub, expected: int, *, timeout: float
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if len(stub.chat_requests) >= expected:
+            return
+        await asyncio.sleep(0.05)
+    raise AcceptanceFailure(
+        f"recovery stub saw {len(stub.chat_requests)} chat requests, expected {expected}"
+    )
+
+
+async def recovery_wait_for_chat_disconnect(
+    stub: RecoveryHTTPStub, expected: int, *, timeout: float
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if len(stub.chat_disconnects) >= expected:
+            return
+        await asyncio.sleep(0.05)
+    raise AcceptanceFailure(
+        "recovery stub did not observe the canceled external request: "
+        f"disconnects={stub.chat_disconnects!r}"
+    )
+
+
+def recovery_database_name(raw_url: str) -> str:
+    database = urlsplit(raw_url).path.lstrip("/")
+    if not database:
+        raise AcceptanceFailure("recovery database name is missing")
+    return database.replace('"', '""')
+
+
+async def recovery_set_database_read_only(raw_url: str) -> dict[str, object]:
+    database = recovery_database_name(raw_url)
+    admin_url = migration_database_url(raw_url, "postgres").replace(
+        "+asyncpg", "", 1
+    )
+    connection = await asyncpg.connect(admin_url)
+    try:
+        rows = await connection.fetch(
+            "SELECT pid, application_name, state, wait_event_type, wait_event, query "
+            "FROM pg_stat_activity "
+            "WHERE datname = $1 AND pid <> pg_backend_pid() ORDER BY pid",
+            database,
+        )
+        await connection.execute(
+            f'ALTER DATABASE "{database}" SET default_transaction_read_only = on'
+        )
+        terminated: list[dict[str, object]] = []
+        for row in rows:
+            terminated.append(
+                {
+                    "pid": row["pid"],
+                    "application_name": row["application_name"],
+                    "state": row["state"],
+                    "wait_event_type": row["wait_event_type"],
+                    "wait_event": row["wait_event"],
+                    "query": row["query"],
+                    "terminated": bool(
+                        await connection.fetchval(
+                            "SELECT pg_terminate_backend($1)", row["pid"]
+                        )
+                    ),
+                }
+            )
+    finally:
+        await connection.close()
+
+    verification_connection = await asyncpg.connect(
+        raw_url.replace("+asyncpg", "", 1)
+    )
+    try:
+        new_session_setting = await verification_connection.fetchval(
+            "SELECT current_setting('default_transaction_read_only')"
+        )
+    finally:
+        await verification_connection.close()
+    if new_session_setting != "on":
+        raise AcceptanceFailure(
+            f"recovery database read-only fault was not applied: {new_session_setting!r}"
+        )
+    if not any(item["terminated"] for item in terminated):
+        raise AcceptanceFailure(
+            f"recovery database fault did not terminate an application session: {terminated!r}"
+        )
+    return {
+        "database": database,
+        "default_transaction_read_only": new_session_setting,
+        "database_config": "ALTER DATABASE SET default_transaction_read_only = on",
+        "terminated_sessions": terminated,
+    }
+
+
+async def recovery_restore_database_read_write(raw_url: str) -> dict[str, object]:
+    database = recovery_database_name(raw_url)
+    admin_url = migration_database_url(raw_url, "postgres").replace(
+        "+asyncpg", "", 1
+    )
+    connection = await asyncpg.connect(admin_url)
+    try:
+        await connection.execute(
+            f'ALTER DATABASE "{database}" SET default_transaction_read_only = off'
+        )
+    finally:
+        await connection.close()
+    verification_connection = await asyncpg.connect(
+        raw_url.replace("+asyncpg", "", 1)
+    )
+    try:
+        setting = await verification_connection.fetchval(
+            "SELECT current_setting('default_transaction_read_only')"
+        )
+    finally:
+        await verification_connection.close()
+    if setting != "off":
+        raise AcceptanceFailure(
+            f"recovery database read-write restore failed: {setting!r}"
+        )
+    return {"database": database, "default_transaction_read_only": setting}
+
+
+async def recovery_cleanup_fixture(
+    raw_url: str, fixture: Mapping[str, object]
+) -> None:
+    project_id = int(fixture["project_id"])
+    style_id = int(fixture["style_id"])
+    episode_ids = [int(value) for value in fixture["episode_ids"]]
+    task_ids = [int(value) for value in fixture.get("task_ids", [])]
+    connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
     try:
         async with connection.transaction():
-            running = int(await connection.fetchval("INSERT INTO tasks (type, target_id, status, progress, payload) VALUES ('gen_assets', $1, 'running', 0.5, '{}'::jsonb) RETURNING id", running_target_id))
-            queued = int(await connection.fetchval("INSERT INTO tasks (type, target_id, status, progress, payload) VALUES ('gen_assets', $1, 'queued', 0, '{}'::jsonb) RETURNING id", queued_target_id))
-        return running, queued
+            if task_ids or episode_ids:
+                await connection.execute(
+                    "DELETE FROM tasks WHERE "
+                    "($1::int[] <> '{}'::int[] AND id = ANY($1::int[])) "
+                    "OR ($2::int[] <> '{}'::int[] AND target_id = ANY($2::int[]))",
+                    task_ids,
+                    episode_ids,
+                )
+            await connection.execute(
+                "DELETE FROM asset_images WHERE asset_id IN "
+                "(SELECT id FROM assets WHERE project_id = $1)",
+                project_id,
+            )
+            await connection.execute("DELETE FROM assets WHERE project_id = $1", project_id)
+            await connection.execute(
+                "DELETE FROM episodes WHERE id = ANY($1::int[])", episode_ids
+            )
+            await connection.execute("DELETE FROM projects WHERE id = $1", project_id)
+            await connection.execute("DELETE FROM styles WHERE id = $1", style_id)
     finally:
         await connection.close()
 
 
-async def command_recovery(_arguments: argparse.Namespace, evidence: RunEvidence) -> None:
+async def command_recovery(
+    _arguments: argparse.Namespace, evidence: RunEvidence
+) -> None:
     raw_url, data_dir, identity = explicit_runtime()
     database_identity = await read_database_identity(raw_url)
-    evidence.add("runtime_identity", database_url=identity, database=database_identity, data_dir=str(data_dir))
-    with tempfile.TemporaryDirectory(prefix="c012-recovery-", dir=str(data_dir)) as runtime_name:
+    if database_identity["current_database"] != identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+    evidence.add(
+        "runtime_identity",
+        database_url=identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+    )
+
+    fixture: dict[str, object] = {}
+    task_ids: list[int] = []
+    first_process: subprocess.Popen[bytes] | None = None
+    second_process: subprocess.Popen[bytes] | None = None
+    restart_process: subprocess.Popen[bytes] | None = None
+    database_fault_maybe_active = False
+    with tempfile.TemporaryDirectory(
+        prefix="c012-recovery-", dir=str(data_dir)
+    ) as runtime_name:
         runtime_dir = Path(runtime_name)
-        running_id, queued_id = await recovery_seed_tasks(raw_url)
-        first: subprocess.Popen[bytes] | None = None
-        second: subprocess.Popen[bytes] | None = None
-        first_stop: ChildResult | None = None
-        queued_lock_connection: asyncpg.Connection | None = None
+        recovery_stub = RecoveryHTTPStub()
         try:
-            queued_lock_connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
-            await queued_lock_connection.execute("BEGIN")
-            await queued_lock_connection.fetchrow(
-                "SELECT id FROM tasks WHERE id = $1 FOR UPDATE", queued_id
-            )
-            with ControlledHTTPStub() as dependency_stub:
-                first, first_port = start_backend_process(raw_url, runtime_dir, dependency_stub)
-                health = await wait_for_http(f"http://127.0.0.1:{first_port}/api/system/health")
-                tasks_after = await read_database_tasks(raw_url)
-                running_row = next(row for row in tasks_after if row["id"] == running_id)
-                queued_row = next(row for row in tasks_after if row["id"] == queued_id)
-                if running_row["status"] != "failed" or running_row["error_msg"] != "server restarted":
-                    raise AcceptanceFailure(f"running recovery mismatch: {running_row!r}")
-                evidence.add("running_recovery", first_pid=first.pid, first_port=first_port, health=health.body, running_task=running_row, queued_task=queued_row)
-                second, second_port = start_backend_process(raw_url, runtime_dir, dependency_stub)
+            with recovery_stub:
+                request_log: list[dict[str, object]] = []
+                first_process, first_port = start_backend_process(
+                    raw_url, runtime_dir, recovery_stub
+                )
+                first_health = await wait_for_http(
+                    f"http://127.0.0.1:{first_port}/api/system/health"
+                )
+                if first_health.status_code != 200:
+                    raise AcceptanceFailure(
+                        f"recovery first backend health returned "
+                        f"{first_health.status_code}: {first_health.body!r}"
+                    )
+                evidence.add(
+                    "first_production_process",
+                    pid=first_process.pid,
+                    port=first_port,
+                    health=first_health.body,
+                    queue="production TaskQueue",
+                    handlers="production gen_assets_handler",
+                    dependency_stub=recovery_stub.base_url,
+                )
+                async with httpx.AsyncClient(
+                    timeout=20, trust_env=False
+                ) as client:
+                    initial_fixture = await slow_page_create_fixture(
+                        client,
+                        f"http://127.0.0.1:{first_port}",
+                        request_log,
+                        task_count=2,
+                    )
+                    fixture.update(initial_fixture)
+                    episode_ids = [
+                        int(value) for value in initial_fixture["episode_ids"]
+                    ]
+                    third_episode_id = await recovery_create_episode(
+                        client,
+                        f"http://127.0.0.1:{first_port}",
+                        int(initial_fixture["project_id"]),
+                        3,
+                        request_log,
+                    )
+                    fixture["episode_ids"] = [*episode_ids, third_episode_id]
+
+                    recovery_stub.set_blocked()
+                    first_path = (
+                        f"/api/episodes/{episode_ids[0]}/generate-assets"
+                    )
+                    first_status, first_body = await slow_page_http_json(
+                        client, "POST", f"http://127.0.0.1:{first_port}{first_path}"
+                    )
+                    request_log.append(
+                        {
+                            "method": "POST",
+                            "path": first_path,
+                            "status": first_status,
+                            "response": first_body,
+                        }
+                    )
+                    if first_status != 202:
+                        raise AcceptanceFailure(
+                            f"recovery running enqueue returned "
+                            f"{first_status}: {first_body!r}"
+                        )
+                    first_response = require_mapping(
+                        first_body, "recovery running enqueue response"
+                    )
+                    first_task_id = first_response.get("task_id")
+                    if not isinstance(first_task_id, int):
+                        raise AcceptanceFailure(
+                            f"recovery running task id missing: {first_body!r}"
+                        )
+                    task_ids.append(first_task_id)
+                    await recovery_wait_for_chat_count(
+                        recovery_stub, 1, timeout=20
+                    )
+                    first_running_state = await recovery_read_state(
+                        raw_url,
+                        int(initial_fixture["project_id"]),
+                        task_ids,
+                        runtime_dir,
+                    )
+                    first_running = recovery_task_row(
+                        first_running_state, first_task_id, "running task"
+                    )
+                    if first_running.get("status") != "running":
+                        raise AcceptanceFailure(
+                            f"first task did not become running: {first_running!r}"
+                        )
+                    recovery_assert_legal_payload(
+                        first_running, episode_ids[0], "running task"
+                    )
+
+                    queued_path = (
+                        f"/api/episodes/{episode_ids[1]}/generate-assets"
+                    )
+                    queued_status, queued_body = await slow_page_http_json(
+                        client,
+                        "POST",
+                        f"http://127.0.0.1:{first_port}{queued_path}",
+                    )
+                    request_log.append(
+                        {
+                            "method": "POST",
+                            "path": queued_path,
+                            "status": queued_status,
+                            "response": queued_body,
+                        }
+                    )
+                    if queued_status != 202:
+                        raise AcceptanceFailure(
+                            f"recovery queued enqueue returned "
+                            f"{queued_status}: {queued_body!r}"
+                        )
+                    queued_response = require_mapping(
+                        queued_body, "recovery queued enqueue response"
+                    )
+                    queued_task_id = queued_response.get("task_id")
+                    if not isinstance(queued_task_id, int):
+                        raise AcceptanceFailure(
+                            f"recovery queued task id missing: {queued_body!r}"
+                        )
+                    task_ids.append(queued_task_id)
+                    queued_state = await recovery_read_state(
+                        raw_url,
+                        int(initial_fixture["project_id"]),
+                        task_ids,
+                        runtime_dir,
+                    )
+                    queued_row = recovery_task_row(
+                        queued_state, queued_task_id, "queued task"
+                    )
+                    if queued_row.get("status") != "queued":
+                        raise AcceptanceFailure(
+                            f"second task did not remain queued behind running task: "
+                            f"{queued_row!r}"
+                        )
+                    recovery_assert_legal_payload(
+                        queued_row, episode_ids[1], "queued task"
+                    )
+                    evidence.add(
+                        "running_and_queued",
+                        request_log=list(request_log),
+                        running_task=first_running,
+                        queued_task=queued_row,
+                        external_stub=recovery_stub.snapshot(),
+                    )
+
+                second_process, second_port = start_backend_process(
+                    raw_url, runtime_dir, recovery_stub
+                )
                 try:
-                    stdout, stderr = second.communicate(timeout=30)
-                    second_result = ChildResult(command=tuple(str(part) for part in second.args), returncode=second.returncode, stdout=stdout, stderr=stderr)
+                    await asyncio.to_thread(second_process.wait, 15)
                 except subprocess.TimeoutExpired:
-                    second_result = stop_process(second, timeout=1)
-                evidence.add("advisory_lock_exclusion", second_pid=second.pid, second_port=second_port, **child_observation(second_result))
-                lock_output = second_result.text_stdout() + second_result.text_stderr()
+                    pass
+                second_lock_stop = stop_process(second_process, timeout=30)
+                evidence.add(
+                    "advisory_lock_exclusion",
+                    pid=second_process.pid,
+                    port=second_port,
+                    **child_observation(second_lock_stop),
+                )
+                second_process = None
+                lock_output = (
+                    second_lock_stop.text_stdout()
+                    + second_lock_stop.text_stderr()
+                )
                 if (
-                    second_result.returncode == 0
-                    or second_result.timed_out
-                    or second_result.termination_requested
+                    second_lock_stop.returncode == 0
+                    or second_lock_stop.timed_out
+                    or second_lock_stop.termination_requested
                     or "AdvisoryLockNotAcquired" not in lock_output
                     or "advisory lock is already held" not in lock_output
                 ):
@@ -5305,24 +5988,315 @@ async def command_recovery(_arguments: argparse.Namespace, evidence: RunEvidence
                         "second backend did not naturally reject the shared advisory lock "
                         "with the expected startup error"
                     )
+
+                first_stop = stop_process(first_process, timeout=30)
+                evidence.add(
+                    "first_process_terminated",
+                    **child_observation(first_stop),
+                )
+                first_process = None
+                recovery_stub.release()
+                await recovery_wait_for_chat_disconnect(
+                    recovery_stub, 1, timeout=10
+                )
+                after_termination_state = await recovery_read_state(
+                    raw_url,
+                    int(fixture["project_id"]),
+                    task_ids,
+                    runtime_dir,
+                )
+                after_termination_running = recovery_task_row(
+                    after_termination_state,
+                    task_ids[0],
+                    "post-termination running task",
+                )
+                after_termination_queued = recovery_task_row(
+                    after_termination_state,
+                    task_ids[1],
+                    "post-termination queued task",
+                )
+                if (
+                    after_termination_running.get("status") != "running"
+                    or after_termination_queued.get("status") != "queued"
+                    or after_termination_running.get("started_at") is None
+                    or after_termination_queued.get("started_at") is not None
+                ):
+                    raise AcceptanceFailure(
+                        "terminating the first backend did not preserve running/queued "
+                        f"state: {after_termination_state!r}"
+                    )
+                evidence.add(
+                    "termination_preserves_tasks",
+                    running_task=after_termination_running,
+                    queued_task=after_termination_queued,
+                    assets=after_termination_state["assets"],
+                    file_manifest=after_termination_state["file_manifest"],
+                )
+
+                second_process, second_port = start_backend_process(
+                    raw_url, runtime_dir, recovery_stub
+                )
+                second_health = await wait_for_http(
+                    f"http://127.0.0.1:{second_port}/api/system/health"
+                )
+                if second_health.status_code != 200:
+                    raise AcceptanceFailure(
+                        f"recovery restart health returned {second_health.status_code}: "
+                        f"{second_health.body!r}"
+                    )
+                recovered_running = await recovery_wait_for_task_status(
+                    raw_url,
+                    int(fixture["project_id"]),
+                    task_ids,
+                    runtime_dir,
+                    task_ids[0],
+                    {"failed"},
+                    timeout=20,
+                )
+                recovered_queued = await recovery_wait_for_task_status(
+                    raw_url,
+                    int(fixture["project_id"]),
+                    task_ids,
+                    runtime_dir,
+                    task_ids[1],
+                    {"done"},
+                    timeout=60,
+                )
+                recovered_state = await recovery_read_state(
+                    raw_url,
+                    int(fixture["project_id"]),
+                    task_ids,
+                    runtime_dir,
+                )
+                if recovered_running.get("error_msg") != "server restarted":
+                    raise AcceptanceFailure(
+                        f"restarted running task has the wrong error: {recovered_running!r}"
+                    )
+                assets_after_queue = recovered_state["assets"]
+                if not isinstance(assets_after_queue, list) or len(assets_after_queue) != 1:
+                    raise AcceptanceFailure(
+                        "queued recovery did not create exactly one generated asset: "
+                        f"{recovered_state!r}"
+                    )
+                generated_asset = assets_after_queue[0]
+                if not isinstance(generated_asset, Mapping) or generated_asset.get(
+                    "source"
+                ) != "generated":
+                    raise AcceptanceFailure(
+                        f"queued recovery asset is not a generated production row: "
+                        f"{generated_asset!r}"
+                    )
+                evidence.add(
+                    "queued_recovery",
+                    restart_pid=second_process.pid,
+                    restart_port=second_port,
+                    health=second_health.body,
+                    running_task=recovered_running,
+                    queued_task=recovered_queued,
+                    assets=recovered_state["assets"],
+                    file_manifest=recovered_state["file_manifest"],
+                    external_stub=recovery_stub.snapshot(),
+                )
+
+                async with httpx.AsyncClient(
+                    timeout=20, trust_env=False
+                ) as client:
+                    heartbeat_episode_id = int(fixture["episode_ids"][2])
+                    recovery_stub.set_blocked()
+                    heartbeat_path = (
+                        f"/api/episodes/{heartbeat_episode_id}/generate-assets"
+                    )
+                    heartbeat_status, heartbeat_body = await slow_page_http_json(
+                        client,
+                        "POST",
+                        f"http://127.0.0.1:{second_port}{heartbeat_path}",
+                    )
+                    request_log.append(
+                        {
+                            "method": "POST",
+                            "path": heartbeat_path,
+                            "status": heartbeat_status,
+                            "response": heartbeat_body,
+                        }
+                    )
+                    if heartbeat_status != 202:
+                        raise AcceptanceFailure(
+                            f"recovery heartbeat enqueue returned "
+                            f"{heartbeat_status}: {heartbeat_body!r}"
+                        )
+                    heartbeat_response = require_mapping(
+                        heartbeat_body, "recovery heartbeat enqueue response"
+                    )
+                    heartbeat_task_id = heartbeat_response.get("task_id")
+                    if not isinstance(heartbeat_task_id, int):
+                        raise AcceptanceFailure(
+                            f"recovery heartbeat task id missing: {heartbeat_body!r}"
+                        )
+                    task_ids.append(heartbeat_task_id)
+                    await recovery_wait_for_chat_count(
+                        recovery_stub, 3, timeout=20
+                    )
+                    heartbeat_before_state = await recovery_read_state(
+                        raw_url,
+                        int(fixture["project_id"]),
+                        task_ids,
+                        runtime_dir,
+                    )
+                    heartbeat_running = recovery_task_row(
+                        heartbeat_before_state,
+                        heartbeat_task_id,
+                        "heartbeat task",
+                    )
+                    if heartbeat_running.get("status") != "running":
+                        raise AcceptanceFailure(
+                            f"heartbeat task did not become running: {heartbeat_running!r}"
+                        )
+                    recovery_assert_legal_payload(
+                        heartbeat_running,
+                        heartbeat_episode_id,
+                        "heartbeat task",
+                    )
+                    heartbeat_at_before = heartbeat_running.get("heartbeat_at")
+                    disconnect_count_before = len(recovery_stub.chat_disconnects)
+                    database_fault_maybe_active = True
+                    database_fault = await recovery_set_database_read_only(raw_url)
+                    await asyncio.sleep(11.5)
+                    await recovery_wait_for_chat_disconnect(
+                        recovery_stub,
+                        disconnect_count_before + 1,
+                        timeout=10,
+                    )
+                    heartbeat_fault_state = await recovery_read_state(
+                        raw_url,
+                        int(fixture["project_id"]),
+                        task_ids,
+                        runtime_dir,
+                    )
+                    heartbeat_fault_task = recovery_task_row(
+                        heartbeat_fault_state,
+                        heartbeat_task_id,
+                        "heartbeat fault task",
+                    )
+                    if (
+                        heartbeat_fault_task.get("status") != "running"
+                        or heartbeat_fault_task.get("heartbeat_at") != heartbeat_at_before
+                        or len(heartbeat_fault_state["assets"]) != 1
+                    ):
+                        raise AcceptanceFailure(
+                            "heartbeat database fault changed task state or side effects: "
+                            f"before={heartbeat_running!r} after={heartbeat_fault_state!r}"
+                        )
+                    if recovery_stub.chat_handlers_started != 0:
+                        raise AcceptanceFailure(
+                            "heartbeat cancellation left a recovery stub handler active: "
+                            f"{recovery_stub.snapshot()!r}"
+                        )
+                    recovery_stub.release()
+                    evidence.add(
+                        "heartbeat_database_failure",
+                        database_fault=database_fault,
+                        task_before=heartbeat_running,
+                        task_after=heartbeat_fault_task,
+                        heartbeat_at_unchanged=True,
+                        assets=heartbeat_fault_state["assets"],
+                        file_manifest=heartbeat_fault_state["file_manifest"],
+                        external_stub=recovery_stub.snapshot(),
+                    )
+
+                heartbeat_stop = stop_process(second_process, timeout=30)
+                evidence.add(
+                    "heartbeat_process_shutdown",
+                    **child_observation(heartbeat_stop),
+                )
+                second_process = None
+                restored = await recovery_restore_database_read_write(raw_url)
+                database_fault_maybe_active = False
+                evidence.add("database_read_write_restored", **restored)
+
+                restart_process, restart_port = start_backend_process(
+                    raw_url, runtime_dir, recovery_stub
+                )
+                restart_health = await wait_for_http(
+                    f"http://127.0.0.1:{restart_port}/api/system/health"
+                )
+                if restart_health.status_code != 200:
+                    raise AcceptanceFailure(
+                        f"heartbeat recovery restart health returned "
+                        f"{restart_health.status_code}: {restart_health.body!r}"
+                    )
+                recovered_heartbeat = await recovery_wait_for_task_status(
+                    raw_url,
+                    int(fixture["project_id"]),
+                    task_ids,
+                    runtime_dir,
+                    heartbeat_task_id,
+                    {"failed"},
+                    timeout=20,
+                )
+                if recovered_heartbeat.get("error_msg") != "server restarted":
+                    raise AcceptanceFailure(
+                        "heartbeat task did not recover as server restarted: "
+                        f"{recovered_heartbeat!r}"
+                    )
+                final_state = await recovery_read_state(
+                    raw_url,
+                    int(fixture["project_id"]),
+                    task_ids,
+                    runtime_dir,
+                )
+                if len(final_state["assets"]) != 1:
+                    raise AcceptanceFailure(
+                        f"heartbeat recovery changed generated asset count: {final_state!r}"
+                    )
+                evidence.add(
+                    "heartbeat_restart_recovery",
+                    pid=restart_process.pid,
+                    port=restart_port,
+                    health=restart_health.body,
+                    task=recovered_heartbeat,
+                    final_state=final_state,
+                    external_stub=recovery_stub.snapshot(),
+                )
+                restart_stop = stop_process(restart_process, timeout=30)
+                evidence.add(
+                    "restart_process_shutdown",
+                    **child_observation(restart_stop),
+                )
+                restart_process = None
         finally:
-            if second is not None and second.poll() is None:
-                stop_process(second)
-            if first is not None:
-                first_stop = stop_process(first)
-                evidence.add("first_process_shutdown", **child_observation(first_stop))
-            if queued_lock_connection is not None:
-                await queued_lock_connection.execute("ROLLBACK")
-                await queued_lock_connection.close()
-                queued_lock_connection = None
-            connection = await asyncpg.connect(raw_url.replace("+asyncpg", "", 1))
-            try:
-                await connection.execute("DELETE FROM tasks WHERE id = ANY($1::int[])", [running_id, queued_id])
-            finally:
-                await connection.close()
-        if first_stop is None or first_stop.timed_out or first.poll() is None:
-            raise AcceptanceFailure("recovery first backend did not cleanly stop")
-    evidence.add("owned_resource_cleanup", production_process_stopped=True, runtime_directory_exists=runtime_dir.exists())
+            recovery_stub.release()
+            for label, process in (
+                ("first", first_process),
+                ("second", second_process),
+                ("restart", restart_process),
+            ):
+                if process is not None and process.poll() is None:
+                    stopped = stop_process(process, timeout=30)
+                    evidence.add(
+                        f"{label}_process_shutdown_cleanup",
+                        **child_observation(stopped),
+                    )
+            if database_fault_maybe_active:
+                restored = await recovery_restore_database_read_write(raw_url)
+                evidence.add("database_read_write_restored_cleanup", **restored)
+            if fixture:
+                await recovery_cleanup_fixture(raw_url, fixture)
+                evidence.add(
+                    "fixture_cleanup",
+                    project_id=fixture["project_id"],
+                    task_ids=task_ids,
+                    asset_count_removed=True,
+                )
+    if runtime_dir.exists():
+        raise AcceptanceFailure(
+            f"recovery runtime directory was not removed: {runtime_dir}"
+        )
+    evidence.add(
+        "owned_resource_cleanup",
+        production_processes_stopped=True,
+        runtime_directory_exists=False,
+        external_stub=recovery_stub.snapshot(),
+    )
 
 
 async def command_trash(_arguments: argparse.Namespace, evidence: RunEvidence) -> None:
@@ -5431,11 +6405,12 @@ def parser() -> argparse.ArgumentParser:
     for name in (
         "migration",
         "names",
-        "recovery",
         "trash",
         "verify-inputs",
     ):
         subparsers.add_parser(name)
+    recovery = subparsers.add_parser("recovery")
+    recovery.add_argument("--case", choices=("lifecycle",), required=True)
     cascade = subparsers.add_parser("cascade")
     cascade.add_argument("--case", choices=("matrix", "cache"), default="matrix")
     ws = subparsers.add_parser("ws")
