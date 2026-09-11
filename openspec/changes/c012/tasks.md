@@ -303,7 +303,7 @@
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [ ] T33 G2 最终完整回归与最终输入归属
+- [x] T33 G2 最终完整回归与最终输入归属
   - 依赖：T32。交付：最终实现、测试、依赖、装置与配置的完整回归证据；若与G1相应输入完全相同，按AGENTS逐套引用实际原始结果，后加测试/部署驱动对应套件必须更新。真实M6专项失败不能用G2覆盖。
   - R：R1–R12（含R5a，回归覆盖）；PRD §3、§6、§7、§11 M6；AC-25。
   - 验收：在新隔离回归库B `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；R `npm.cmd --prefix frontend run test`、`npm.cmd --prefix frontend run build`、`git diff --check`；原始exit全部0，记录实际数量与受测commit，不固定348/174，媒体示范库不参与pytest。
@@ -411,12 +411,13 @@
   - 追溯行：C012 范围与阶段回归及交付一致性。
   - 2026-09-11完成：`python -m pytest --collect-only -q` 收集 `414 tests collected in 0.88s`、exit 0，stdout/stderr/exit 保留于 `.work/c012/T48-collect-only.stdout.log`、`.stderr.log`、`.exit-code.txt`；`.work/c012/review-test-id-coverage.json` 中原审查遗留的14个准确 ID逐条在追溯表定位。T37–T46 新增节点、参数、对应追溯行已逐条补入 TRACEABILITY；B1→T37 `5e06ee9`/AC-07，B2→T38 `38e576d`/AC-04，B3→T39 `6eeb530`/AC-11，B4→T47 `77da604`/AC-13/15/26（阻塞），B5→T40 `dd15a74`+T41 `a5a5d59`/AC-12，B6→T42 `5afff50`、T43 `ca38fe8`、T44 `31ea5e2`、T45 `9717892`、T46 `a77e43c`/AC-04/20/22，B7→本次文档回填/AC-01/25；各项原始失败与通过日志保留。`git diff --check` exit 0；`backend/tests` 相对审查基线仅有本轮新增测试文件，无既有测试修改；T22/T26/T31 等既有任务状态按当前文档保留，T47阻塞不改写为通过。
 
-- [ ] T49 修复阶段完整回归
+- [x] T49 修复阶段完整回归
   - 依赖：T37–T46、T48；T47阻塞时允许仅完成CPU线阶段验证，不能宣称发布通过。交付：覆盖最终本轮实现/测试/装置的阶段证据；本项通过后恢复T33并注明受测边界。其后模板/文档变更只按影响面补验，不重复同一全量。
   - R：R1–R12（含R5a）；PRD §3、§6、§7、§11 M6；AC-25。
   - 验收：全新隔离库 B `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；R `npm.cmd --prefix frontend run test`、`npm.cmd --prefix frontend run build`、`git diff --check`。前端无变化可按AGENTS完整记录受测commit/输入/日志复用T33；后端新用例/实现改变须实际完整复跑，记录真实数量/exit，不用业务库。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 范围与阶段回归及交付一致性。
+  - 2026-09-11完成CPU线：全新数据库 `ai_drama_studio_c012_t49_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t49-data-20260911` 上，修正 DSN 后 `python -m alembic upgrade head`、`current`、`check` 均 exit 0，head=`c012_asset_name_unique`，原始证据分别为 `.work/c012/T49-corrected-alembic-upgrade.stdout.log`/`.stderr.log`/`.exit-code.txt`、`.work/c012/T49-corrected-alembic-current.stdout.log`/`.stderr.log`/`.exit-code.txt`、`.work/c012/T49-corrected-alembic-check.stdout.log`/`.stderr.log`/`.exit-code.txt`；`python -m pytest -q` 为 `414 passed in 206.68s (0:03:26)`、exit 0、stderr为空，原始证据 `.work/c012/T49-backend-pytest.stdout.log`、`.stderr.log`、`.exit-code.txt`。首次 wrapper 的 DSN 拼接错误命中 `ai_drama_studio_c005_acceptance_20260826`，已用精确 downgrade 回到 `6b8e3f0a1d24` 并只读核对无本次唯一约束；该失败/回滚及日志路径修正均保留于 `.work/c012/T49-accidental-config-db-*`、`.work/c012/T49-backend-pytest-logging-correction.log`，不计入 T49 通过。前端自 T33 受测 commit `8886e9f` 至当前 HEAD 无 diff，复用 T33 `35 files/175 tests` 和 `68 modules` 原始日志，复用审计 `.work/c012/T49-frontend-reuse.stdout.log`/`.stderr.log`/`.exit-code.txt` 为 exit 0；`git diff --check` exit 0，`.work/c012/T49-git-diff-check.stdout.log`/`.stderr.log`/`.exit-code.txt`。因 T47/AC-26 仍阻塞，本项仅关闭 CPU 阶段并恢复 T33，不宣称发布通过、不进入 T50/T32–T36。
 
 - [ ] T50 交付修复完成报告与发布一致性核对
   - 依赖：T47、T49，B1–B7及原26条AC必需门槛均关闭。交付：`.work/c012/completion.md` 六段报告，分别列状态/commit、spec追溯、取舍边界、实际/复用测试、操作→观测（含异常）、NOTES/DECISIONS候选及未验证；审查问题逐项给修复commit与证据。恢复T32；报告给Astra，未经复审不自行archive/push/删证据。

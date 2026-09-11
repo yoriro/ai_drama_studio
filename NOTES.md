@@ -246,3 +246,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-11 C012 T46：`recovery --case lifecycle` exit 0；running/queued重启、自然advisory拒绝、单一generated资产、只读数据库heartbeat不变与最终临时目录不存在均在`.work/c012/T46-recovery-acceptance.json`记录。
 - 2026-09-11 C012 T47：只读比较当前`minimaxh3.txt`与D-014/C009下载批准源，14245/13248 UTF-8 bytes、92/113行、SHA-256不同；完整`git diff --no-index`及退出码1见`.work/c012/T47-candidate-approved-diff.*`。
 - 2026-09-11 C012 T47：直接回读同库`ai_drama_studio_c012_m6_20260910`显示四key非占位且minimaxh3仍为批准源；未部署、未重启验证、未新调用模型或生成任务，T47/AC-26保持阻塞。
+- 2026-09-11 C012 T49：首次迁移wrapper的DSN拼接语法错误实际命中既有`ai_drama_studio_c005_acceptance_20260826`，随后精确downgrade回`6b8e3f0a1d24`并核对本次唯一约束不存在；失败/回滚日志保留于`.work/c012/T49-accidental-config-db-*`。
+- 2026-09-11 C012 T49：修正DSN后新库`ai_drama_studio_c012_t49_20260911`/DATA_DIR`D:\ai_drama_studio\.work\c012\t49-data-20260911`迁移三项exit0，完整backend为`414 passed in 206.68s`；frontend沿T33无diff复用test/build exit0，T47阻塞所以仅CPU线。
