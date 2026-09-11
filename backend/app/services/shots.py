@@ -148,9 +148,7 @@ async def update_shot(
         locked_current_asset_ids = {
             int(row[0]) for row in locked_asset_result.all()
         }
-        if requested_asset_ids is not None and locked_current_asset_ids != set(
-            requested_asset_ids
-        ):
+        if requested_asset_ids is not None:
             current_asset_ids = locked_current_asset_ids
 
         changed = False
