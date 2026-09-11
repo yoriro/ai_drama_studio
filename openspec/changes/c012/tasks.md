@@ -227,7 +227,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 M6 全级联矩阵。
 
-- [ ] T28 复核错误矩阵与外部输入边界
+- [x] T28 复核错误矩阵与外部输入边界
   - 依赖：T27。交付：spec §7错误格与当前既有用例节点对照、真实页面至少一条409/422及202立即failed的操作→观测记录。默认复用既有测试；若发现新的M6跨链路缺口，仅新增`backend/tests/task_system/test_c012_error_paths.py`并登记节点，不修改旧断言。
   - R：R1、R3、R5、R5a、R6、R8、R10、R11、R12；PRD §3、§5、§6.4、§7；AC-21。
   - 验收：B `python -m pytest -q tests/api/test_c006_generate_shots.py tests/api/test_c008_review_error_codes.py tests/api/test_c009_generate_video.py tests/task_system/test_c009_review_precheck_matrix.py`；新缺口有文件时另运行`python -m pytest -q tests/task_system/test_c012_error_paths.py`；人工错误体/POST次数/任务未claim/媒体错误路径检查。所有格必须有具体节点或人工证据。
