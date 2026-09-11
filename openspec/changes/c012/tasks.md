@@ -7,7 +7,7 @@
 - `B:` 表示 CWD=`D:\ai_drama_studio\backend`，`R:` 表示 CWD=`D:\ai_drama_studio`；下列命令省略该前缀时仍按明确标注的 CWD 执行。
 - B命令前由T01提供本批显式DATABASE_URL/DATA_DIR；CLI的C012_BASE_URL为实际已核验的后端地址，不提供虚构常量。pytest不能使用真实M6库，正式模板与GPU不得由pytest连接。
 - `.work/c012/acceptance.py` 及所有 `test_c012_*.py`、`taskSlowConsumerReconnect.test.tsx` 都是计划新交付文件，不代表当前存在。命令运行必须保存原始stdout/stderr/exit；运行元数据列出commit、库名和DATA_DIR但隐藏DSN凭据。
-- G1=T16，G2=T33。完整回归不逐task运行；前端/后端/文档分开按影响面验收。同受测输入按AGENTS列commit、差异、环境、命令、原日志和exit后复用。失败或输入改变后的旧结果不得充当最终通过。
+- G1=T16，G2=T33；2026-09-11审查修复阶段完整回归为T49。完整回归不逐task运行；前端/后端/文档分开按影响面验收。同受测输入按AGENTS列commit、差异、环境、命令、原日志和exit后复用。失败或输入改变后的旧结果不得充当最终通过。
 - task内发现工具参数、依赖初始化、工作目录、进程调用、事件循环或日志采集缺陷，允许在当前授权装置范围诊断修复并另批运行相关检查；保留首次失败。不得改断言/业务语义、重试生产失败任务、跳过必需门槛或绕过安全层。产品语义/PRD冲突仍停止上报。
 
 ## T22 阻塞期间的调度授权
@@ -57,21 +57,21 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [x] T06 对齐分镜文本与绑定编辑锁顺序
+- [ ] T06 对齐分镜文本与绑定编辑锁顺序
   - 依赖：T05。交付：`services/shots.py`按spec §2取得候选资产/Shot锁并重新验证归属与绑定；保留公开字段、422、no-op和级联，不加入分镜结构编辑功能。
   - R：R5a；PRD §3.2、§3.3、§3.4；AC-04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L3`；R `python -X utf8 .work/c012/acceptance.py locks --case L3`；实际绑定编辑与视频提交两方向的快照/修订结果均符合spec。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [x] T07 对齐片段创建及相关关系行锁顺序
+- [ ] T07 对齐片段创建及相关关系行锁顺序
   - 依赖：T06。交付：`services/clips.py`中create/slot/delete与同一锁环有关的查询顺序和FOR UPDATE锁表范围；其余业务原样。不得删除必要归属/占用校验。
   - R：R5、R5a、R7、R9、R12；PRD §3.3、§3.4、§6.4；AC-04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L4`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L4`；同时验证create冲突、slot变化与删除后的引用/媒体赢家。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [x] T08 对齐分镜覆盖的锁顺序并关闭全部锁探针
+- [ ] T08 对齐分镜覆盖的锁顺序并关闭全部锁探针
   - 依赖：T07。交付：`tasks/gen_shots.py`既有覆盖事务的Asset/Shot/Clip及媒体关系锁按spec排列，源快照与R3失败无损保持；更新锁图的实际边与证据，不扩大队列并行度。
   - R：R3；PRD §3.2、§3.3、§6.1/6.4；AC-03/04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py tests/task_system/test_c006_gen_shots.py tests/task_system/test_c006_cancel_commit_race.py tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case all`。全格无40P01/超时且原断言保持；失败不得进入真实GPU步骤。
@@ -92,7 +92,7 @@
   - 计划测试层级：API 集成。
   - 追溯行：C012 手动资产名称冲突与输入边界。
 
-- [x] T11 实现 R2 新增候选去重与整批失败
+- [ ] T11 实现 R2 新增候选去重与整批失败
   - 依赖：T10。交付：`services/gen_assets.py`模型边界与`tasks/gen_assets.py`候选处理、名称唯一冲突收敛、warning及原子marker；新增`backend/tests/task_system/test_c012_gen_assets_names.py`。不改正式模板，不把合法existing_id返回名称写入资产。
   - R：R2；PRD §3.1、§3.2、§6.2/6.4、§7；AC-07。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_gen_assets_names.py tests/task_system/test_c005_gen_assets.py tests/task_system/test_c005_invalid_existing_id.py`。逐项断言新增数量/精确内容、合法ID优先、两个warning可并存、同批首项、跨类型回滚、一次真实mock调用、marker不漂移；使用独立数据库连接核验 task 终态与 marker 同一提交，不仅断言 mock 返回。
@@ -115,14 +115,14 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
-- [x] T14 实现 WS owner 超时关闭和子任务释放
+- [ ] T14 实现 WS owner 超时关闭和子任务释放
   - 依赖：T13。交付：`api/tasks.py`发送10秒上限、溢出/发送异常关闭、同时完成事件处理、取消后await；新增`backend/tests/task_system/test_c012_ws_lifecycle.py`。不修改Task REST或事件JSON字段。
   - R：无；PRD §5任务、§6.1/6.4；AC-11。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_ws_lifecycle.py tests/task_system/test_c012_event_bus.py`；R `python -X utf8 .work/c012/acceptance.py ws`。受控ASGI慢send与真实网络WS分开记录，1013/日志、连接基线、零pending子任务、Task不误failed及健康订阅均验证。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
-- [x] T15 验证慢连接关闭后的真实页面重建
+- [ ] T15 验证慢连接关闭后的真实页面重建
   - 依赖：T14。交付：新增`frontend/src/features/tasks/taskSlowConsumerReconnect.test.tsx`，挂载生产TasksPage验证关闭→重连→列表/展开详情权威GET。现有协调器若有缺陷，只修该实际路径并补记录，不改旧测试。
   - R：无；PRD §5任务、§6.1、§9；AC-12。
   - 验收：R `npm.cmd --prefix frontend run test -- src/features/tasks/taskSlowConsumerReconnect.test.tsx`、`npm.cmd --prefix frontend run test -- src/features/tasks`、`npm.cmd --prefix frontend run build`；真实浏览器在T02受控后端经现有页面展开任务、观察连接异常/终态重建，记录该页面自己的详情GET与生成/取消POST零增加。
@@ -258,7 +258,7 @@
   - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵；C012 取消心跳失败与重启资源恢复；C012 trash 启动与定时清理。
 
 
-- [x] T27 验证 M6 九行全级联及所有明确子分支
+- [ ] T27 验证 M6 九行全级联及所有明确子分支
   - 依赖：T02、T02A、T16、T19及独立受控环境；不依赖T22/T26。交付：新增`backend/tests/task_system/test_c012_cascade.py`按spec §7完整九行分参数，复用生产服务/独立连接/实际媒体；在隔离受控浏览器逐格记录UI变化，不能破坏真实示范集。只补跨链路覆盖，不复制纯规则用例。需求方本轮允许按spec §7.1修复此task新增未提交测试文件：loop/engine生命周期、可达marker夹具与字段期望、数据表示、合法模板、JSON和媒体fixture；不改已提交旧测试/生产。保留首次6 failed，删除Clip的500先取traceback定位，未证明fixture原因不得擅改生产；恒真自比较改为操作前后比较。
   - R：R2、R3、R4、R9、R12；PRD §3.2、§3.3、§6.4、§11 M6；AC-20。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_cascade.py`；R `python -X utf8 .work/c012/acceptance.py cascade`；精确行/ID/revision/current和文件bytes对照，编辑/换图/绑定增删/模板变更分支逐项记录；R3成功和模型失败都验证。实施后向既有九条§3.3追溯行追加实际节点。
@@ -272,7 +272,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 M6 错误与敌意输入回归。
 
-- [x] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
+- [ ] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
   - 依赖：T28、T02A。交付：新增`backend/tests/task_system/test_c012_recovery.py`，真实应用进程/DB/文件；queued/running取消与成功竞争、心跳错误/DB不可用时的真实限制、同库重启和第二实例拒绝。不加入心跳重试或伪造failed。
   - R：无；PRD §3.2、§6.1、§6.4、§11 M6；AC-22。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_recovery.py`；R `python -X utf8 .work/c012/acceptance.py recovery`。确定性进程屏障验证running→failed、queued保留/claim一次、副作用一次、advisory锁释放/拒绝、temp与连接退出；只使用本轮owned隔离进程。
@@ -293,35 +293,138 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 真实生成中的修订竞态。
 
-- [x] T32 汇总发布操作说明与各层证据边界
+- [ ] T32 汇总发布操作说明与各层证据边界
   - 依赖：T31。交付：完善`backend/deployment/README.md`：安装/启动/四模板verify/显式恢复操作、示范媒体链接、环境与依赖实测结果、失败处理；完成报告按六段记录文件commit、spec追溯、取舍、自动验证、操作→观测、沉淀。明确未验证原生200%/动态reduced-motion与真模型随机性，不把受控证据升级为真实GPU。
   - R：无；PRD §10、§11 M6、§12；AC-01/25。
   - 验收：人工对照spec 26条AC及trace全部具体节点/原始日志；`git diff --check`；核验最终报告至少一条异常分支、示范库未清空、正式模板未被矩阵fixture覆盖；确认仅保留本轮需要资源，未知用户资源不动。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [x] T33 G2 最终完整回归与最终输入归属
+- [ ] T33 G2 最终完整回归与最终输入归属
   - 依赖：T32。交付：最终实现、测试、依赖、装置与配置的完整回归证据；若与G1相应输入完全相同，按AGENTS逐套引用实际原始结果，后加测试/部署驱动对应套件必须更新。真实M6专项失败不能用G2覆盖。
   - R：R1–R12（含R5a，回归覆盖）；PRD §3、§6、§7、§11 M6；AC-25。
   - 验收：在新隔离回归库B `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；R `npm.cmd --prefix frontend run test`、`npm.cmd --prefix frontend run build`、`git diff --check`；原始exit全部0，记录实际数量与受测commit，不固定348/174，媒体示范库不参与pytest。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
-  - 标识：T34；依赖：T33。仅记录本轮实际环境/依赖/失败根因和已验证结果，不复制旧库状态为当前事实。
+## F. 2026-09-11 Astra 审查修复（luna_worker_6）
+
+以 spec §11 和 `.work/c012/review-20260911.md` B1–B7 为准。默认按T37→T46执行；T47模板缺批准证据时留阻塞，可独立推进T48/T49并报告，不能进入T50/最终收尾。不要因旧任务重开而从T01重跑；旧通过记录保留但不能覆盖本轮缺陷。T37–T39内明确允许先运行新回归取得预期业务红测，再最小修复后运行绿测；其他未预期失败按装置/实现/需求归因处理。已提交测试和审查探针只读，新增独立回归文件；不派发其他worker，不使用真实GPU运行普通测试。
+
+- [ ] T37 修复合法 existing_id 的名称校验顺序（B1）
+  - 依赖：本轮文档/追溯已登记。交付：新增 `backend/tests/task_system/test_c012_gen_assets_reuse.py`，生产handler+真实事务覆盖合法ID的空白/NUL/超长字符串不采用、原行全部字段不变、done/快照marker；同输入在null/非法/跨项目ID分支failed且无半批；warning比对真实复用ID。随后仅修 `services/gen_assets.py` 与直接必需的 `tasks/gen_assets.py`，不放宽新建/改名边界。完成后复核恢复T11。
+  - R：R2；PRD §3.1、§6.2、§7；AC-07。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_gen_assets_reuse.py tests/task_system/test_c012_gen_assets_names.py tests/task_system/test_c005_gen_assets.py`；新回归业务红测→修复后全部绿测；运行原B1探针的合法ID分支，检查完整Task/marker与原资产，单次wake/chat，无retry。新库/DATA_DIR保存证据。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 R2 生成候选去重与冲突失败。
+
+- [ ] T38 修复锁后相同分镜绑定的 no-op（B2）
+  - 依赖：T37。交付：新增 `backend/tests/task_system/test_c012_shot_binding_race.py`，双独立事务同集合/不同集合交错及视频提交期间状态验证；仅修 `services/shots.py` 锁后引用比较根因。完成后复核恢复T06。
+  - R：无；PRD §3.2、§3.3、§11 M6；AC-04。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_shot_binding_race.py tests/task_system/test_c012_lock_order.py -k "binding or L3"`；以pg等待证据控制相同集合两请求，最终revision只+1、集合精确相等、无虚假级联；不同集合等于合法串行赢家。原B2探针期望revision2实得2，资源释放。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 生成提交与入队及编辑锁顺序。
+
+- [ ] T39 修复 send 在途时的 overflow 关闭（B3）
+  - 依赖：T38。交付：新增 `backend/tests/task_system/test_c012_ws_send_overflow.py`，覆盖已阻塞send再overflow、无overflow超时、disconnect/退出与子任务结束；仅修 `api/tasks.py` 直接生命周期。完成后复核恢复T14。
+  - R：无；PRD §6.1、§6.4、§11 M6；AC-10/11。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_ws_send_overflow.py tests/task_system/test_c012_ws_lifecycle.py tests/task_system/test_c012_event_bus.py`；原B3保持10秒生产常量，overflow后应由该事件关闭而非send timeout，精确原因/1013/await完成/订阅基线，Task不变。T37–39结束后R `python -X utf8 .work/c012/probe-review-races.py`；原脚本固定环境须显式核对隔离库，可仅另存运行配置副本，记录diff，不改断言。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 EventBus 有界订阅与慢连接释放。
+
+- [ ] T40 交付真实慢关闭页面验收装置（B5前置）
+  - 依赖：T39。交付：仅扩展现有 `.work/c012/acceptance.py ws --case slow-page` 的参数、受控ASGI send闸门、生产进度发布和handler释放；独立默认app/DB/DATA_DIR与真实网络WS，外部服务stub，无新增生产端点/handler替换/第二runner。输出浏览器地址、任务ID、真实overflow/关闭原因/请求日志、终态独立回读与shutdown通路。
+  - R：无；PRD §6.1、§6.4、§11 M6；AC-02/11/12。
+  - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py ws --case slow-page`；原生WS实际收到1013，任务终态来自生产handler，装置事件与DB身份可核查；故意失败非零，无owned进程/连接残留。先完成装置自检，再交T41实际浏览器消费；ASGI闸门不宣称TCP拥塞。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 验收装置生产通路与生命周期；C012 慢连接后的页面权威重建。
+
+- [ ] T41 完成真实慢连接后的展开详情重建（B5）
+  - 依赖：T40。交付：沿用正式TasksPage，在T40批次打开running详情→触发慢关闭→生产任务到done/failed→自动重连；保存实际UI操作、网络GET/POST与DB精确字段证据。不得停后端/SQL造终态替代。完成后复核恢复T15。
+  - R：无；PRD §6.1、§9、§11 M6；AC-12。
+  - 验收：R `npm.cmd --prefix frontend run test -- src/features/tasks/taskSlowConsumerReconnect.test.tsx`；人工在输出的真实地址完成上述路径，观测断线提示、socket-first及列表/详情GET、进度/error/finished_at与DB一致、POST不增加；R `python -X utf8 .work/c012/probe-review-reconnect.py`。如需修改前端生产逻辑，先报告新定位，不扩改既有组件测试。
+  - 计划测试层级：任务系统 mock。
+  - 追溯行：C012 慢连接后的页面权威重建。
+
+- [ ] T42 补齐 L4/L5 实际操作对与双向锁等待（B6）
+  - 依赖：T38。交付：新增 `backend/tests/task_system/test_c012_lock_edit_pairs.py`；先列§2.1可达操作对/原测试节点，无缺口的精确复用；补create/slot/delete×Asset/Shot编辑和gen_shots覆盖×上述API的缺口。每行两种持锁方向、独立事务/真实SQL后屏障、完整赢家/引用/文件断言，不以参数名代替矩阵。完成后复核恢复T07/T08。
+  - R：R3、R5、R5a、R7、R9、R12；PRD §3.2–§3.4、§6.4；AC-04。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_edit_pairs.py tests/task_system/test_c012_lock_order.py`；每个操作对精确串行等价、无40P01/timeout、snapshot不漂移、媒体/引用闭合及连接释放。若发现新的实现根因，保留结果并提交具体最小修改范围给Astra，不扩大本测试任务实现范围。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 生成提交与入队及编辑锁顺序。
+
+- [ ] T43 交付缓存与模板级联验收分支（B6前置）
+  - 依赖：T42。交付：仅扩展既有 `.work/c012/acceptance.py cascade --case cache`，支持同一隔离app中先生成并建立缓存，再经正式设置API改变风格/对应模板，随后调用生产四类生成handler，采集真实外部请求次数/内容、payload、缓存和下游前后行/文件。仅外部stub和释放屏障受控。
+  - R：R2、R3、R4、R11；PRD §3.2、§3.3、§6.2、§7；AC-02/20。
+  - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py cascade --case cache`；图/视频第一次缓存、命中、失配有实际请求/存储证据；提取模板有渲染后请求及null hash；故意子进程失败非零，无假passed、无资源残留。交付后才进入T44。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵。
+
+- [ ] T44 补齐 R4 与在途快照、不追溯矩阵（B6）
+  - 依赖：T43。交付：新增 `backend/tests/task_system/test_c012_template_cascade.py`，风格/zimage/minimax分别触发图/视频的确切hash变化和单次重建、命中无chat；script2assets/script2shots新正文与null hash；四类在途payload固定、已有下游行/文件不追溯。补齐T27后恢复其checkbox，不改既有弱断言来换绿。
+  - R：R2、R3、R4、R11；PRD §3.2、§3.3、§6.2、§7；AC-20。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py`；R `python -X utf8 .work/c012/acceptance.py cascade --case cache`；完整前后值、请求次数/内容及持久化快照，禁止startswith/非空代替；同时逐格核查T27其余子分支证据，缺项如实报告。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 M6 全级联矩阵（同时回填原§3.3风格/模板编辑行）。
+
+- [ ] T45 交付进程恢复与心跳故障验收装置（B6前置）
+  - 依赖：T44。交付：扩展现有 `.work/c012/acceptance.py recovery --case lifecycle`；隔离真实后端/队列/handler先形成running+合法queued，终止/重启后释放queued完成真实业务产物；外部stub账本与独立DB/文件核对次数；生产worker监督中的数据库连接故障，handler及资源退出，恢复连通后重启恢复原running。不得用空payload或始终锁住queued代替。
+  - R：无；PRD §6.1、§6.4、§11 M6；AC-02/22。
+  - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py recovery --case lifecycle`；两个进程实际互斥、running→failed/server restarted、queued→done且副作用1、heartbeat失败真实非零/原因和资源清理；隔离故障不能影响用户数据库或GPU，清理本轮owned连接/端口。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 验收装置生产通路与生命周期；C012 取消心跳失败与重启资源恢复。
+
+- [ ] T46 补齐重启副作用及心跳监督回归（B6）
+  - 依赖：T45。交付：新增 `backend/tests/task_system/test_c012_worker_recovery.py`，精确覆盖queued/完成先胜取消、真实进程重启后queued完成一次、心跳异常不吞/handler取消/DB不可达不假报failed/恢复后重启；保留原四个C012恢复测试。完成后复核恢复T29。
+  - R：无；PRD §3.2、§6.1、§6.4；AC-22。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py`；R `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle`；不只断言状态集合，要分别精确单赢家、产物数量/内容与请求次数，退出无泄漏。生产根因超授权范围则报告。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 取消心跳失败与重启资源恢复。
+
+- [ ] T47 关闭最终交付模板与部署门槛（B4）
+  - 依赖：既有T21/§6.3批准证据；与CPU线独立。先只读核对当前候选、指定122039原始prompt的生成模板、运行库正文及批准范围，保存精确差异与已验证/失败/未运行部分。当前候选已有内容失败，不自动部署；批准正文不明确时报告具体候选和待决点，保持本项/AC-26阻塞，继续T48/T49。
+  - 交付：批准正文明确且满足原T26C诊断条件后，按现有正式设置API安装/安装后及同库安全重启后逐字回读，其他三模板不变；复用有效T21新库证据并核对相关输入变化，补当前正文所缺实际消费证据。不得为T26重新生成；若剩余AC-26消费路径需改动，先交需求方裁决并同步spec，不能擅自取消T26C/D或整个AC。
+  - R：R4、R11；PRD §3.2、§7、§11 M6、§12.2；AC-13/15/26。
+  - 验收：B `python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deployment/templates --mode verify` 两次均0（正式安装后/安全重启后）；精确四key/正文与批准输入、DB/DATA_DIR身份、实际消费源相符。运行地址现场核实；真实模型/Comfy按既有§6.3批准边界且独占，无其他任务时才操作；遇产品取舍保持阻塞而非循环抽取或覆盖模板。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位；C012 MiniMax 模板动作与逐镜保真。
+
+- [ ] T48 核查准确用例ID、修复证据与旧任务状态（B7）
+  - 依赖：T37–T46，T47的实际状态已记录。交付：核对本轮文档已补的14个准确ID，再逐条追加新增回归真实nodeid/参数；逐条将B1–B7映射到修复commit/原始输出/AC，按各修复任务恢复旧checkbox；失败/未运行保持未勾选，T26裁决不撤销。
+  - R：无；PRD §11 M6；AC-01/25。
+  - 验收：B `python -m pytest --collect-only -q` 对照追溯，每个新增节点至少归属一行；人工对照 `.work/c012/review-test-id-coverage.json`、当前diff与实际日志；R `git diff --check`。不因文档回填重跑全量。
+  - 计划测试层级：不新增自动测试。
+  - 追溯行：C012 范围与阶段回归及交付一致性。
+
+- [ ] T49 修复阶段完整回归
+  - 依赖：T37–T46、T48；T47阻塞时允许仅完成CPU线阶段验证，不能宣称发布通过。交付：覆盖最终本轮实现/测试/装置的阶段证据；本项通过后恢复T33并注明受测边界。其后模板/文档变更只按影响面补验，不重复同一全量。
+  - R：R1–R12（含R5a）；PRD §3、§6、§7、§11 M6；AC-25。
+  - 验收：全新隔离库 B `python -m alembic upgrade head`、`python -m alembic current`、`python -m alembic check`、`python -m pytest -q`；R `npm.cmd --prefix frontend run test`、`npm.cmd --prefix frontend run build`、`git diff --check`。前端无变化可按AGENTS完整记录受测commit/输入/日志复用T33；后端新用例/实现改变须实际完整复跑，记录真实数量/exit，不用业务库。
+  - 计划测试层级：跨进程/资源生命周期。
+  - 追溯行：C012 范围与阶段回归及交付一致性。
+
+- [ ] T50 交付修复完成报告与发布一致性核对
+  - 依赖：T47、T49，B1–B7及原26条AC必需门槛均关闭。交付：`.work/c012/completion.md` 六段报告，分别列状态/commit、spec追溯、取舍边界、实际/复用测试、操作→观测（含异常）、NOTES/DECISIONS候选及未验证；审查问题逐项给修复commit与证据。恢复T32；报告给Astra，未经复审不自行archive/push/删证据。
+  - R：无；PRD §0、§11 M6、§12；AC-01/25。
+  - 验收：人工逐条核对报告、spec/TRACE、checkbox、提交内容和真实exit；R `git diff --check`、`git status --short --untracked-files=no`、`git log --oneline -n 20`。若T47待决定，提前给未完成报告并列已完成CPU项，不勾T50或收尾。
+  - 计划测试层级：不新增自动测试。
+  - 追溯行：C012 范围与阶段回归及交付一致性。
+
+- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+  - 标识：T34；依赖：T50。本轮修复后重新核对，仅记录实际环境/依赖/失败根因和已验证结果，不复制旧库状态为当前事实。
   - R：无；PRD §10、§11 M6、§12；AC-25。
   - 验收：人工将新增事实逐项对到原始命令/日志；R `git diff --check`。文档改动不重跑G。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - 标识：T35；依赖：T34。只提炼已经验证且适用于后续change的候选；R2产品规则已在PRD，不另造相互覆盖的版本合同。
   - R：无；PRD §11 M6；AC-25。
   - 验收：人工核对报告“候选/无”与DECISIONS无重复或冲突；R `git diff --check`。未采纳候选不冒称既有决定。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [x] change 文档与 commit 状态一致
+- [ ] change 文档与 commit 状态一致
   - 标识：T36；依赖：T35。仅在本表前置全部完成、26条AC都有真假证据、外部依赖门槛解除后收口；保留失败记录/限制，不顺手archive/push或纳入AGENTS用户改动。
   - R：无；PRD §0、§11 M6；AC-01/25。
   - 验收：R `git status --short`、`git diff --check`、`git show --stat HEAD`、`git ls-tree -r --name-only HEAD openspec/changes/c012`；逐项核对PRD/spec/tasks/trace与受测commit，确保非文档输入变化都有相关新证据，完成报告明确提交状态。

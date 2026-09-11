@@ -363,3 +363,41 @@ C012 T33 G2 实际回填（对应「C012 范围与阶段回归及交付一致性
 C012 T34 实际回填（对应「C012 范围与阶段回归及交付一致性」、AC-25）：`NOTES.md` 仅追加了 T33 新隔离库、DATA_DIR、Alembic、完整 backend/frontend test、build 与 diff-check 的实际结果及 setup 参数错误修正；原始命令/exit 见 `.work/c012/T33-g2-db-setup-20260911.*`、`T33-g2-db-setup-correction-20260911.*`、`T33-g2-alembic-*.*`、`T33-g2-pytest.*`、`T33-frontend-*.*`、`T33-git-diff-check-after-docs.*`。`git diff --check` 在 T34 文档修改前 exit 0；未重跑 G，未修改 `DECISIONS.md`、`AGENTS.md`、生产代码或测试。
 C012 T35 实际回填（对应「C012 范围与阶段回归及交付一致性」、AC-25）：核对 `DECISIONS.md` 后无新增候选；模板显式部署、失败不重试/不fallback、真实与受控证据边界及完整回归隔离均已有 PRD/既有决定或本轮任务合同覆盖。`DECISIONS.md` 未修改，候选只在完成报告中记为「无」；未新增自动测试或改变验收语义。
 C012 T36 实际回填（对应 AC-01/25 与「C012 范围与阶段回归及交付一致性」）：闭合审计 `T36-closure-audit-corrected.*` exit 0，确认 T22–T35 关键任务已勾选、AC-01..26 均有追溯/原始证据节点、T26C/T26D 与 AC-26 未完成边界保留、真实 `observe --real` exit 0、`DECISIONS.md` 与生产源码/测试无 diff；`T36-observe-real.*` 与 `T36-git-status.*`、`T36-git-diff-check.*`、`T36-git-show-stat.*`、`T36-git-c012-tree.*` 保存原始收口命令。`T36` 仅完成文档/证据/commit 一致性，不宣称 AC-26 或 C012 发布门槛通过，不归档或推送。
+
+
+## C012 2026-09-11 Astra 审查与修复追溯（覆盖对应旧完成声明）
+
+审查基线 `c0830c3..21c04f3`，报告 `.work/c012/review-20260911.md`。本轮完整 `399 passed in 398.68s`、迁移 exit0 仅为回归事实；B1–B3 独立探针失败，B4 发布模板不一致，B5/B6 专项证据不足。T26/AC-19 与 T22 最新需求方裁决保留；相关旧任务重开，按 spec §11 和 T37–T50 补齐。不新增 AC/追溯行，不改写旧原始日志。
+
+以下只是补齐已存在测试的准确 ID：它们随本轮完整 pytest 执行通过，原始输出 `.work/c012/review-20260911_153538/pytest.stdout.log`，退出码0；不代表对应 AC 整体通过。
+
+| 原追溯行 | 已执行的准确用例 ID |
+|---|---|
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_cli_rejects_invalid_input_before_any_http` |
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_install_patches_all_keys_in_order_and_verifies` |
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_install_stops_at_failed_patch_and_reports_partial_commit` |
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_install_stops_on_patch_response_content_mismatch` |
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_install_rejects_invalid_baseline_json_without_patch` |
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_install_rejects_final_content_mismatch_after_all_patches` |
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_verify_reads_only_and_reports_content_mismatch` |
+| C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位 | `backend/tests/api/test_c012_template_deployment.py::test_verify_succeeds_with_zero_patch_requests` |
+| C012 R2 生成候选去重与冲突失败 | `backend/tests/task_system/test_c012_gen_assets_names.py::test_c012_gen_assets_cross_type_conflict_rolls_back_batch` |
+| C012 EventBus 有界订阅与慢连接释放 | `backend/tests/task_system/test_c012_ws_lifecycle.py::test_c012_ws_overflow_notifies_owner_closes_1013_and_cleans_receive` |
+| C012 EventBus 有界订阅与慢连接释放 | `backend/tests/task_system/test_c012_ws_lifecycle.py::test_c012_ws_send_timeout_cancels_all_transport_tasks` |
+| C012 EventBus 有界订阅与慢连接释放 | `backend/tests/task_system/test_c012_ws_lifecycle.py::test_c012_ws_send_error_closes_1013_without_task_state_mutation` |
+| C012 EventBus 有界订阅与慢连接释放 | `backend/tests/task_system/test_c012_ws_lifecycle.py::test_c012_ws_observes_normal_receive_and_ready_event_together` |
+| C012 EventBus 有界订阅与慢连接释放 | `backend/tests/task_system/test_c012_ws_lifecycle.py::test_c012_ws_application_cancellation_awaits_receive_and_unsubscribes` |
+
+修复待验覆盖：
+
+| 原追溯行 | 本轮待交付，不能预填通过 |
+|---|---|
+| C012 R2 生成候选去重与冲突失败 | T37 / AC-07；合法ID不采用名称、新增候选边界、warning实际复用ID；新独立回归+原探针 |
+| C012 生成提交与入队及编辑锁顺序 | T38/T42 / AC-04；锁后相同绑定no-op与不同请求串行结果、L4/L5全部可达操作对双向交错 |
+| C012 EventBus 有界订阅与慢连接释放 | T39 / AC-11；send在途发生overflow，观察原因/1013/全部等待回收/Task不变 |
+| C012 慢连接后的页面权威重建 | T40装置→T41 / AC-12；真实页面收到生产route慢关闭，handler终态与REST/DB/展开详情一致，非SQL填终态 |
+| C012 M6 全级联矩阵 | T43装置→T44 / AC-20；图/视频旧缓存失配并重建、提取新正文、在途不变、不追溯；对应原§3.3行同时回填 |
+| C012 取消心跳失败与重启资源恢复 | T45装置→T46 / AC-22；真实进程恢复queued后恰一次claim/业务副作用，心跳DB故障监督/资源释放，第二进程互斥 |
+| C012 验收装置生产通路与生命周期 | T40/T43/T45 / AC-02；只扩展现有acceptance.py，各命令实际事件/存储/进程通路、失败非零、owned资源释放 |
+| C012 MiniMax 模板动作与逐镜保真 | T47 / AC-26；当前候选部署阻塞，T26视觉通过不替代；最终正文批准与发布门槛须独立核定，同时回填原四模板部署行 |
+| C012 范围与阶段回归及交付一致性 | T48/T49/T50、重开T34–T36 / AC-01/25；真实准确节点、阶段全量、六段报告及外部依赖闭合 |
