@@ -224,3 +224,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T26 重开：正式导演台播放 video #3/#4；Clip #1 抬眼/继续吃饭可定位，Clip #2 僵住可定位但未观察到明确指向，故 T26 保持未勾选；期间 Comfy 8188 曾无监听，恢复后只读 observe exit 0。
 - 2026-09-10 C012 T26 只读诊断补充：task #14/video #4 的 Shot25 input_snapshot 同时保留“双手高举”旧描述与追加的明确指向句，rendered_prompt 含追加句但 detailed_description 仍为举臂且无逐Shot指向标签；未重生成，T26失败保留。
 - 2026-09-11 C012 T29：隔离库 `ai_drama_studio_c012_t29_luna_20260911` 上定向恢复测试 4 passed；受控 recovery 启动进程把 running task #6 置为 `failed/server restarted`、保留 queued task #7，第二实例因 advisory lock returncode 3，owned 临时目录与连接退出后释放。
+- 2026-09-11 C012 T30：隔离库 `ai_drama_studio_c012_t30_luna_20260911` 的生产 trash 启动/每日/IO 受控验收返回 passed；旧文件删除、cutoff 及 trash 外文件保留，`NotADirectoryError` 原样可见，受控进程退出后无残留监听。

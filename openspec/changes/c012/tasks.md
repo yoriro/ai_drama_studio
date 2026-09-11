@@ -241,7 +241,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 取消心跳失败与重启资源恢复。
 
-- [ ] T30 验证生产 trash 启动和每日清理
+- [x] T30 验证生产 trash 启动和每日清理
   - 依赖：T29、T02A。交付：新增`backend/tests/task_system/test_c012_trash_cleanup.py`，真实文件/启动进程和每日调用路径；cutoff前/恰好/之后、trash外媒体、IO失败与shutdown。仅验证生产清理，发现越界/生命周期缺陷先报告定位，不顺手扩大清理范围。
   - R：无；PRD §6.4、§10、§11 M6；AC-24。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_trash_cleanup.py`；R `python -X utf8 .work/c012/acceptance.py trash`；记录精确保留/删除文件与bytes，受控计时等待与真实启动证据分开，明确不是实际24小时长跑。
