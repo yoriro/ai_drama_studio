@@ -92,7 +92,7 @@
   - 计划测试层级：API 集成。
   - 追溯行：C012 手动资产名称冲突与输入边界。
 
-- [ ] T11 实现 R2 新增候选去重与整批失败
+- [x] T11 实现 R2 新增候选去重与整批失败
   - 依赖：T10。交付：`services/gen_assets.py`模型边界与`tasks/gen_assets.py`候选处理、名称唯一冲突收敛、warning及原子marker；新增`backend/tests/task_system/test_c012_gen_assets_names.py`。不改正式模板，不把合法existing_id返回名称写入资产。
   - R：R2；PRD §3.1、§3.2、§6.2/6.4、§7；AC-07。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_gen_assets_names.py tests/task_system/test_c005_gen_assets.py tests/task_system/test_c005_invalid_existing_id.py`。逐项断言新增数量/精确内容、合法ID优先、两个warning可并存、同批首项、跨类型回滚、一次真实mock调用、marker不漂移；使用独立数据库连接核验 task 终态与 marker 同一提交，不仅断言 mock 返回。
@@ -311,7 +311,7 @@
 
 以 spec §11 和 `.work/c012/review-20260911.md` B1–B7 为准。默认按T37→T46执行；T47模板缺批准证据时留阻塞，可独立推进T48/T49并报告，不能进入T50/最终收尾。不要因旧任务重开而从T01重跑；旧通过记录保留但不能覆盖本轮缺陷。T37–T39内明确允许先运行新回归取得预期业务红测，再最小修复后运行绿测；其他未预期失败按装置/实现/需求归因处理。已提交测试和审查探针只读，新增独立回归文件；不派发其他worker，不使用真实GPU运行普通测试。
 
-- [ ] T37 修复合法 existing_id 的名称校验顺序（B1）
+- [x] T37 修复合法 existing_id 的名称校验顺序（B1）
   - 依赖：本轮文档/追溯已登记。交付：新增 `backend/tests/task_system/test_c012_gen_assets_reuse.py`，生产handler+真实事务覆盖合法ID的空白/NUL/超长字符串不采用、原行全部字段不变、done/快照marker；同输入在null/非法/跨项目ID分支failed且无半批；warning比对真实复用ID。随后仅修 `services/gen_assets.py` 与直接必需的 `tasks/gen_assets.py`，不放宽新建/改名边界。完成后复核恢复T11。
   - R：R2；PRD §3.1、§6.2、§7；AC-07。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_gen_assets_reuse.py tests/task_system/test_c012_gen_assets_names.py tests/task_system/test_c005_gen_assets.py`；新回归业务红测→修复后全部绿测；运行原B1探针的合法ID分支，检查完整Task/marker与原资产，单次wake/chat，无retry。新库/DATA_DIR保存证据。

@@ -390,9 +390,9 @@ C012 T36 实际回填（对应 AC-01/25 与「C012 范围与阶段回归及交�
 
 修复待验覆盖：
 
-| 原追溯行 | 本轮待交付，不能预填通过 |
+| 原追溯行 | 本轮修复状态 |
 |---|---|
-| C012 R2 生成候选去重与冲突失败 | T37 / AC-07；合法ID不采用名称、新增候选边界、warning实际复用ID；新独立回归+原探针 |
+| C012 R2 生成候选去重与冲突失败 | T37 / AC-07 已完成；合法ID不采用名称、新增候选边界、warning实际复用ID；新独立回归+原探针 |
 | C012 生成提交与入队及编辑锁顺序 | T38/T42 / AC-04；锁后相同绑定no-op与不同请求串行结果、L4/L5全部可达操作对双向交错 |
 | C012 EventBus 有界订阅与慢连接释放 | T39 / AC-11；send在途发生overflow，观察原因/1013/全部等待回收/Task不变 |
 | C012 慢连接后的页面权威重建 | T40装置→T41 / AC-12；真实页面收到生产route慢关闭，handler终态与REST/DB/展开详情一致，非SQL填终态 |
@@ -401,3 +401,5 @@ C012 T36 实际回填（对应 AC-01/25 与「C012 范围与阶段回归及交�
 | C012 验收装置生产通路与生命周期 | T40/T43/T45 / AC-02；只扩展现有acceptance.py，各命令实际事件/存储/进程通路、失败非零、owned资源释放 |
 | C012 MiniMax 模板动作与逐镜保真 | T47 / AC-26；当前候选部署阻塞，T26视觉通过不替代；最终正文批准与发布门槛须独立核定，同时回填原四模板部署行 |
 | C012 范围与阶段回归及交付一致性 | T48/T49/T50、重开T34–T36 / AC-01/25；真实准确节点、阶段全量、六段报告及外部依赖闭合 |
+
+C012 T37 实际回填（对应 AC-07）：新增 `backend/tests/task_system/test_c012_gen_assets_reuse.py::test_c012_gen_assets_reuse_skips_name_validation_for_existing_ids`，在独立数据库 `ai_drama_studio_c012_t37_20260911_161922`、DATA_DIR `D:\ai_drama_studio\.work\c012\t37-data-20260911_161922` 上经生产 `gen_assets_handler` 与受控 vLLM mock 验证合法 existing_id 的空白/NUL/超长返回名称不参与新增名称校验，原资产字段与文件/marker不变，Task done；越界 ID 同名候选 warning 的 `reused_asset_id` 为真实资产 ID；null/非法/跨项目 ID 的空白/NUL/超长候选分别 failed 且无半批。指定回归命令 `python -m pytest -q tests/task_system/test_c012_gen_assets_reuse.py tests/task_system/test_c012_gen_assets_names.py tests/task_system/test_c005_gen_assets.py` 为 `11 passed in 2.55s`、exit 0；原 B1–B3 探针 `.work/c012/T37-probe-review-races.stdout.log` 中三条 `AC-07 valid existing_id ignored name` 均 `passed=true`，同批 B2/B3 失败保留供 T38/T39。红测、数据库迁移与原始 exit 见 `.work/c012/T37-test-red-business.*`、`.work/c012/T37-alembic-upgrade.*`、`.work/c012/T37-test-targeted.*`。

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import async_session_factory
 from app.core.config import settings
 from app.models import Asset, Episode
+from app.schemas.assets import _normalize_asset_name
 from app.services.gen_assets import (
     GeneratedAssetsResponse,
     extract_assets,
@@ -90,6 +91,7 @@ async def _merge_generated_assets(
             and existing_by_id[existing_id].project_id == project_id
         ):
             continue
+        normalized_name = _normalize_asset_name(generated.name)
         invalid_existing_reason: str | None = None
         if existing_id is not None:
             if not (
@@ -108,7 +110,7 @@ async def _merge_generated_assets(
                 task.target_id,
                 project_id,
                 response_position,
-                generated.name,
+                normalized_name,
                 None,
                 invalid_existing_reason,
                 existing_id,
@@ -119,7 +121,7 @@ async def _merge_generated_assets(
                 .values(
                     project_id=project_id,
                     type=generated.type,
-                    name=generated.name,
+                    name=normalized_name,
                     description=generated.description,
                     source="generated",
                     revision=1,
@@ -133,7 +135,7 @@ async def _merge_generated_assets(
 
         conflict_result = await session.execute(
             select(Asset)
-            .where(Asset.project_id == project_id, Asset.name == generated.name)
+            .where(Asset.project_id == project_id, Asset.name == normalized_name)
             .with_for_update()
         )
         conflict = conflict_result.scalar_one_or_none()
@@ -155,7 +157,7 @@ async def _merge_generated_assets(
             task.target_id,
             project_id,
             response_position,
-            generated.name,
+            normalized_name,
             conflict.id,
             "same_normalized_name_same_type",
         )

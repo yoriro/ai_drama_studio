@@ -6,6 +6,7 @@ from pydantic import (
     ConfigDict,
     StrictInt,
     StrictStr,
+    ValidationInfo,
     ValidationError,
     field_validator,
 )
@@ -25,7 +26,9 @@ class GeneratedAsset(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def normalize_name(cls, value: str) -> str:
+    def normalize_name(cls, value: str, info: ValidationInfo) -> str:
+        if info.data.get("existing_id") is not None:
+            return value
         return _normalize_asset_name(value)
 
 
