@@ -561,12 +561,12 @@ def controlled_mp4_bytes() -> bytes:
 
     output = io.BytesIO()
     container = av.open(output, mode="w", format="mp4")
-    stream = container.add_stream("mpeg4", rate=24)
-    stream.width = 16
-    stream.height = 16
+    stream = container.add_stream("libx264", rate=24)
+    stream.width = 320
+    stream.height = 180
     stream.pix_fmt = "yuv420p"
-    for _ in range(3):
-        frame = av.VideoFrame(16, 16, "yuv420p")
+    for _ in range(24):
+        frame = av.VideoFrame(320, 180, "yuv420p")
         for plane in frame.planes:
             plane.update(bytes(plane.buffer_size))
         for packet in stream.encode(frame):
@@ -582,10 +582,12 @@ class ControlledComfyStub:
 
     _WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
-    def __init__(self) -> None:
+    def __init__(self, *, response_mode: str = "empty") -> None:
         self.server: asyncio.AbstractServer | None = None
         self.video = controlled_mp4_bytes()
         self.upload_count = 0
+        self.response_mode = response_mode
+        self.chat_observations: list[dict[str, object]] = []
 
     @property
     def base_url(self) -> str:
@@ -717,31 +719,155 @@ class ControlledComfyStub:
             json_schema = response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
             schema_name = json_schema.get("name") if isinstance(json_schema, dict) else None
             if schema_name == "script2assets":
-                model_content: object = {"assets": []}
+                model_content = self._model_content(request_body, schema_name)
             elif schema_name == "script2shots":
-                model_content = {"shots": []}
+                model_content = self._model_content(request_body, schema_name)
             else:
                 model_content = {"prompt": "controlled acceptance prompt"}
-            response_body = json.dumps(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": json.dumps(
-                                    model_content,
-                                    ensure_ascii=False,
-                                )
-                            }
+            response_payload = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                model_content,
+                                ensure_ascii=False,
+                            )
                         }
-                    ]
-                }
+                    }
+                ]
+            }
+            response_body = json.dumps(
+                response_payload,
+                ensure_ascii=False,
             ).encode("utf-8")
+            self.chat_observations.append(
+                {
+                    "schema_name": schema_name,
+                    "request_raw_utf8": body.decode("utf-8"),
+                    "request": request_body,
+                    "response_raw_utf8": response_body.decode("utf-8"),
+                    "response": response_payload,
+                    "parsed_model_content": model_content,
+                }
+            )
         elif method == "POST" and path in {"/wake_up", "/sleep", "/free", "/interrupt"}:
             response_body = b"{}"
         else:
             status = 404
             response_body = b'{"detail":"controlled route not provided"}'
         await self._write_http_response(writer, status, content_type, response_body)
+
+    def _model_content(
+        self,
+        request_body: dict[str, object],
+        schema_name: str,
+    ) -> dict[str, object]:
+        if self.response_mode != "t27-browser":
+            return {"assets": []} if schema_name == "script2assets" else {"shots": []}
+
+        if schema_name == "script2assets":
+            messages = request_body.get("messages")
+            if not isinstance(messages, list) or len(messages) != 1:
+                raise ValueError("T27 browser assets request must contain one message")
+            message = messages[0]
+            if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+                raise ValueError("T27 browser assets request message is invalid")
+            content = message["content"]
+            snapshot_marker = "# 项目已有资产"
+            if snapshot_marker in content:
+                content = content.split(snapshot_marker, 1)[1]
+                line_end = content.find("\n")
+                if line_end < 0:
+                    raise ValueError("T27 browser assets prompt snapshot header is incomplete")
+                content = content[line_end + 1 :]
+            content = content.lstrip()
+            try:
+                existing_assets, _end = json.JSONDecoder().raw_decode(content)
+            except json.JSONDecodeError as exc:
+                raise ValueError("T27 browser assets prompt must start with JSON assets") from exc
+            if not isinstance(existing_assets, list) or not existing_assets:
+                raise ValueError("T27 browser assets prompt must contain existing assets")
+            assets: list[dict[str, object]] = []
+            for item in existing_assets:
+                if not isinstance(item, dict) or set(item) != {"id", "type", "name", "description"}:
+                    raise ValueError("T27 browser existing asset snapshot is invalid")
+                assets.append(
+                    {
+                        "existing_id": item["id"],
+                        "type": item["type"],
+                        "name": item["name"],
+                        "description": item["description"],
+                    }
+                )
+            return {"assets": assets}
+
+        response_format = request_body.get("response_format")
+        if not isinstance(response_format, dict):
+            raise ValueError("T27 browser shots response format is invalid")
+        json_schema = response_format.get("json_schema")
+        if not isinstance(json_schema, dict):
+            raise ValueError("T27 browser shots schema is invalid")
+        schema = json_schema.get("schema")
+        if not isinstance(schema, dict):
+            raise ValueError("T27 browser shots schema body is invalid")
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            raise ValueError("T27 browser shots schema properties are invalid")
+        shots_schema = properties.get("shots")
+        if not isinstance(shots_schema, dict):
+            raise ValueError("T27 browser shots array schema is invalid")
+        items = shots_schema.get("items")
+        if not isinstance(items, dict):
+            raise ValueError("T27 browser shot item schema is invalid")
+        item_properties = items.get("properties")
+        if not isinstance(item_properties, dict):
+            raise ValueError("T27 browser shot item properties are invalid")
+        asset_ids_schema = item_properties.get("asset_ids")
+        if not isinstance(asset_ids_schema, dict):
+            raise ValueError("T27 browser shot asset schema is invalid")
+        asset_items = asset_ids_schema.get("items")
+        if not isinstance(asset_items, dict):
+            raise ValueError("T27 browser shot asset item schema is invalid")
+        allowed_asset_ids = asset_items.get("enum")
+        shot_type_schema = item_properties.get("shot_type")
+        camera_schema = item_properties.get("camera")
+        if (
+            not isinstance(allowed_asset_ids, list)
+            or not allowed_asset_ids
+            or not isinstance(shot_type_schema, dict)
+            or not isinstance(camera_schema, dict)
+            or not isinstance(shot_type_schema.get("enum"), list)
+            or not shot_type_schema["enum"]
+            or not isinstance(camera_schema.get("enum"), list)
+            or not camera_schema["enum"]
+        ):
+            raise ValueError("T27 browser shots schema enums are invalid")
+        first_asset = allowed_asset_ids[0]
+        second_asset = allowed_asset_ids[min(1, len(allowed_asset_ids) - 1)]
+        shot_type = shot_type_schema["enum"][0]
+        camera = camera_schema["enum"][0]
+        return {
+            "shots": [
+                {
+                    "order": 1,
+                    "duration_est": 1.0,
+                    "shot_type": shot_type,
+                    "camera": camera,
+                    "description": "controlled generated shot one",
+                    "dialogue": "",
+                    "asset_ids": [first_asset],
+                },
+                {
+                    "order": 2,
+                    "duration_est": 1.0,
+                    "shot_type": shot_type,
+                    "camera": camera,
+                    "description": "controlled generated shot two",
+                    "dialogue": "",
+                    "asset_ids": [second_asset],
+                },
+            ]
+        }
 
     async def _write_http_response(
         self,
@@ -2361,7 +2487,13 @@ async def cascade_seed_fixture(raw_url: str, data_dir: Path) -> dict[str, object
             )
             image_path = data_dir / image_relative_path
             image_path.parent.mkdir(parents=True, exist_ok=True)
-            image_bytes = b"c012 controlled current image"
+            from PIL import Image
+
+            image_buffer = io.BytesIO()
+            Image.new("RGB", (320, 180), (32, 96, 160)).save(
+                image_buffer, format="PNG"
+            )
+            image_bytes = image_buffer.getvalue()
             image_path.write_bytes(image_bytes)
             await connection.execute(
                 "UPDATE asset_images SET file_path = $1, sha256 = $2 WHERE id = $3",
