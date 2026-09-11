@@ -163,16 +163,31 @@ async def task_events(websocket: WebSocket) -> None:
                 continue
 
             send_task = asyncio.create_task(websocket.send_json(event_payload))
-            active_tasks = {send_task}
-            try:
-                await asyncio.wait_for(
-                    send_task, timeout=WS_SEND_TIMEOUT_SECONDS
-                )
-            except asyncio.TimeoutError:
+            send_overflow_task = asyncio.create_task(overflow_event.wait())
+            active_tasks = {send_task, send_overflow_task}
+            done, _pending = await asyncio.wait(
+                active_tasks,
+                timeout=WS_SEND_TIMEOUT_SECONDS,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not done:
                 await _cancel_and_await(send_task)
+                await _cancel_and_await(send_overflow_task)
                 active_tasks = set()
                 await _close_transport(websocket, reason="send_timeout")
                 break
+
+            if send_overflow_task in done and send_task not in done:
+                send_overflow_task.result()
+                await _cancel_and_await(send_task)
+                active_tasks = set()
+                await _close_transport(websocket, reason="subscription_overflow")
+                break
+
+            await _cancel_and_await(send_overflow_task)
+            active_tasks = {send_task}
+            try:
+                send_task.result()
             except (OSError, RuntimeError, WebSocketDisconnect) as exc:
                 active_tasks = set()
                 logger.warning(

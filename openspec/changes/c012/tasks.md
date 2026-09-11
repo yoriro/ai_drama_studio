@@ -115,7 +115,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
-- [ ] T14 实现 WS owner 超时关闭和子任务释放
+- [x] T14 实现 WS owner 超时关闭和子任务释放
   - 依赖：T13。交付：`api/tasks.py`发送10秒上限、溢出/发送异常关闭、同时完成事件处理、取消后await；新增`backend/tests/task_system/test_c012_ws_lifecycle.py`。不修改Task REST或事件JSON字段。
   - R：无；PRD §5任务、§6.1/6.4；AC-11。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_ws_lifecycle.py tests/task_system/test_c012_event_bus.py`；R `python -X utf8 .work/c012/acceptance.py ws`。受控ASGI慢send与真实网络WS分开记录，1013/日志、连接基线、零pending子任务、Task不误failed及健康订阅均验证。
@@ -325,7 +325,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T39 修复 send 在途时的 overflow 关闭（B3）
+- [x] T39 修复 send 在途时的 overflow 关闭（B3）
   - 依赖：T38。交付：新增 `backend/tests/task_system/test_c012_ws_send_overflow.py`，覆盖已阻塞send再overflow、无overflow超时、disconnect/退出与子任务结束；仅修 `api/tasks.py` 直接生命周期。完成后复核恢复T14。
   - R：无；PRD §6.1、§6.4、§11 M6；AC-10/11。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_ws_send_overflow.py tests/task_system/test_c012_ws_lifecycle.py tests/task_system/test_c012_event_bus.py`；原B3保持10秒生产常量，overflow后应由该事件关闭而非send timeout，精确原因/1013/await完成/订阅基线，Task不变。T37–39结束后R `python -X utf8 .work/c012/probe-review-races.py`；原脚本固定环境须显式核对隔离库，可仅另存运行配置副本，记录diff，不改断言。
