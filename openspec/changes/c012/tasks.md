@@ -283,7 +283,7 @@
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [ ] change 文档与 commit 状态一致
+- [x] change 文档与 commit 状态一致
   - 标识：T36；依赖：T35。仅在本表前置全部完成、25条AC都有真假证据、外部依赖门槛解除后收口；保留失败记录/限制，不顺手archive/push或纳入AGENTS用户改动。
   - R：无；PRD §0、§11 M6；AC-01/25。
   - 验收：R `git status --short`、`git diff --check`、`git show --stat HEAD`、`git ls-tree -r --name-only HEAD openspec/changes/c012`；逐项核对PRD/spec/tasks/trace与受测commit，确保非文档输入变化都有相关新证据，完成报告明确提交状态。
