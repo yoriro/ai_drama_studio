@@ -242,3 +242,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-11 C012 T45：隔离库`ai_drama_studio_c012_t45_20260911`与DATA_DIR`D:\ai_drama_studio\.work\c012\t45-data-20260911`上，py_compile与`recovery --case lifecycle`均exit 0；自然互斥进程returncode=3，输出`AdvisoryLockNotAcquired`，未请求终止。
 - 2026-09-11 C012 T45：真实生产worker恢复running/queued后，重启使running变为`failed/server restarted`、queued变为done且仅一条generated资产；只读数据库故障期间heartbeat未变、handler=0，恢复可写后重启收口，最终临时目录不存在。
 - 2026-09-11 C012 T45：CLI参数、JSONB字符串读取、PostgreSQL`datconfig`/只读恢复和临时目录时点的失败证据分别保留在`.work/c012/T45-recovery-lifecycle-failure-01.*`至`failure-04.*`与`pass-01.*`。
+- 2026-09-11 C012 T46：新隔离库`ai_drama_studio_c012_t46_20260911`的指定恢复回归为`11 passed in 1.42s`、exit 0；四个新增worker恢复用例与原四个C012恢复用例、`test_task_queue.py`一并执行。
+- 2026-09-11 C012 T46：`recovery --case lifecycle` exit 0；running/queued重启、自然advisory拒绝、单一generated资产、只读数据库heartbeat不变与最终临时目录不存在均在`.work/c012/T46-recovery-acceptance.json`记录。

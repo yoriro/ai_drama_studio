@@ -274,12 +274,13 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 M6 错误与敌意输入回归。
 
-- [ ] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
+- [x] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
   - 依赖：T28、T02A。交付：新增`backend/tests/task_system/test_c012_recovery.py`，真实应用进程/DB/文件；queued/running取消与成功竞争、心跳错误/DB不可用时的真实限制、同库重启和第二实例拒绝。不加入心跳重试或伪造failed。
   - R：无；PRD §3.2、§6.1、§6.4、§11 M6；AC-22。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_recovery.py`；R `python -X utf8 .work/c012/acceptance.py recovery`。确定性进程屏障验证running→failed、queued保留/claim一次、副作用一次、advisory锁释放/拒绝、temp与连接退出；只使用本轮owned隔离进程。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 取消心跳失败与重启资源恢复。
+  - 2026-09-11复核完成：原 T29 独立回归日志 `T29-luna-recovery-test-20260911.log` 为 `4 passed in 0.90s`、exit 0，原 recovery 命令日志 `T29-luna-recovery-acceptance-20260911.log` 为 status passed、exit 0；T45/T46 对同一生产 recovery 装置进行了后续完整结构化重验，未改变 T29 的取消、重启、互斥与资源边界。T29 原始日志和失败证据均保留，T46 复核使用独立库与 DATA_DIR。
 
 - [x] T30 验证生产 trash 启动和每日清理
   - 依赖：T29、T02A。交付：新增`backend/tests/task_system/test_c012_trash_cleanup.py`，真实文件/启动进程和每日调用路径；cutoff前/恰好/之后、trash外媒体、IO失败与shutdown。仅验证生产清理，发现越界/生命周期缺陷先报告定位，不顺手扩大清理范围。
@@ -381,13 +382,15 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 取消心跳失败与重启资源恢复。
   - 2026-09-11完成：仅扩展 `.work/c012/acceptance.py`。隔离库 `ai_drama_studio_c012_t45_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t45-data-20260911` 上，`python -m py_compile .work/c012/acceptance.py` 与 `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle` 均 exit 0；`recovery-acceptance.json` 记录真实 running task #7 与 queued task #8，第二进程自然 returncode=3、未请求终止，输出 `AdvisoryLockNotAcquired`/`task worker advisory lock is already held`；首进程终止后 running/queued 保持，重启后 #7 为 `failed/server restarted`、#8 为 `done` 且仅 1 条 `source=generated` 资产。第三任务的数据库 `default_transaction_read_only=on` 故障记录 heartbeat 不变、任务仍 running、handler=0、无新增资产；恢复 off 后再次重启为 `failed/server restarted`。最终 owned 进程/连接/HTTP handler 清理，临时目录不存在。原始日志 `.work/c012/T45-acceptance-pycompile.*`、`.work/c012/T45-recovery-lifecycle.*`、`.work/c012/recovery-acceptance.json`；CLI、JSONB读取、PostgreSQL诊断兼容性与目录证据修正前失败分别保留在 `T45-recovery-lifecycle-failure-01.*` 至 `failure-04.*` 与 `pass-01.*`。
+  - 证据归属：`recovery-acceptance.json` 是共享固定输出名，后续 T46 已另存 `.work/c012/T46-recovery-acceptance.json` 并覆盖该共享路径；T45 的当批 stdout/exit 与所有 failure/pass 快照保留，T45 具体结构化状态以后续 T46 同一装置重验为补充，不把 T46 文件倒写成 T45 独立原始 JSON。
 
-- [ ] T46 补齐重启副作用及心跳监督回归（B6）
+- [x] T46 补齐重启副作用及心跳监督回归（B6）
   - 依赖：T45。交付：新增 `backend/tests/task_system/test_c012_worker_recovery.py`，精确覆盖queued/完成先胜取消、真实进程重启后queued完成一次、心跳异常不吞/handler取消/DB不可达不假报failed/恢复后重启；保留原四个C012恢复测试。完成后复核恢复T29。
   - R：无；PRD §3.2、§6.1、§6.4；AC-22。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py`；R `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle`；不只断言状态集合，要分别精确单赢家、产物数量/内容与请求次数，退出无泄漏。生产根因超授权范围则报告。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 取消心跳失败与重启资源恢复。
+  - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_worker_recovery.py` 四个独立用例，分别覆盖 queued 取消与完成先胜、取消安全点单赢家、重启后 queued 恰一次 handler/资产副作用、heartbeat 异常传播与 handler 取消，以及 DB 不可达时 running 不伪报 failed、恢复后 `server restarted` 收口。全新隔离库 `ai_drama_studio_c012_t46_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py` 为 `11 passed in 1.42s`、exit 0，stderr 为空，日志 `.work/c012/T46-test-targeted.stdout.log`、`.work/c012/T46-test-targeted.stderr.log`、`.work/c012/T46-test-targeted.exit-code.txt`；R `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle` 为 status passed、exit 0，完整事件 `.work/c012/T46-recovery-acceptance.json`，DATA_DIR `D:\ai_drama_studio\.work\c012\t46-data-20260911`，库/DATA_DIR及运行状态与 T45 证据一致，最终临时目录不存在、stub handler=0。未修改既有测试、生产代码、模板或剧本。
 
 - [ ] T47 关闭最终交付模板与部署门槛（B4）
   - 依赖：既有T21/§6.3批准证据；与CPU线独立。先只读核对当前候选、指定122039原始prompt的生成模板、运行库正文及批准范围，保存精确差异与已验证/失败/未运行部分。当前候选已有内容失败，不自动部署；批准正文不明确时报告具体候选和待决点，保持本项/AC-26阻塞，继续T48/T49。
