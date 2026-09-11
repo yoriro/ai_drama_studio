@@ -223,7 +223,13 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-10 C012 T25 重开：正式 UI 仅新提交 task #13/#14，分别生成 Clip #1/#2 的 video #3/#4 并切为 current；旧 video #1/#2 保留，REST/DB/媒体探针与 payload 修订证据见 `.work/c012/T25-reopen-*`。
 - 2026-09-10 C012 T26 重开：正式导演台播放 video #3/#4；Clip #1 抬眼/继续吃饭可定位，Clip #2 僵住可定位但未观察到明确指向，故 T26 保持未勾选；期间 Comfy 8188 曾无监听，恢复后只读 observe exit 0。
 - 2026-09-10 C012 T26 只读诊断补充：task #14/video #4 的 Shot25 input_snapshot 同时保留“双手高举”旧描述与追加的明确指向句，rendered_prompt 含追加句但 detailed_description 仍为举臂且无逐Shot指向标签；未重生成，T26失败保留。
+
+- 2026-09-10 C012 T26模板诊断：本地minimaxh3候选正文2818字符，尚未设置API部署；一次有效Qwen响应恢复4镜/时间点/正文指向，但遗漏Picture绑定和详细镜头Subject引用，结构及人工审阅未通过。未新增视频Task，T26仍失败；证据 `.work/c012/T26-template-review.md`。首个schema包装HTTP400为诊断装置错误，已复用生产_guided_schema修复并保留原日志。
 - 2026-09-11 C012 T29：隔离库 `ai_drama_studio_c012_t29_luna_20260911` 上定向恢复测试 4 passed；受控 recovery 启动进程把 running task #6 置为 `failed/server restarted`、保留 queued task #7，第二实例因 advisory lock returncode 3，owned 临时目录与连接退出后释放。
 - 2026-09-11 C012 T30：隔离库 `ai_drama_studio_c012_t30_luna_20260911` 的生产 trash 启动/每日/IO 受控验收返回 passed；旧文件删除、cutoff 及 trash 外文件保留，`NotADirectoryError` 原样可见，受控进程退出后无残留监听。
+- 2026-09-11 C012 T26模板循环：第11轮冻结球馆输入的原始prompt通过结构与逐镜人工核对，证据 `.work/c012/T26C-clip2-20260911_122039/{response.json,checks.json,review.md}`；累计11轮含1次超时，失败均保留。候选模板尚未部署，Clip1模型诊断及视频未执行，T26C/AC-26未整体完成；现场Task仍14、无active、Comfy队列空、vLLM睡眠。
+- 2026-09-11 C012 T26通用性复验：当前候选的球馆和独立室外/空镜/多人对白小样均结构通过但内容失败；未译词/空对白占位与引用重排证据见 `.work/c012/T26-generalization-review.md`。未部署、未生成视频，不能沿用此前候选的单次通过。
+- 2026-09-11 C012 T26：指定122039原始prompt直接Comfy单次生成成功，球馆指向/僵住和宿舍旧take复核的入门/抬眼/吃饭均有时间点证据；见 `.work/c012/T26-selected-video-20260911_140139/verdict.md`。产物未作为平台take入库，正式通路门槛仍未完成；Task保持14、Comfy空队列、vLLM睡眠。
+- 2026-09-11 C012 T26最终裁决：需求方接受宿舍take#3复核＋指定prompt真实Comfy球馆视频的组合证据，明确裁决T26通过；tasks已勾选，spec/追溯/裁决报告同步。未新增平台Task/take或部署的事实及旧失败保留；不为T26继续重生成，不代表整个C012已收口。
 - 2026-09-11 C012 T31：真实库`ai_drama_studio_c012_m6_20260910`/DATA_DIR`D:\ai_drama_studio\.work\c012\t21-m6-data`正式UI一次生成Clip#1得到task#15；running期间编辑Shot#2后任务done，Shot为revision3/changed、Clip为ready/stale，新take#5非current且原take#3与参考PNG未变；observe前后与隔离库B定向测试均exit0，证据见`.work/c012/T31-*-20260911.*`。
 - 2026-09-11 C012 T33 G2：新库`ai_drama_studio_c012_g2_20260911`/DATA_DIR`D:\ai_drama_studio\.work\c012\t33-g2-data-20260911`完成Alembic upgrade/current/check（head=`c012_asset_name_unique`，均exit0）、完整backend `399 passed in 215.83s`、frontend `35 files/175 tests`、build `68 modules`与`git diff --check`（均exit0）；初始setup的`New-Item -LiteralPath`参数错误已按实际cmdlet改为`-Path`并复核目录/数据库存在，未使用示范库。
