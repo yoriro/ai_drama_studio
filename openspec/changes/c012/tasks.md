@@ -64,14 +64,14 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T07 对齐片段创建及相关关系行锁顺序
+- [x] T07 对齐片段创建及相关关系行锁顺序
   - 依赖：T06。交付：`services/clips.py`中create/slot/delete与同一锁环有关的查询顺序和FOR UPDATE锁表范围；其余业务原样。不得删除必要归属/占用校验。
   - R：R5、R5a、R7、R9、R12；PRD §3.3、§3.4、§6.4；AC-04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L4`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L4`；同时验证create冲突、slot变化与删除后的引用/媒体赢家。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
-- [ ] T08 对齐分镜覆盖的锁顺序并关闭全部锁探针
+- [x] T08 对齐分镜覆盖的锁顺序并关闭全部锁探针
   - 依赖：T07。交付：`tasks/gen_shots.py`既有覆盖事务的Asset/Shot/Clip及媒体关系锁按spec排列，源快照与R3失败无损保持；更新锁图的实际边与证据，不扩大队列并行度。
   - R：R3；PRD §3.2、§3.3、§6.1/6.4；AC-03/04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py tests/task_system/test_c006_gen_shots.py tests/task_system/test_c006_cancel_commit_race.py tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case all`。全格无40P01/超时且原断言保持；失败不得进入真实GPU步骤。
@@ -346,8 +346,9 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 慢连接后的页面权威重建。
 
-- [ ] T42 补齐 L4/L5 实际操作对与双向锁等待（B6）
+- [x] T42 补齐 L4/L5 实际操作对与双向锁等待（B6）
   - 2026-09-11窄修复裁决：L5 replace→delete已取得业务红测（串行404、并发500）；仅增加 `services/clips.py::delete_clip` 锁后目标存在性复核，严格按spec末尾T42裁决，不改锁顺序/空关系损坏校验/测试。红测不是T42通过。补跑 B `python -m pytest -q tests/api/test_c008_clip_delete.py`，与本项两文件矩阵全部通过后提交并进入T43；无需Astra代写实现。
+  - 2026-09-11完成：生产仅增加 `services/clips.py::delete_clip` 在 Episode 锁后、候选关系读取前的目标 Clip 存在性复核；后续 Clip `FOR UPDATE` 及仍存在但关系损坏时的 500 保持不变。指定两文件矩阵与 `tests/api/test_c008_clip_delete.py` 均已取得真实 exit 0，红测保留。
   - 依赖：T38。交付：新增 `backend/tests/task_system/test_c012_lock_edit_pairs.py`；先列§2.1可达操作对/原测试节点，无缺口的精确复用；补create/slot/delete×Asset/Shot编辑和gen_shots覆盖×上述API的缺口。每行两种持锁方向、独立事务/真实SQL后屏障、完整赢家/引用/文件断言，不以参数名代替矩阵。完成后复核恢复T07/T08。
   - R：R3、R5、R5a、R7、R9、R12；PRD §3.2–§3.4、§6.4；AC-04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_edit_pairs.py tests/task_system/test_c012_lock_order.py`；每个操作对精确串行等价、无40P01/timeout、snapshot不漂移、媒体/引用闭合及连接释放。若发现新的实现根因，保留结果并提交具体最小修改范围给Astra，不扩大本测试任务实现范围。

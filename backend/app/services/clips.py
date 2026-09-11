@@ -952,6 +952,12 @@ async def delete_clip(session: AsyncSession, clip_id: int) -> None:
             if episode is None:
                 raise _source_data_error()
 
+            current_clip_result = await session.execute(
+                select(Clip.id).where(Clip.id == clip_identity.id)
+            )
+            if current_clip_result.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Clip not found")
+
             clip_shot_result = await session.execute(
                 select(ClipShot)
                 .where(ClipShot.clip_id == clip_identity.id)

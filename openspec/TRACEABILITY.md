@@ -393,7 +393,7 @@ C012 T36 实际回填（对应 AC-01/25 与「C012 范围与阶段回归及交�
 | 原追溯行 | 本轮修复状态 |
 |---|---|
 | C012 R2 生成候选去重与冲突失败 | T37 / AC-07 已完成；合法ID不采用名称、新增候选边界、warning实际复用ID；新独立回归+原探针 |
-| C012 生成提交与入队及编辑锁顺序 | T38 已完成 / T42 待验 / AC-04；锁后相同绑定no-op与不同请求串行结果已由独立事务证实，L4/L5全部可达操作对双向交错待T42 |
+| C012 生成提交与入队及编辑锁顺序 | T38/T42 已完成 / AC-04；锁后相同绑定no-op与不同请求串行结果已由独立事务证实，L4/L5全部可达操作对已按矩阵双向交错并核对串行等价 |
 | C012 EventBus 有界订阅与慢连接释放 | T39 已完成 / AC-11；send在途overflow、原因/1013/全部等待回收已实证，Task状态不变由原探针核验 |
 | C012 慢连接后的页面权威重建 | T40装置→T41 / AC-12；真实页面收到生产route慢关闭，handler终态与REST/DB/展开详情一致，非SQL填终态 |
 | C012 M6 全级联矩阵 | T43装置→T44 / AC-20；图/视频旧缓存失配并重建、提取新正文、在途不变、不追溯；对应原§3.3行同时回填 |
@@ -414,3 +414,5 @@ C012 T41 实际回填（对应 AC-12，完成后复核恢复 T15）：在 T40 �
 
 
 C012 T42 追加生产缺陷（AC-04，「C012 生成提交与入队及编辑锁顺序」）：新独立回归 `backend/tests/task_system/test_c012_lock_edit_pairs.py::test_c012_lock_edit_pairs_are_serial_equivalent` 的 L5 replace→delete 分支已实际失败，串行404、并发500；原始输出 `T42-test-red-replace-delete-20260911.stdout.log`/stderr/exit-code 为 `1 failed, 5 passed in 21.44s` / 1。该节点作为最小 delete_clip 锁后存在性修复回归，层级「跨进程/资源生命周期」。已有删除媒体/补偿测试 `backend/tests/api/test_c008_clip_delete.py::test_clip_delete_moves_all_media_releases_shots_and_allows_recreate`、`test_clip_delete_rejects_bad_media_paths_without_database_changes`、`test_clip_delete_restores_partial_and_database_failures` 同时复跑。待Luna修复后真实结果回填，不预填PASS，不改变旧失败；范围见spec T42追加裁决。
+
+C012 T42 实际回填（对应 AC-04、「C012 生成提交与入队及编辑锁顺序」）：新增 `backend/tests/task_system/test_c012_lock_edit_pairs.py::test_c012_lock_edit_pairs_are_serial_equivalent`，模块显式列出 L4 的 create/slot/delete×Asset/Shot 编辑 6 对与 L5 的 gen_shots 覆盖×Asset/Shot/create/slot/delete 5 对，共 11 对；每对按两种持锁方向运行独立串行基线和独立并发批次。并发批次以真实 PostgreSQL Clip `FOR UPDATE` 屏障，逐次从 `pg_stat_activity`/`pg_blocking_pids` 观察生产操作处于 `wait_event_type=Lock` 的 `FOR UPDATE` 语句后才启动另一事务，最终完整比较操作结果、Episode/Asset/Shot/Clip/关系/Task 及正式/垃圾文件 bytes。修复前红测保留于 `.work/c012/T42-test-red-replace-delete-20260911.stdout.log`/stderr/exit-code：串行 `404 Clip not found`、并发 `500 Clip source data is inconsistent`，`1 failed, 5 passed in 21.44s`、exit 1；生产最小修复为 `backend/app/services/clips.py::delete_clip` 在取得 Episode 锁后无锁重查 Clip 是否仍存在，消失时沿用 404，未放宽仍存在 Clip 的关系损坏 500。修复后指定 B `python -m pytest -q tests/task_system/test_c012_lock_edit_pairs.py tests/task_system/test_c012_lock_order.py` 输出 `6 passed in 23.01s`、exit 0；删除媒体/补偿回归 `python -m pytest -q tests/api/test_c008_clip_delete.py` 输出 `3 passed in 3.13s`、exit 0；两次命令原始 stdout/stderr/exit 分别保存于 `.work/c012/T42-test-targeted.*`、`.work/c012/T42-test-c008-clip-delete.*`。T07/T08 checkbox 已按 T42 要求复核恢复；T22/T23/T26 边界未变。
