@@ -347,6 +347,7 @@
   - 追溯行：C012 慢连接后的页面权威重建。
 
 - [ ] T42 补齐 L4/L5 实际操作对与双向锁等待（B6）
+  - 2026-09-11窄修复裁决：L5 replace→delete已取得业务红测（串行404、并发500）；仅增加 `services/clips.py::delete_clip` 锁后目标存在性复核，严格按spec末尾T42裁决，不改锁顺序/空关系损坏校验/测试。红测不是T42通过。补跑 B `python -m pytest -q tests/api/test_c008_clip_delete.py`，与本项两文件矩阵全部通过后提交并进入T43；无需Astra代写实现。
   - 依赖：T38。交付：新增 `backend/tests/task_system/test_c012_lock_edit_pairs.py`；先列§2.1可达操作对/原测试节点，无缺口的精确复用；补create/slot/delete×Asset/Shot编辑和gen_shots覆盖×上述API的缺口。每行两种持锁方向、独立事务/真实SQL后屏障、完整赢家/引用/文件断言，不以参数名代替矩阵。完成后复核恢复T07/T08。
   - R：R3、R5、R5a、R7、R9、R12；PRD §3.2–§3.4、§6.4；AC-04。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_edit_pairs.py tests/task_system/test_c012_lock_order.py`；每个操作对精确串行等价、无40P01/timeout、snapshot不漂移、媒体/引用闭合及连接释放。若发现新的实现根因，保留结果并提交具体最小修改范围给Astra，不扩大本测试任务实现范围。
