@@ -403,12 +403,13 @@
   - 运行库只读回读实际为 `ai_drama_studio_c012_m6_20260910`、`127.0.0.1:5432`：四个 key 均非占位；运行库 `minimaxh3` 为 13248 bytes、SHA-256 `e2a1638cf13e2853a263ebe7db383d2c7ce222780bc4a937ca38845c48d63f7a`，其余三 key 与当前三份部署输入的 SHA-256 一致。T21 的同库/DATA_DIR 重启回读仍记录四 key 精确、无占位、verify 零 PATCH；完整本次数据库原始回读见 `.work/c012/T47-runtime-template-readback.stdout.log`，摘要见 `.work/c012/T47-read-only-summary.stdout.log`及stderr/exit。
   - `T26C-clip2-20260911_122039` 原始 prompt/request/response/checks 只读核对为 model=`Qwen3-30B-A3B-Instruct-2507-AWQ-4bit`、temperature=`0.2`、`template_matches_request=true`、`raw_response_unchanged=true`、结构/映射/英文检查为 true；`video_generated=false`。本次 T47 未运行 install、重启后 verify、新模型调用或新生成任务。批准正文与当前候选的差异没有得到新的明确批准，故 T47/AC-26 仍阻塞，不自动部署或覆盖运行库。
 
-- [ ] T48 核查准确用例ID、修复证据与旧任务状态（B7）
+- [x] T48 核查准确用例ID、修复证据与旧任务状态（B7）
   - 依赖：T37–T46，T47的实际状态已记录。交付：核对本轮文档已补的14个准确ID，再逐条追加新增回归真实nodeid/参数；逐条将B1–B7映射到修复commit/原始输出/AC，按各修复任务恢复旧checkbox；失败/未运行保持未勾选，T26裁决不撤销。
   - R：无；PRD §11 M6；AC-01/25。
   - 验收：B `python -m pytest --collect-only -q` 对照追溯，每个新增节点至少归属一行；人工对照 `.work/c012/review-test-id-coverage.json`、当前diff与实际日志；R `git diff --check`。不因文档回填重跑全量。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
+  - 2026-09-11完成：`python -m pytest --collect-only -q` 收集 `414 tests collected in 0.88s`、exit 0，stdout/stderr/exit 保留于 `.work/c012/T48-collect-only.stdout.log`、`.stderr.log`、`.exit-code.txt`；`.work/c012/review-test-id-coverage.json` 中原审查遗留的14个准确 ID逐条在追溯表定位。T37–T46 新增节点、参数、对应追溯行已逐条补入 TRACEABILITY；B1→T37 `5e06ee9`/AC-07，B2→T38 `38e576d`/AC-04，B3→T39 `6eeb530`/AC-11，B4→T47 `77da604`/AC-13/15/26（阻塞），B5→T40 `dd15a74`+T41 `a5a5d59`/AC-12，B6→T42 `5afff50`、T43 `ca38fe8`、T44 `31ea5e2`、T45 `9717892`、T46 `a77e43c`/AC-04/20/22，B7→本次文档回填/AC-01/25；各项原始失败与通过日志保留。`git diff --check` exit 0；`backend/tests` 相对审查基线仅有本轮新增测试文件，无既有测试修改；T22/T26/T31 等既有任务状态按当前文档保留，T47阻塞不改写为通过。
 
 - [ ] T49 修复阶段完整回归
   - 依赖：T37–T46、T48；T47阻塞时允许仅完成CPU线阶段验证，不能宣称发布通过。交付：覆盖最终本轮实现/测试/装置的阶段证据；本项通过后恢复T33并注明受测边界。其后模板/文档变更只按影响面补验，不重复同一全量。
