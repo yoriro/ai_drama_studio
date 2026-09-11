@@ -122,7 +122,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
-- [ ] T15 验证慢连接关闭后的真实页面重建
+- [x] T15 验证慢连接关闭后的真实页面重建
   - 依赖：T14。交付：新增`frontend/src/features/tasks/taskSlowConsumerReconnect.test.tsx`，挂载生产TasksPage验证关闭→重连→列表/展开详情权威GET。现有协调器若有缺陷，只修该实际路径并补记录，不改旧测试。
   - R：无；PRD §5任务、§6.1、§9；AC-12。
   - 验收：R `npm.cmd --prefix frontend run test -- src/features/tasks/taskSlowConsumerReconnect.test.tsx`、`npm.cmd --prefix frontend run test -- src/features/tasks`、`npm.cmd --prefix frontend run build`；真实浏览器在T02受控后端经现有页面展开任务、观察连接异常/终态重建，记录该页面自己的详情GET与生成/取消POST零增加。
@@ -339,7 +339,7 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 慢连接后的页面权威重建。
 
-- [ ] T41 完成真实慢连接后的展开详情重建（B5）
+- [x] T41 完成真实慢连接后的展开详情重建（B5）
   - 依赖：T40。交付：沿用正式TasksPage，在T40批次打开running详情→触发慢关闭→生产任务到done/failed→自动重连；保存实际UI操作、网络GET/POST与DB精确字段证据。不得停后端/SQL造终态替代。完成后复核恢复T15。
   - R：无；PRD §6.1、§9、§11 M6；AC-12。
   - 验收：R `npm.cmd --prefix frontend run test -- src/features/tasks/taskSlowConsumerReconnect.test.tsx`；人工在输出的真实地址完成上述路径，观测断线提示、socket-first及列表/详情GET、进度/error/finished_at与DB一致、POST不增加；R `python -X utf8 .work/c012/probe-review-reconnect.py`。如需修改前端生产逻辑，先报告新定位，不扩改既有组件测试。

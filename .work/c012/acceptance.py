@@ -618,6 +618,118 @@ class CapturedLogHandler(logging.Handler):
         self.messages.append(record.getMessage())
 
 
+class RecordingSlowASGISendGate(SlowASGISendGate):
+    """Add request ordering evidence for the real TasksPage browser run."""
+
+    def __init__(self, application: Any) -> None:
+        super().__init__(application)
+        self.http_requests: list[dict[str, object]] = []
+        self.websocket_connections: list[dict[str, object]] = []
+        self._sequence = 0
+
+    def _next_sequence(self) -> int:
+        self._sequence += 1
+        return self._sequence
+
+    async def __call__(
+        self,
+        scope: Mapping[str, object],
+        receive: Any,
+        send: Any,
+    ) -> None:
+        scope_type = scope.get("type")
+        if scope_type == "http":
+            request: dict[str, object] = {
+                "sequence": self._next_sequence(),
+                "method": scope.get("method"),
+                "path": scope.get("path"),
+                "query_string": (
+                    scope.get("query_string", b"").decode("ascii")
+                    if isinstance(scope.get("query_string", b""), bytes)
+                    else str(scope.get("query_string", ""))
+                ),
+            }
+            self.http_requests.append(request)
+
+            async def recording_send(message: Mapping[str, object]) -> None:
+                if message.get("type") == "http.response.start":
+                    request["status"] = message.get("status")
+                await send(message)
+
+            await self.application(scope, receive, recording_send)
+            return
+
+        if scope_type == "websocket":
+            connection: dict[str, object] = {
+                "sequence": self._next_sequence(),
+                "path": scope.get("path"),
+            }
+            self.websocket_connections.append(connection)
+            try:
+                await super().__call__(scope, receive, send)
+            finally:
+                connection["completed"] = True
+            return
+
+        await self.application(scope, receive, send)
+
+
+class SlowBrowserHTTPServer(ControlledHTTPServer):
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        self.block_enabled = threading.Event()
+        self.chat_started = threading.Event()
+        self.chat_release = threading.Event()
+
+
+class SlowBrowserStubHandler(HealthStubHandler):
+    def do_POST(self) -> None:  # noqa: N802 - stdlib handler contract
+        if (
+            self.path == "/v1/chat/completions"
+            and isinstance(self.server, SlowBrowserHTTPServer)
+            and self.server.block_enabled.is_set()
+        ):
+            self.server.chat_started.set()
+            if not self.server.chat_release.wait(timeout=180):
+                self._send_json(
+                    504,
+                    {"detail": "slow-page browser release was not observed"},
+                )
+                return
+        super().do_POST()
+
+
+class SlowBrowserHTTPStub:
+    """External vLLM/Comfy stub with an explicit model-release barrier."""
+
+    def __init__(self) -> None:
+        self.server = SlowBrowserHTTPServer(
+            ("127.0.0.1", 0), SlowBrowserStubHandler
+        )
+        self.thread = threading.Thread(
+            target=self.server.serve_forever,
+            kwargs={"poll_interval": 0.05},
+            name="c012-slow-page-browser-http-stub",
+            daemon=True,
+        )
+
+    @property
+    def base_url(self) -> str:
+        host, port = self.server.server_address
+        return f"http://{host}:{port}"
+
+    def __enter__(self) -> "SlowBrowserHTTPStub":
+        self.thread.start()
+        return self
+
+    def __exit__(self, _type: object, _value: object, _traceback: object) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+        if self.thread.is_alive():
+            raise AcceptanceFailure("owned browser HTTP stub thread did not stop")
+
+
 def controlled_mp4_bytes() -> bytes:
     """Create one legal, deterministic offline video for the controlled path."""
 
@@ -1612,6 +1724,13 @@ async def ws_delete_task(raw_url: str, task_id: int) -> str:
 
 
 SLOW_PAGE_TASK_COUNT = 90
+SLOW_PAGE_BROWSER_PRE_TASK_COUNT = 40
+SLOW_PAGE_BROWSER_POST_TASK_COUNT = 86
+SLOW_PAGE_BROWSER_TASK_COUNT = (
+    SLOW_PAGE_BROWSER_PRE_TASK_COUNT
+    + 1
+    + SLOW_PAGE_BROWSER_POST_TASK_COUNT
+)
 
 
 async def slow_page_http_json(
@@ -1635,6 +1754,8 @@ async def slow_page_create_fixture(
     client: httpx.AsyncClient,
     base_url: str,
     request_log: list[dict[str, object]],
+    *,
+    task_count: int = SLOW_PAGE_TASK_COUNT,
 ) -> dict[str, object]:
     token = uuid4().hex
     style_path = "/api/styles"
@@ -1691,7 +1812,7 @@ async def slow_page_create_fixture(
         )
 
     episode_ids: list[int] = []
-    for sequence in range(1, SLOW_PAGE_TASK_COUNT + 1):
+    for sequence in range(1, task_count + 1):
         episode_path = f"/api/projects/{project_id}/episodes"
         episode_status, episode_body = await slow_page_http_json(
             client,
@@ -1728,7 +1849,7 @@ async def slow_page_create_fixture(
         "style_id": style_id,
         "project_id": project_id,
         "episode_ids": episode_ids,
-        "task_count": SLOW_PAGE_TASK_COUNT,
+        "task_count": task_count,
     }
 
 
@@ -2195,6 +2316,522 @@ async def command_ws_slow_page(
         production_server_stopped=True,
         database_connections_closed=True,
         cleanup=cleanup_result,
+    )
+
+
+async def command_ws_slow_page_browser(
+    _arguments: argparse.Namespace,
+    evidence: RunEvidence,
+) -> None:
+    raw_url, data_dir, url_identity = explicit_runtime()
+    database_identity = await read_database_identity(raw_url)
+    evidence.add(
+        "runtime_identity",
+        database_url=url_identity,
+        database=database_identity,
+        data_dir=str(data_dir),
+    )
+    if database_identity["current_database"] != url_identity["database_from_url"]:
+        raise AcceptanceFailure(
+            "database identity does not match explicit DATABASE_URL database"
+        )
+
+    request_log: list[dict[str, object]] = []
+    fixture: dict[str, object] = {}
+    task_ids: list[int] = []
+    episode_ids: list[int] = []
+    style_id: int | None = None
+    project_id: int | None = None
+    target_task_id: int | None = None
+    final_state: dict[str, object] | None = None
+    gate: RecordingSlowASGISendGate | None = None
+    server: Any | None = None
+    server_task: asyncio.Task[Any] | None = None
+    server_port: int | None = None
+    shutdown_result: dict[str, object] | None = None
+    cleanup_result: str | None = None
+    task_logger: logging.Logger | None = None
+    log_handler = CapturedLogHandler()
+    release_path_value = os.environ.get("C012_T41_RELEASE_FILE")
+    release_path = Path(
+        release_path_value
+        if release_path_value
+        else EVIDENCE_DIR / "t41-browser-release-model"
+    ).resolve()
+    if release_path.exists():
+        raise AcceptanceFailure(
+            f"T41 browser release marker already exists: {release_path}"
+        )
+    raw_port = os.environ.get("C012_T41_BACKEND_PORT")
+    if raw_port is None:
+        requested_port = free_tcp_port()
+    else:
+        try:
+            requested_port = int(raw_port)
+        except ValueError as exc:
+            raise AcceptanceFailure(
+                f"C012_T41_BACKEND_PORT is not an integer: {raw_port!r}"
+            ) from exc
+        if not 1 <= requested_port <= 65535:
+            raise AcceptanceFailure(
+                f"C012_T41_BACKEND_PORT is outside the TCP port range: {requested_port}"
+            )
+    frontend_address = os.environ.get(
+        "C012_T41_FRONTEND_URL", "http://127.0.0.1:5174/tasks"
+    )
+    if not frontend_address.startswith(("http://", "https://")):
+        raise AcceptanceFailure(
+            f"C012_T41_FRONTEND_URL is not an HTTP address: {frontend_address!r}"
+        )
+
+    with tempfile.TemporaryDirectory(
+        prefix="c012-ws-slow-page-browser-", dir=str(data_dir)
+    ) as runtime_name:
+        runtime_dir = Path(runtime_name)
+        try:
+            with SlowBrowserHTTPStub() as dependency_stub:
+                os.environ.update(
+                    {
+                        "DATABASE_URL": raw_url,
+                        "PYTHONUTF8": "1",
+                        "DATA_DIR": str(runtime_dir),
+                        "VLLM_BASE_URL": dependency_stub.base_url,
+                        "COMFY_BASE_URL": dependency_stub.base_url,
+                    }
+                )
+                if "app.main" in sys.modules:
+                    raise AcceptanceFailure(
+                        "production app was imported before the isolated browser runtime"
+                    )
+                import uvicorn
+
+                from app.main import app as production_app
+
+                gate = RecordingSlowASGISendGate(production_app)
+                server_port = requested_port
+                server = uvicorn.Server(
+                    uvicorn.Config(
+                        gate,
+                        host="127.0.0.1",
+                        port=server_port,
+                        log_level="warning",
+                        lifespan="on",
+                        access_log=False,
+                    )
+                )
+                task_logger = logging.getLogger("app.api.tasks")
+                task_logger.addHandler(log_handler)
+                server_task = asyncio.create_task(
+                    server.serve(), name="c012-browser-production-server"
+                )
+                base_url = f"http://127.0.0.1:{server_port}"
+                health = await wait_for_http(
+                    f"{base_url}/api/system/health", timeout=30
+                )
+                if health.status_code != 200:
+                    raise AcceptanceFailure(
+                        f"T41 browser production health returned {health.status_code}: "
+                        f"{health.body!r}"
+                    )
+                evidence.add(
+                    "production_runtime",
+                    pid=os.getpid(),
+                    port=server_port,
+                    health=health.body,
+                    app_module="app.main:app",
+                    lifespan=True,
+                    queue="production TaskQueue",
+                    handler="gen_assets_handler",
+                    event_bus="production EventBus",
+                    dependency_stub=dependency_stub.base_url,
+                    asgi_gate="websocket.send only",
+                    frontend_address=frontend_address,
+                )
+
+                async with httpx.AsyncClient(
+                    timeout=10, trust_env=False
+                ) as client:
+                    fixture = await slow_page_create_fixture(
+                        client,
+                        base_url,
+                        request_log,
+                        task_count=SLOW_PAGE_BROWSER_TASK_COUNT,
+                    )
+                    style_id = int(fixture["style_id"])
+                    project_id = int(fixture["project_id"])
+                    episode_ids = [int(value) for value in fixture["episode_ids"]]
+                    if len(episode_ids) != SLOW_PAGE_BROWSER_TASK_COUNT:
+                        raise AcceptanceFailure(
+                            "T41 browser fixture episode count did not match the planned matrix"
+                        )
+
+                    for episode_id in episode_ids[:SLOW_PAGE_BROWSER_PRE_TASK_COUNT]:
+                        generation_path = (
+                            f"/api/episodes/{episode_id}/generate-assets"
+                        )
+                        status_code, body = await slow_page_http_json(
+                            client, "POST", f"{base_url}{generation_path}"
+                        )
+                        request_entry: dict[str, object] = {
+                            "method": "POST",
+                            "path": generation_path,
+                            "status": status_code,
+                            "phase": "pre_browser",
+                        }
+                        if isinstance(body, Mapping):
+                            request_entry["response"] = dict(body)
+                        request_log.append(request_entry)
+                        if status_code != 202:
+                            raise AcceptanceFailure(
+                                f"T41 pre-browser generation returned {status_code}: "
+                                f"{body!r}"
+                            )
+                        mapping = require_mapping(body, "T41 pre-browser generation")
+                        raw_task_id = mapping.get("task_id")
+                        if not isinstance(raw_task_id, int):
+                            raise AcceptanceFailure(
+                                f"T41 pre-browser task id missing: {body!r}"
+                            )
+                        task_ids.append(raw_task_id)
+                        pre_state = await slow_page_wait_for_terminal(
+                            raw_url, [raw_task_id], [episode_id], timeout=30
+                        )
+                        pre_tasks = pre_state["tasks"]
+                        if not isinstance(pre_tasks, list) or len(pre_tasks) != 1:
+                            raise AcceptanceFailure(
+                                f"T41 pre-browser task state was incomplete: {pre_state!r}"
+                            )
+                        if pre_tasks[0].get("status") != "done":
+                            raise AcceptanceFailure(
+                                f"T41 pre-browser task did not finish done: {pre_state!r}"
+                            )
+
+                    dependency_stub.server.block_enabled.set()
+                    target_episode_id = episode_ids[SLOW_PAGE_BROWSER_PRE_TASK_COUNT]
+                    target_path = (
+                        f"/api/episodes/{target_episode_id}/generate-assets"
+                    )
+                    target_status, target_body = await slow_page_http_json(
+                        client, "POST", f"{base_url}{target_path}"
+                    )
+                    target_entry: dict[str, object] = {
+                        "method": "POST",
+                        "path": target_path,
+                        "status": target_status,
+                        "phase": "browser_target",
+                    }
+                    if isinstance(target_body, Mapping):
+                        target_entry["response"] = dict(target_body)
+                    request_log.append(target_entry)
+                    if target_status != 202:
+                        raise AcceptanceFailure(
+                            f"T41 browser target generation returned {target_status}: "
+                            f"{target_body!r}"
+                        )
+                    target_mapping = require_mapping(
+                        target_body, "T41 browser target generation"
+                    )
+                    raw_target_task_id = target_mapping.get("task_id")
+                    if not isinstance(raw_target_task_id, int):
+                        raise AcceptanceFailure(
+                            f"T41 browser target task id missing: {target_body!r}"
+                        )
+                    target_task_id = raw_target_task_id
+                    task_ids.append(target_task_id)
+
+                    chat_deadline = time.monotonic() + 30
+                    while (
+                        not dependency_stub.server.chat_started.is_set()
+                        and time.monotonic() < chat_deadline
+                    ):
+                        await asyncio.sleep(0.05)
+                    if not dependency_stub.server.chat_started.is_set():
+                        raise AcceptanceFailure(
+                            "T41 browser target handler did not reach the held model response"
+                        )
+                    target_state = await slow_page_read_state(
+                        raw_url, [target_task_id], [target_episode_id]
+                    )
+                    target_tasks = target_state["tasks"]
+                    if (
+                        not isinstance(target_tasks, list)
+                        or len(target_tasks) != 1
+                        or target_tasks[0].get("status") != "running"
+                    ):
+                        raise AcceptanceFailure(
+                            f"T41 browser target was not running before page interaction: "
+                            f"{target_state!r}"
+                        )
+
+                    print(
+                        json.dumps(
+                            {
+                                "status": "browser-ready",
+                                "browser_address": frontend_address,
+                                "backend_base_url": base_url,
+                                "task_id": target_task_id,
+                                "target_episode_id": target_episode_id,
+                                "release_file": str(release_path),
+                                "instruction": (
+                                    "Open the running task detail, then create the release marker; "
+                                    "the marker releases only the external model stub."
+                                ),
+                            },
+                            ensure_ascii=False,
+                        ),
+                        flush=True,
+                    )
+                    release_deadline = time.monotonic() + 180
+                    while not release_path.is_file():
+                        if server_task.done():
+                            raise AcceptanceFailure(
+                                "T41 production server exited before browser release marker"
+                            )
+                        if time.monotonic() >= release_deadline:
+                            raise AcceptanceFailure(
+                                f"T41 browser release marker was not observed: {release_path}"
+                            )
+                        await asyncio.sleep(0.1)
+
+                    dependency_stub.server.chat_release.set()
+                    for episode_id in episode_ids[
+                        SLOW_PAGE_BROWSER_PRE_TASK_COUNT + 1 :
+                    ]:
+                        generation_path = (
+                            f"/api/episodes/{episode_id}/generate-assets"
+                        )
+                        status_code, body = await slow_page_http_json(
+                            client, "POST", f"{base_url}{generation_path}"
+                        )
+                        request_entry = {
+                            "method": "POST",
+                            "path": generation_path,
+                            "status": status_code,
+                            "phase": "post_release",
+                        }
+                        if isinstance(body, Mapping):
+                            request_entry["response"] = dict(body)
+                        request_log.append(request_entry)
+                        if status_code != 202:
+                            raise AcceptanceFailure(
+                                f"T41 post-release generation returned {status_code}: "
+                                f"{body!r}"
+                            )
+                        mapping = require_mapping(body, "T41 post-release generation")
+                        raw_task_id = mapping.get("task_id")
+                        if not isinstance(raw_task_id, int):
+                            raise AcceptanceFailure(
+                                f"T41 post-release task id missing: {body!r}"
+                            )
+                        task_ids.append(raw_task_id)
+
+                    final_state = await slow_page_wait_for_terminal(
+                        raw_url, task_ids, episode_ids, timeout=120
+                    )
+                    task_rows = final_state["tasks"]
+                    if not isinstance(task_rows, list) or any(
+                        not isinstance(row, Mapping)
+                        or row.get("status") != "done"
+                        or row.get("error_msg") is not None
+                        for row in task_rows
+                    ):
+                        raise AcceptanceFailure(
+                            f"T41 production handlers did not all finish done: "
+                            f"{task_rows!r}"
+                        )
+
+                    try:
+                        await asyncio.wait_for(
+                            gate.send_cancelled.wait(), timeout=40
+                        )
+                    except asyncio.TimeoutError as exc:
+                        raise AcceptanceFailure(
+                            "T41 browser WebSocket did not cancel the held send after overflow"
+                        ) from exc
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.sleep(0), timeout=0.1
+                        )
+                    except asyncio.TimeoutError:
+                        pass
+
+                    deadline = time.monotonic() + 30
+                    while time.monotonic() < deadline:
+                        list100 = [
+                            request
+                            for request in gate.http_requests
+                            if request.get("method") == "GET"
+                            and request.get("path") == "/api/tasks"
+                            and request.get("query_string") == "limit=100"
+                            and request.get("status") == 200
+                        ]
+                        detail_reads = [
+                            request
+                            for request in gate.http_requests
+                            if request.get("method") == "GET"
+                            and request.get("path")
+                            == f"/api/tasks/{target_task_id}"
+                            and request.get("status") == 200
+                        ]
+                        if len(list100) >= 2 and len(detail_reads) >= 2:
+                            break
+                        await asyncio.sleep(0.1)
+                    list100 = [
+                        request
+                        for request in gate.http_requests
+                        if request.get("method") == "GET"
+                        and request.get("path") == "/api/tasks"
+                        and request.get("query_string") == "limit=100"
+                        and request.get("status") == 200
+                    ]
+                    detail_reads = [
+                        request
+                        for request in gate.http_requests
+                        if request.get("method") == "GET"
+                        and request.get("path") == f"/api/tasks/{target_task_id}"
+                        and request.get("status") == 200
+                    ]
+                    if len(list100) < 2 or len(detail_reads) < 2:
+                        raise AcceptanceFailure(
+                            "T41 browser did not perform the second limit=100 list and target detail reads: "
+                            f"list100={list100!r} detail={detail_reads!r}"
+                        )
+
+                    generation_posts = [
+                        request
+                        for request in gate.http_requests
+                        if request.get("method") == "POST"
+                        and isinstance(request.get("path"), str)
+                        and request["path"].endswith("/generate-assets")
+                    ]
+                    cancel_posts = [
+                        request
+                        for request in gate.http_requests
+                        if request.get("method") == "POST"
+                        and isinstance(request.get("path"), str)
+                        and request["path"].endswith("/cancel")
+                    ]
+                    if len(generation_posts) != len(task_ids):
+                        raise AcceptanceFailure(
+                            f"T41 generation POST count changed during browser reconnect: "
+                            f"expected={len(task_ids)} actual={len(generation_posts)}"
+                        )
+                    if cancel_posts:
+                        raise AcceptanceFailure(
+                            f"T41 browser emitted cancel POSTs: {cancel_posts!r}"
+                        )
+                    second_ws = (
+                        gate.websocket_connections[1]
+                        if len(gate.websocket_connections) >= 2
+                        else None
+                    )
+                    if second_ws is None:
+                        raise AcceptanceFailure(
+                            f"T41 browser did not establish a reconnecting WebSocket: "
+                            f"{gate.websocket_connections!r}"
+                        )
+                    if int(second_ws["sequence"]) >= int(list100[1]["sequence"]):
+                        raise AcceptanceFailure(
+                            "T41 reconnect list GET was not socket-first"
+                        )
+                    target_detail = detail_reads[-1]
+                    if target_detail.get("status") != 200:
+                        raise AcceptanceFailure(
+                            f"T41 final target detail read was not HTTP 200: {target_detail!r}"
+                        )
+                    evidence.add(
+                        "browser_ready_and_reconnect",
+                        browser_address=frontend_address,
+                        websocket_uri=f"ws://127.0.0.1:{server_port}/ws/tasks",
+                        target_task_id=target_task_id,
+                        target_episode_id=target_episode_id,
+                        release_file=str(release_path),
+                        target_before_release=target_state,
+                        websocket_connections=gate.websocket_connections,
+                        first_gated_message=gate.first_message,
+                        send_cancelled=gate.send_cancelled.is_set(),
+                        overflow_logs=[
+                            message
+                            for message in log_handler.messages
+                            if "subscription_overflow" in message
+                        ],
+                        task_count=len(task_ids),
+                        event_lower_bound=(
+                            SLOW_PAGE_BROWSER_POST_TASK_COUNT * 3 + 1
+                        ),
+                        websocket_close_code=1013,
+                        list_limit_100_reads=list100,
+                        target_detail_reads=detail_reads,
+                        http_trace=gate.http_requests,
+                        generation_post_count=len(generation_posts),
+                        cancel_post_count=len(cancel_posts),
+                    )
+        finally:
+            if gate is not None:
+                gate.release.set()
+            if server is not None and server_task is not None:
+                shutdown_result = await stop_slow_page_server(
+                    server, server_task
+                )
+                evidence.add(
+                    "production_process_shutdown",
+                    **shutdown_result,
+                    process="in-process uvicorn server",
+                    port=server_port,
+                )
+            if task_logger is not None:
+                task_logger.removeHandler(log_handler)
+            if request_log:
+                evidence.add(
+                    "production_request_log",
+                    requests=request_log,
+                    count=len(request_log),
+                )
+            if final_state is not None:
+                evidence.add("terminal_database_readback", **final_state)
+            if style_id is not None or project_id is not None or task_ids:
+                cleanup_result = await slow_page_cleanup(
+                    raw_url,
+                    style_id,
+                    project_id,
+                    episode_ids,
+                    task_ids,
+                )
+                evidence.add(
+                    "task_fixture_cleanup",
+                    style_id=style_id,
+                    project_id=project_id,
+                    episode_count=len(episode_ids),
+                    task_count=len(task_ids),
+                    result=cleanup_result,
+                )
+
+        if shutdown_result is None or shutdown_result.get("timed_out"):
+            raise AcceptanceFailure(
+                f"T41 browser production server did not stop cleanly: {shutdown_result!r}"
+            )
+        if shutdown_result.get("exception") is not None:
+            raise AcceptanceFailure(
+                f"T41 browser production server raised during shutdown: "
+                f"{shutdown_result!r}"
+            )
+        listeners = observe_windows_listeners([server_port]) if server_port else {}
+        evidence.add("owned_listener_cleanup", **listeners)
+        if listeners.get("listeners"):
+            raise AcceptanceFailure(
+                f"T41 browser owned port still has listeners: {listeners!r}"
+            )
+
+    if runtime_dir.exists():
+        raise AcceptanceFailure("T41 browser runtime directory was not released")
+    evidence.add(
+        "owned_resource_cleanup",
+        runtime_directory_exists=runtime_dir.exists(),
+        dependency_stub_stopped=True,
+        production_server_stopped=True,
+        database_connections_closed=True,
+        cleanup=cleanup_result,
+        release_marker_exists=release_path.exists(),
     )
 
 
@@ -3635,7 +4272,11 @@ def parser() -> argparse.ArgumentParser:
     ):
         subparsers.add_parser(name)
     ws = subparsers.add_parser("ws")
-    ws.add_argument("--case", choices=("cancel", "slow-page"), default="cancel")
+    ws.add_argument(
+        "--case",
+        choices=("cancel", "slow-page", "slow-page-browser"),
+        default="cancel",
+    )
     real_preflight = subparsers.add_parser("preflight")
     real_preflight.add_argument("--real", action="store_true")
     observe = subparsers.add_parser("observe")
@@ -3659,6 +4300,9 @@ async def run(arguments: argparse.Namespace, evidence: RunEvidence) -> None:
     if arguments.command == "ws":
         if arguments.case == "slow-page":
             await command_ws_slow_page(arguments, evidence)
+            return
+        if arguments.case == "slow-page-browser":
+            await command_ws_slow_page_browser(arguments, evidence)
             return
         await command_ws(arguments, evidence)
         return
