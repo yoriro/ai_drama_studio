@@ -237,3 +237,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-11 C012 T42：`python -m pytest -q tests/api/test_c008_clip_delete.py`输出`3 passed in 3.13s`、exit 0；测试使用显式既有`.env`数据库配置，生产临时DATA_DIR由pytest fixture提供。
 - 2026-09-11 C012 T43：`python -m py_compile .work/c012/acceptance.py`与`python -X utf8 .work/c012/acceptance.py cascade --case cache`均exit 0；隔离库`ai_drama_studio_c012_t43_20260911`/DATA_DIR`D:\ai_drama_studio\.work\c012\t43-data-20260911`记录图/视频缓存命中与失配、四类handler请求、故意子进程returncode17及临时目录删除。
 - 2026-09-11 C012 T43：多轮外部stub请求曾因MP4判别、stdout PIPE回压、script2assets解析和JSONB payload读取先后产生非零证据，均保留在`.work/c012/T43-cascade-cache-*.log`；最终未修改生产代码。
+- 2026-09-11 C012 T44：新隔离库`ai_drama_studio_c012_t44_20260911`经Alembic head后，模板级联定向B为`14 passed in 10.12s`、exit 0；新增测试覆盖三类模型hash失配重建、命中零chat、提取模板null hash及四类在途payload/下游不追溯。
+- 2026-09-11 C012 T44：复用T43隔离库`ai_drama_studio_c012_t43_20260911`与DATA_DIR`D:\ai_drama_studio\.work\c012\t43-data-20260911`执行`cascade --case cache`，输出`status=passed`、exit 0；T43快照与首轮失败日志保留，未改生产代码/模板/剧本/既有测试。

@@ -258,12 +258,14 @@
   - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵；C012 取消心跳失败与重启资源恢复；C012 trash 启动与定时清理。
 
 
-- [ ] T27 验证 M6 九行全级联及所有明确子分支
+- [x] T27 验证 M6 九行全级联及所有明确子分支
   - 依赖：T02、T02A、T16、T19及独立受控环境；不依赖T22/T26。交付：新增`backend/tests/task_system/test_c012_cascade.py`按spec §7完整九行分参数，复用生产服务/独立连接/实际媒体；在隔离受控浏览器逐格记录UI变化，不能破坏真实示范集。只补跨链路覆盖，不复制纯规则用例。需求方本轮允许按spec §7.1修复此task新增未提交测试文件：loop/engine生命周期、可达marker夹具与字段期望、数据表示、合法模板、JSON和媒体fixture；不改已提交旧测试/生产。保留首次6 failed，删除Clip的500先取traceback定位，未证明fixture原因不得擅改生产；恒真自比较改为操作前后比较。
   - R：R2、R3、R4、R9、R12；PRD §3.2、§3.3、§6.4、§11 M6；AC-20。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_cascade.py`；R `python -X utf8 .work/c012/acceptance.py cascade`；精确行/ID/revision/current和文件bytes对照，编辑/换图/绑定增删/模板变更分支逐项记录；R3成功和模型失败都验证。实施后向既有九条§3.3追溯行追加实际节点。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 M6 全级联矩阵。
+
+  - 2026-09-11补齐回填：T02A 的 `selfcheck/cascade/recovery/trash` 受控通路均已有独立 exit 0 证据；T27 提交 `e5edebfcfaeb42ad26543d2b6f893d87eefb5b79` 的九行回归最终为 `10 passed in 6.02s`、exit 0，R `python -X utf8 .work/c012/acceptance.py cascade` 最终 exit 0。受控浏览器 batch4 逐格记录脚本/资产/分镜绑定/风格模板/删除/Clip 成功与媒体播放，R 记录九行 API/队列/handler/DB/媒体事件；证据为 `.work/c012/T27-luna-test-after-media-fixture-rerun.log`、`.work/c012/T27-luna-cascade-media-fixture-rerun.log`、`.work/c012/T27-luna-cascade-acceptance-20260911-media-rerun.json`、`.work/c012/T27-browser-ui-evidence-20260911-batch4.md`、`.work/c012/T27-browser-vllm-capture-20260911-batch4.json`、`.work/c012/T27-browser-readback-20260911-batch4.json`。首次六项失败、媒体 fixture 失败及原始装置失败均保留；本回填不覆盖 T22/T26 的边界。
 
 - [x] T28 复核错误矩阵与外部输入边界
   - 依赖：T27。交付：spec §7错误格与当前既有用例节点对照、真实页面至少一条409/422及202立即failed的操作→观测记录。默认复用既有测试；若发现新的M6跨链路缺口，仅新增`backend/tests/task_system/test_c012_error_paths.py`并登记节点，不修改旧断言。
@@ -363,12 +365,14 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵。
 
-- [ ] T44 补齐 R4 与在途快照、不追溯矩阵（B6）
+- [x] T44 补齐 R4 与在途快照、不追溯矩阵（B6）
   - 依赖：T43。交付：新增 `backend/tests/task_system/test_c012_template_cascade.py`，风格/zimage/minimax分别触发图/视频的确切hash变化和单次重建、命中无chat；script2assets/script2shots新正文与null hash；四类在途payload固定、已有下游行/文件不追溯。补齐T27后恢复其checkbox，不改既有弱断言来换绿。
   - R：R2、R3、R4、R11；PRD §3.2、§3.3、§6.2、§7；AC-20。
   - 验收：B `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py`；R `python -X utf8 .work/c012/acceptance.py cascade --case cache`；完整前后值、请求次数/内容及持久化快照，禁止startswith/非空代替；同时逐格核查T27其余子分支证据，缺项如实报告。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 M6 全级联矩阵（同时回填原§3.3风格/模板编辑行）。
+
+  - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_template_cascade.py`，覆盖 style/zimage/minimaxh3 的精确 hash 变化与单次重建、命中零 chat、script2assets/script2shots changed 正文与 `input_hash=null`，以及四类在途 payload 冻结和既有下游行/文件不追溯；并复用了已完成 T27 的九格回归与原始失败证据。隔离库 `ai_drama_studio_c012_t44_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py` 为 `14 passed in 10.12s`、exit 0，日志 `.work/c012/T44-test-targeted-final.log`；R 在 T43 受测库 `ai_drama_studio_c012_t43_20260911`/DATA_DIR `D:\ai_drama_studio\.work\c012\t43-data-20260911` 重用同一生产入口，`python -X utf8 .work/c012/acceptance.py cascade --case cache` 输出 `status=passed`、exit 0，原始 `.work/c012/T44-cascade-cache.log` 与 `.work/c012/T44-cascade-acceptance.json`，T43 原始快照另存 `.work/c012/T43-cascade-cache-before-T44.json`。首轮错误日志（日志落点、DATABASE_URL、旧库迁移约束、测试基线）均保留；未改生产代码、模板、剧本或既有测试。
 
 - [ ] T45 交付进程恢复与心跳故障验收装置（B6前置）
   - 依赖：T44。交付：扩展现有 `.work/c012/acceptance.py recovery --case lifecycle`；隔离真实后端/队列/handler先形成running+合法queued，终止/重启后释放queued完成真实业务产物；外部stub账本与独立DB/文件核对次数；生产worker监督中的数据库连接故障，handler及资源退出，恢复连通后重启恢复原running。不得用空payload或始终锁住queued代替。
