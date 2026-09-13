@@ -10,20 +10,22 @@
 
 下列 2026-09-10 来源及后续诊断段落是历史记录；涉及 MiniMax 当前正文的旧状态由本节覆盖。
 
-2026-09-13 后续窄修订授权：当前工作树的 `minimaxh3.txt` 仅允许改动时间轴说明、非对白英文描述与既有逐镜/示例规则；时间只需大致参考 `duration_est` 权重，不以精确比例或毫秒四舍五入作为通过门槛，但仍检查镜头数量/顺序、Shot1起点、后续起点可解析递增且不超请求片长。非对白的 subject/retention/summary/detailed_description/soundscape 用英文，合法 asset_name、对白和明确屏幕文字保留原语言，不做响应后处理。修订后的磁盘文件是 A/B 诊断用部署候选，不等于运行库已安装；两批真实诊断通过后，必须重新经正式设置 API install、安装后 verify、同库安全重启和重启后 verify。旧 T47 安装/回读证据只证明修订前正文，不能复用为当前修订部署通过。
+2026-09-13 后续窄修订授权：当前工作树的 `minimaxh3.txt` 仅允许改动时间轴说明、非对白英文描述、连续场景非核心承接和既有逐镜对白/动作规则；时间只需大致参考 `duration_est` 权重，不以精确比例或毫秒四舍五入作为通过门槛，但仍检查镜头数量/顺序、Shot1起点、后续起点可解析递增且不超请求片长。非对白的 subject/retention/summary/detailed_description/soundscape 用英文，合法 asset_name、对白和明确屏幕文字保留原语言；每镜核心动作、方向/目标/结果仍须在对应段落，空对白不得出现 speech-related placeholder，不做响应后处理。修订后的磁盘文件是 A/B 诊断用部署候选，不等于运行库已安装；两批真实诊断通过后，必须重新经正式设置 API install、安装后 verify、同库安全重启和重启后 verify。旧 T47 安装/回读证据只证明修订前正文，不能复用为当前修订部署通过。
 
 本轮 A 阶段 renderer selfcheck 与模板人工审计均 exit 0；较早 B 阶段 Clip1 修订模板诊断的时间观察为 `[3.6,6.1]`、旧装置期望为 `[3.2,5.867]`，该精确比较现已由用户撤销，不写成模型数学能力已修复；该批描述混入中文服装词。输入 Shot2 本身提到门口的芳嘉蔓，输出 Subject1 门口目标有输入依据，但 retention 中该主体的画面可见性依据不确定，不能定性为身份引用错误。完整较早证据为 `.work/c012/T26C-clip1-20260913_145948`。
 
 当前 B 阶段唯一一次 Clip1 修订模板诊断命令 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 1` wrapper exit 0，证据为 `.work/c012/T26C-clip1-20260913_152658`；结构/时间轴/非对白英文检查均为 true，观察起点 `[3.0,5.5]` 满足当前时间合同，两条对白逐字存在。原人工复核记录 Shot2 未重复“坐在书桌前”；Astra依据用户最新连续场景裁决确认该非核心姿态可由前镜/整体场景承接，不作为本批阻塞，原始响应未被改写，后续视频仍须实际观察姿态/空间衔接。未见错误 ID 复用；诊断不进入平台 Task、Comfy 或合并路径，不能归因后端丢弃。后检 tasks=15/active=0、Comfy=0/0、vLLM sleeping=true；完整记录见同目录 `review.md` 与 `post-diagnostic-observation.json`。按裁决继续一次 Clip2 诊断；两批通过前不进入当前候选正文 install/verify/重启或正式视频。
 
-当前 B 阶段唯一一次 Clip2 修订模板诊断命令 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 2` wrapper exit 1，证据为 `.work/c012/T26C-clip2-20260913_154409`；结构检查的 headings/shot labels/time labels/time_axis 为 true，但 `english_non_dialogue=false`，场景定义混入“两侧设有观众席”。时间起点 `[3.0,5.5,8.0]` 合法；人工核对还发现 Shot1 详细段落漏掉球员出场方向注视及明确指向动作，summary不能替代该镜核心动作，且空对白的 Shot2/Shot4 各输出了模板禁止的 `No dialogue.` 占位。两条对白逐字存在，3个Subject/Picture参考映射有输入依据，未见错误 ID 复用；诊断不进入平台 Task、Comfy 或合并路径，不能归因后端丢弃。后检 tasks=15/active=0、Comfy=0/0、vLLM sleeping=true；完整记录见同目录 `review.md` 与 `post-diagnostic-observation.json`。按失败即停，不进入当前候选正文 install/verify/重启、T26D或正式视频。
+当前 B 阶段唯一一次 Clip2 修订模板诊断命令 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 2` wrapper exit 1，证据为 `.work/c012/T26C-clip2-20260913_154409`；结构检查的 headings/shot labels/time labels/time_axis 为 true，但 `english_non_dialogue=false`，场景定义混入“两侧设有观众席”。时间起点 `[3.0,5.5,8.0]` 合法；人工核对还发现 Shot1 详细段落漏掉球员出场方向注视及明确指向动作，summary不能替代该镜核心动作，且空对白的 Shot2/Shot4 各输出了模板禁止的 `No dialogue.` 占位。两条对白逐字存在，3个Subject/Picture参考映射有输入依据，未见错误 ID 复用；诊断不进入平台 Task、Comfy 或合并路径，不能归因后端丢弃。后检 tasks=15/active=0、Comfy=0/0、vLLM sleeping=true；完整记录见同目录 `review.md` 与 `post-diagnostic-observation.json`。按失败即停，不进入当前候选正文 install/verify/重启、T26D或正式视频。该批与下列基线重建前状态均为历史记录。
+
+2026-09-13本轮新候选 A/B 记录：基线核对 `.work/c012/T26C-baseline-validation-20260913.*` exit 0 后，从基线只改授权措辞，候选为12,043 bytes/87行；Clip1 仅执行一次，结构检查为 true，但人工核对确认输入 Shot1 的完整对白被模型漏提，故 B 阶段失败即停，Clip2、重新部署/回读和正式视频未执行。完整证据目录 `.work/c012/T26C-clip1-20260913_161430`、`review.md` 及对应 `T26C-candidate-clip1-20260913.*`；终态观察为 `T26C-candidate-clip1-postobserve-20260913.*`。上一版12,478-byte候选及所有失败记录保留；该批未进入平台 Task/Comfy/合并路径，不能归因后端丢弃。
 
 来源与逐字复核（2026-09-10，历史）：
 
 - `script2assets.txt`：C005 `openspec/changes/C005/spec.md` §5.1；1,253 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
 - `script2shots.txt`：归档 C006 `openspec/archive/C006/spec.md` §5.1；1,181 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
 - `zimage.txt`：归档 C007 §4.1 与 T13 批准的单一 `zimage` 正文；使用历史正式设置读回的 2,770 个字符原文恢复，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行，未按摘要或长度重写。
-- `minimaxh3.txt`：三处窄修订前的批准基线来自 2026-09-13 `.work/c012/T47-deployment-proposal.txt`；该基线为 10,756 UTF-8 bytes、86 行，保留批准正文内原有的示例代码围栏，文件使用 UTF-8/LF，末尾换行。当前工作树修订候选已完成 A 阶段人工审计，12,478 UTF-8 bytes、86 行，SHA-256 `2e635a84735ad267112b430f74fee25fab00f97c83693101409185d12bc3be48`；D-014/C009 下载文件及其正文仅作为历史来源证据保留。
+- `minimaxh3.txt`：本轮新候选的批准基线来自 2026-09-13 `.work/c012/T47-deployment-proposal.txt`；该基线为 10,756 UTF-8 bytes、86 行，保留批准正文内原有的示例代码围栏，文件使用 UTF-8/LF，末尾换行。上一版12,478-byte候选及其 SHA-256 `2e635a84735ad267112b430f74fee25fab00f97c83693101409185d12bc3be48` 仅作为历史来源和失败证据保留；本轮候选从上述基线重新构建，当前新候选待 A/B 诊断。D-014/C009 下载文件及其正文仅作为历史来源证据保留。
 
 四个文件名分别对应 `script2assets`、`script2shots`、`zimage`、`minimaxh3`，正文保留批准来源中的占位符、换行和末尾换行语义。T47 已经针对修订前正文通过正式设置 API 完成安装，并在安装后及同库后端重启后逐字回读；当前修订候选尚未重新安装，迁移占位符只用于新库安装前核对。
 
@@ -96,7 +98,7 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 `install` 会先完整校验恰好四个 UTF-8 文件及占位符，再按 `script2assets`、`script2shots`、`zimage`、`minimaxh3` 各 PATCH 一次并 GET 逐字核对；`verify` 只 GET，必须显示四个 key 且 PATCH 次数为 0。安装后停止并仅重启本轮拥有的后端进程，在同一数据库和 `DATA_DIR` 下再次执行 `--mode verify`。任一步失败都保存 stdout/stderr/exit 和已成功 key，不重试、不自动回滚或用旧库结果冒充通过。
 
-修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。当前工作树的三处修订候选已在 Clip1 诊断失败，尚未重新安装/回读，也缺少新正文被正式平台 Task/take/current 实际消费的证据；T21/M6 之前的正式安装与回读证据只证明当时部署的输入，不把 T26 替代视觉证据写成 AC-26 完整通过。
+修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。上一版12,478-byte修订候选的 Clip1/Clip2失败证据仍保留；本轮从基线重建的12,043-byte候选已执行一次 Clip1 并因模型漏提 Shot1 对白失败，当前候选尚未重新安装/回读，也缺少新正文被正式平台 Task/take/current 实际消费的证据；T21/M6 之前的正式安装与回读证据只证明当时部署的输入，不把 T26 替代视觉证据写成 AC-26 完整通过。
 
 ## 显式恢复与失败处理
 
@@ -127,4 +129,4 @@ T31 的真实页面操作、task #15 旧 payload、Shot #2 `changed`、Clip #1 `
 
 真实 M6 证据使用正式 UI/API/WS、真实 PostgreSQL、vLLM、ComfyUI、workflow、GPU 和 `DATA_DIR`；T27–T30 的 B/R 矩阵使用隔离数据库、隔离文件目录与受控 vLLM/Comfy stub，只能证明生产业务/任务/资源通路，不能证明真实模型质量或 GPU 结果。T26 指定 prompt 的直接 Comfy 证据不登记为平台 Task、ClipVideo、current 或模板部署。
 
-截至本说明，T47 的四模板安装、安装后及同库重启回读已完成，但仅针对三处修订前正文；当前修订候选已完成 A 阶段核对，B 阶段 Clip1 单次诊断因 Shot2 漏掉“坐在书桌前”而未通过，Clip2及重新部署回读未执行。T26C/T26D 与 AC-26 的正式平台消费/两段正式新 take 门槛仍未完成。T49 已在新隔离库完成最终 CPU 回归；原生桌面 200%、动态 `reduced-motion`、真模型随机性/跨输入稳定性未验证；trash 的受控计时分支也不等于真实等待 24 小时。所有这些限制必须在发布报告中保留，不能用受控证据升级为真实 GPU 或发布结论。
+截至本说明，T47 的四模板安装、安装后及同库重启回读已完成，但仅针对三处修订前正文；上一版修订候选的 Clip1/Clip2失败证据保留，本轮12,043-byte候选 Clip1 单次诊断因模型漏提 Shot1 对白失败，Clip2、重新部署回读未执行。T26C/T26D 与 AC-26 的正式平台消费/两段正式新 take 门槛仍未完成。T49 已在新隔离库完成最终 CPU 回归；原生桌面 200%、动态 `reduced-motion`、真模型随机性/跨输入稳定性未验证；trash 的受控计时分支也不等于真实等待 24 小时。所有这些限制必须在发布报告中保留，不能用受控证据升级为真实 GPU 或发布结论。
