@@ -52,9 +52,11 @@
 
 **2026-09-13 最终正文批准更新**：需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，作为历史批准基线。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换本次批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。 本次解除最终正文批准门槛，按此正文继续 T47 正式安装与安装后/同库安全重启后逐字回读，不再要求与 C009 历史正文相同，也不重开模板优化循环。保留局部通用性限制及所有历史失败。T26/AC-19 已通过的需求方裁决保持，不为重新判定 T26 生成视频；本次批准不等于已安装、已重启核验或完整 AC-26 实际消费通过，未执行项仍须逐项取证，若剩余消费路径需改变则单独报告，不静默豁免。
 
-**2026-09-13 模板基线状态修正**：上述 10,756-byte 文件是批准来源，不等于当前 tracked 模板的逐字状态。随后已授权的 T26C 定向修订提交（`0f152ac`、`c17979f`、`c5f381f`、`3f2913a`）使 HEAD `6c809e1` 的 `backend/deployment/templates/minimaxh3.txt` 在本轮五点候选前为 12,221 bytes/88 lines；五点候选当前仅在工作树中为 10,146 bytes/79 lines，未安装、未写运行库。该候选的 Clip1/Clip2 诊断和失败边界见本节末尾，不能把旧 10,756-byte 安装回读写成当前候选部署通过。
+**2026-09-13 历史模板基线状态修正（已被当前6570-byte批替代）**：上述 10,756-byte 文件是历史批准来源，不等于当前 tracked 模板的逐字状态。随后已授权的 T26C 定向修订提交（`0f152ac`、`c17979f`、`c5f381f`、`3f2913a`）使 HEAD `6c809e1` 的 `backend/deployment/templates/minimaxh3.txt` 在本轮五点候选前为 12,221 bytes/88 lines；五点候选当时仅在工作树中为 10,146 bytes/79 lines，未安装、未写运行库。该候选的 Clip1/Clip2 诊断和失败边界见本节末尾，不能把旧 10,756-byte安装回读写成当前6570-byte批部署通过。
 
-**2026-09-11 审查更新（覆盖下表规划时的“尚未执行”状态）**：审查基线 `c0830c3..21c04f3`；T21 已有旧批准四模板安装及重启回读证据，PostgreSQL 与隔离完整回归本轮实际通过；只读 health 显示 vLLM/Comfy healthy、binding valid，但不替代后续 GPU 动作前的占用核验。当前提交 minimaxh3 与正式设置 GET 不相等，正式部署 CLI `verify` exit 1；**PRD §12.2 的当前交付模板门槛仍阻塞**，T26/AC-19 的需求方通过裁决不解除它。原始证据 `.work/c012/review-20260911.md`、`probe-results-20260911_153817/template-verify.stderr.log`。T47 按批准正文与原始请求核对交付候选，不得静默选择另一版或把已失败候选当批准输入；确需产品取舍时只阻塞模板/发布后继，CPU 修复与受控验收可继续。原数据库、媒体、GPU 任务与失败证据保留。
+**2026-09-11 历史审查更新（覆盖下表规划时的“尚未执行”状态）**：审查基线 `c0830c3..21c04f3`；T21 已有旧批准四模板安装及重启回读证据，PostgreSQL 与隔离完整回归本轮实际通过；只读 health 显示 vLLM/Comfy healthy、binding valid，但不替代后续 GPU 动作前的占用核验。当时提交 minimaxh3 与正式设置 GET 不相等，正式部署 CLI `verify` exit 1；当时 PRD §12.2 的交付模板门槛阻塞。原始证据 `.work/c012/review-20260911.md`、`probe-results-20260911_153817/template-verify.stderr.log`；原数据库、媒体、GPU任务与失败证据保留。该历史状态不覆盖当前6570-byte批。
+
+**2026-09-13 当前6570-byte批状态（事实回填，不新增AC）**：按 Astra 授权的 format-example 候选，`backend/deployment/templates/minimaxh3.txt` 为 6570 UTF-8 bytes/60 lines、SHA-256 `13e271e8b59a1a507f0286c43ae9399bbb3ae9d78aa42a221787e0614055c8d8`。Clip1/Clip2各一次模型诊断均exit 0并经逐项结构、时间、英文、对白、引用、核心动作核对；正式设置 API install、安装后 verify、同库安全重启后 verify 与 API/asyncpg回读均exit 0，四key逐字等于部署输入且无`[占位]`。真实页面消费 task `#17/#18` 均done并生成非current take `#7/#8`，旧current保留；当前prompt/媒体/DB/播放证据见T26D与TRACEABILITY。Clip2请求与诊断请求逐字相等；Clip1仅差既存T31尾注 `（T31生成中编辑）` 十字，exact=false，另有非核心描述/局部环境限制，均已显式记录。该状态不解除T22未完成门槛、不改写既有失败证据。
 
 | 依赖与来源 | 开工/验收门槛 | 当前证据 | 缺失项与状态 |
 |---|---|---|---|

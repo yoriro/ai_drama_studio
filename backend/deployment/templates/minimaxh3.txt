@@ -1,6 +1,6 @@
-Transcribe the supplied shots into one English reference-video prompt. Preserve the storyboard rather than inventing a story. Return JSON with exactly one string field "prompt". No Markdown fences or commentary.
+Generate one JSON object with exactly one string field "prompt". Return only that object. Preserve the supplied storyboard.
 
-The prompt has six headings, each on its own line, in this exact order:
+The prompt has exactly these six headings, each once on its own line, in this order:
 subject_definitions:
 summary:
 retention_analysis:
@@ -8,64 +8,47 @@ detailed_description:
 overall_soundscape:
 non_diegetic_music:
 
+DIALOGUE
+For every input item with nonempty dialogue, copy the complete original words, speaker and punctuation into its corresponding [Shot i] paragraph before proceeding to the next item. Remove only the speaker-name prefix and use `<Subject k> (Sk) says, <d>[Chinese]原对白</d>` for Chinese; retain the same reference position, describe the voice on its first spoken line, and use the language's English name for other languages. For an empty dialogue, write only that shot's framing, location and action, finish the paragraph there, and continue directly to the next Shot or heading. After each paragraph, compare nonempty dialogue character by character, including count and order.
+
 REFERENCE MAP
-Reference array position k (starting at 1) maps to <Subject k> and <Picture k>. Ignore slot_no for numbering. Define every reference once, in array order. Use this line pattern, replacing k with the actual position:
-<Subject k> is "original asset_name" from <Picture k>. Then write a separate, independent English sentence describing the character or environment.
-Keep the quoted asset name in its original language ONLY in this definition. Translate every non-name descriptive detail into English, including clothing, colors, materials, body and environment. For image_source=override use "as shown in <Picture k>" and do not guess appearance. You cannot see the pictures. A four-view character reference depicts one person.
-Keep each reference definition compact, selecting key identifying features rather than translating every source clause. In all non-dialogue sections, write descriptive prose in English; only the original asset name in its definition, copied dialogue, and explicit quoted screen text may remain in the original language.
-Outside definitions and original dialogue, use Subject tags instead of character names. Every shot must identify its visible character and its location with their Subject tags. Pronouns are allowed after identity is clear; use a tag again when the actor changes or the target could be ambiguous.
-Speaker codes such as (S1) belong only to speech attribution beside the full Subject tag. In summary, actions and soundscape use full Subject tags or clear pronouns, not standalone S1/S2 aliases.
+Reference array position k (starting at 1) maps to <Subject k> and <Picture k>; ignore slot_no. Define every reference once in array order:
+<Subject k> is "original asset_name" from <Picture k>. Write one short, complete English sentence with only key identity or environment/light features.
+Keep asset_name in its original language only in that definition. Translate every other descriptive detail into English. You receive text metadata only and cannot see the images. For image_source=override use only its name/type and write "as shown in <Picture k>"; do not infer appearance from asset_description. A four-view character reference is one person. Translate ordinary spatial connectors into English; they are descriptive, not names. The reference image carries details omitted from the short sentence; do not copy every asset_description field.
+Outside definitions and copied dialogue, use <Subject k> tags instead of character names. Every shot identifies its visible character and location with Subject tags; pronouns may follow a clear identity, and repeat a tag when the actor or target changes. Speaker codes such as (S1) appear only beside the full Subject tag in speech attribution; summary and soundscape use Subject tags or clear pronouns.
 
-DETAILED SHOTS: ONE INPUT ITEM = ONE OUTPUT PARAGRAPH
-Use local labels [Shot 1] through [Shot N], not the input order numbers. Keep exactly N paragraphs, in array order. Each includes its own shot size, camera, scene, actions and dialogue.
-Shot 1 starts at the beginning of the clip with "[Shot 1]" and no timestamp.
-Every later shot starts with "[Shot i] At MM:SS.mmm,". Use duration_est values as a rough relative pacing guide when choosing cumulative starts; do not treat an exact ratio, fixed rounding formula or example timestamp as a pass condition. Keep the starts parseable, strictly increasing, non-negative and within requested_duration; the final shot lasts to requested_duration.
-
-After the label/time write the shot size, camera and location before the action:
-Shot size: 远景=extreme wide shot, 全景=wide shot, 中景=medium shot, 近景=medium close-up, 特写=close-up.
-Camera: 固定=The camera remains static.; 推=push in; 拉=pull out; 摇=pan; 移=truck; 跟=tracking; 手持=handheld.
-Location: "Inside <Subject k>" with the actual scene reference. A close-up identifies its location without needing to show the whole venue.
-Then identify the character with <Subject k> and transcribe every sentence and action clause from the CURRENT input item in source order; do not omit later actions, treat them as optional or summarize them away. Preserve its starting posture, every subsequent movement, direction, target and visible result; state each named direction and target explicitly, replace names with Subject tags, and frame the relevant body part and target. In a continuous scene, a non-core pose or location established by the preceding shot or overall scene may carry across shots without repeating it, but never use that allowance to omit a core action, direction, target or result. Omit only static clothing already stated in definitions. Stop when the item's facts are exhausted; do not infer emotion, replace a specific action with an emotion or initial pose, append a concluding movement/expression, borrow later facial or body changes, invent bridge movements, later reactions, new characters, action beats, fights, endings or blanket “no movement” statements. Every action verb must be supported by the same input item, and the next shot's reaction remains in its own paragraph.
-
-COPY DIALOGUE INTO ITS OWN SHOT
-This is required content, not an optional sound suggestion. A paragraph for an input item with nonempty dialogue is INCOMPLETE until it contains that exact spoken text. English-only descriptive prose never authorizes deleting or translating Chinese dialogue.
-Process input item i completely before item i+1. Read ONLY item i's dialogue. For a nonempty dialogue, copy the complete dialogue into the same corresponding [Shot i] paragraph; the paragraph is incomplete until every utterance, character and punctuation is copied in original order. Never replace it with a summary such as "speaks" or "urges her":
-- Empty string: write no speech sentence and no dialogue tags or silence placeholder. End with the action.
-- Nonempty string: remove the speaker-name prefix only, then copy every remaining character and punctuation exactly into [Shot i]. Identify its speaker using this syntax:
-<Subject k> (Sk) says, <d>[Chinese]原对白</d>
-Both k values are the same reference position; retain S. Use literal [Chinese] for Chinese dialogue. Other languages use their English language name. Briefly describe the voice on its first spoken line. Never move a line to another shot, omit it, translate it, or add subtitles.
-After writing each [Shot i], compare its copied dialogue with item i character by character, including the number and order of utterances. If item i is empty, its paragraph has no speech tags or placeholder.
-Formatting example only: if the current item's dialogue is "甲:请等一下。" and 甲 maps to reference 2, that SAME paragraph ends with <Subject 2> (S2) says, <d>[Chinese]请等一下。</d>. If the next item's dialogue is empty, the next paragraph has no speech tags. Do not copy this example's words or identity into the actual result.
+DETAILED SHOTS
+Create exactly N paragraphs, [Shot 1] through [Shot N], in input array order; one input item maps to one paragraph. Shot 1 starts at clip start with [Shot 1]. Every later header is [Shot i] At MM:SS.mmm, on the same line. Use duration_est only as rough pacing guidance; starts are parseable, strictly increasing, non-negative, within requested_duration, and the final shot lasts to requested_duration.
+After each header write the mapped shot size, camera and location before the action. Shot size: 远景=extreme wide shot, 全景=wide shot, 中景=medium shot, 近景=medium close-up, 特写=close-up. Camera: 固定=The camera remains static.; 推=push in; 拉=pull out; 摇=pan; 移=truck; 跟=tracking; 手持=handheld. Location is "Inside <Subject k>" with the actual scene reference.
+For the current item, use Subject tags and transcribe every sentence and action clause in source order. Preserve starting posture, every movement, direction, target and visible result, framing the relevant body part and target. A continuous scene may carry a non-core pose or location forward; static clothing already defined may be omitted. Translate descriptive prose into English and stop when the item's facts end. Keep each action supported by its current item, keep later reactions in their own paragraph, and preserve all core content without inferred emotion, bridge movement, added character, action, fight, ending or absolute stillness.
 
 OTHER SECTIONS
-summary: start with [reference generation], then briefly summarize using Subject tags and only actions present in the detailed shots.
-Derive summary from the completed shot paragraphs. Keep the main narrative action/reaction; omit fine physiological or clothing details rather than paraphrasing them inaccurately. Never reverse directional changes such as widening/narrowing, raising/lowering or approaching/retreating.
-retention_analysis: one line per reference: <Subject k> (appears in [Shot i], [Shot j]): fully_preserved - concise retained features. Use actual shot numbers and list only actual appearances.
-At the start of detailed_description, translate STYLE into one sentence before [Shot 1]. Follow its actual medium: live-action stays live-action. Only when STYLE is empty use clean-line cel-shaded 2D animation. Do not place the style before subject_definitions.
-overall_soundscape: brief sounds of the existing environment/actions, no new events.
-non_diegetic_music: N/A unless requested.
-No output resolution, frame rate, Target duration or duration range. user_note may refine composition/actions but cannot change shot count/order, dialogue, identity or requested_duration.
+summary: begin with [reference generation] and summarize only actions/reactions from the completed shots, using Subject tags or clear pronouns and preserving direction changes.
+retention_analysis: write one line per reference in the form `<Subject k> (appears in [Shot i], [Shot j]): fully_preserved - concise retained features`, using actual appearances only.
+detailed_description: begin with one sentence translating STYLE before [Shot 1]; live-action remains live-action, and empty STYLE uses clean-line cel-shaded 2D animation. Keep all surrounding prose in summary, retention, detailed_description and soundscape in English; preserve source language only for legal asset_name, copied dialogue and explicit screen text.
+overall_soundscape: describe only existing environment and action sounds.
+non_diegetic_music: use N/A unless requested.
+Keep user_note as a composition/action refinement; it cannot change shot count/order, dialogue, identity or requested_duration. The prompt contains no output resolution, frame rate, Target duration or duration range.
 
-COMPLETE FORMAT EXAMPLE — unrelated miniature, do not reuse its characters, actions, timings or style.
-Example input: references are character 李舟 wearing a red coat and scene 工作室 with a wooden desk; two static medium shots of equal duration; total duration 4 seconds; style watercolor animation. First shot: 李舟 stands beside the wooden desk, raises his left hand, and rests it on the desk, dialogue "李舟:开始吧。" Second shot: 李舟 keeps his body still while his index finger moves toward the window, dialogue is empty.
-Example prompt string:
+FORMAT EXAMPLE
+The following unrelated two-shot example demonstrates the required format; keep its names, actions and timing separate from the actual input.
 subject_definitions:
-<Subject 1> is "李舟" from <Picture 1>. A person wearing a red coat.
+<Subject 1> is "李舟" from <Picture 1>. A person in a red coat.
 <Subject 2> is "工作室" from <Picture 2>. A studio with a wooden desk and a window.
 summary:
-[reference generation] <Subject 1> stands beside the wooden desk in <Subject 2>, raises his left hand, rests it on the desk, speaks, then keeps his body still while moving his index finger toward the window.
+[reference generation] <Subject 1> stands beside the desk in <Subject 2>, raises his left hand, rests it on the desk, then keeps his body still while his index finger moves toward the window.
 retention_analysis:
-<Subject 1> (appears in [Shot 1], [Shot 2]): fully_preserved - red coat and identity from the reference.
-<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - studio layout, desk and window.
+<Subject 1> (appears in [Shot 1], [Shot 2]): fully_preserved - red coat and identity.
+<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - studio, desk and window.
 detailed_description:
-Watercolor animation following the character and environment references.
-[Shot 1] Medium shot. The camera remains static. Inside <Subject 2>, <Subject 1> stands beside the wooden desk, raises his left hand, and rests it on the desk. In a calm, clear voice, <Subject 1> (S1) says, <d>[Chinese]开始吧。</d>
+Watercolor animation following the references.
+[Shot 1] Medium shot. The camera remains static. Inside <Subject 2>, <Subject 1> stands beside the wooden desk, raises his left hand, and rests it on the desk. In a calm voice, <Subject 1> (S1) says, <d>[Chinese]开始吧。</d>
 [Shot 2] At 00:02.000, medium shot. The camera remains static. Inside <Subject 2>, <Subject 1> keeps his body still while his index finger moves toward the window.
 overall_soundscape:
 Quiet room ambience and a faint rustle of clothing.
 non_diegetic_music:
 N/A
-END EXAMPLE. Notice: descriptive prose is entirely English; the empty-dialogue shot ends with its action, with no "No dialogue" text. Generate the ACTUAL input below with the same formatting discipline, using its own references, complete dialogue and calculated times.
+END FORMAT EXAMPLE
 
 ACTUAL INPUT
 shots = {{shots}}
@@ -74,5 +57,4 @@ style = {{style}}
 requested_duration = {{requested_duration}}
 user_note = {{user_note}}
 
-FINAL CHECK BEFORE OUTPUT
-Count nonempty input dialogue items. The output must contain exactly that many <d>[Chinese]...original words...</d> speech spans for Chinese input, each in its corresponding [Shot i] paragraph, with original words and punctuation intact; zero speech spans is forbidden if any input dialogue is nonempty. Then compare every shot with its input item for actions, direction, target, visible result, speaker/scene tags, shot size, camera and times. Check all Picture and Subject tags end with >. English applies only to surrounding prose; do not delete the original dialogue to satisfy it. Return only the JSON object with the complete six-section prompt.
+Before returning, verify the six headings, exact N paragraphs and header/time rules, reference order and tags, source-order actions/directions/targets/results, exact nonempty dialogue in its Shot, action-only empty-dialogue paragraphs, English exceptions and user_note limits. Return only the JSON object.

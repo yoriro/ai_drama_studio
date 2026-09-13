@@ -261,3 +261,17 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-13 C012 T26C：当前五点候选以 HEAD 前 12221-byte/88-line 模板为基线，候选快照为 10146-byte/79-line；selfcheck 与真实 preflight exit 0，未安装运行库。
 - 2026-09-13 C012 T26C：Clip1 单次真实诊断经 Astra 复核通过；Clip2 单次诊断 exit 1，唯一结构失败为场景定义未译 `两侧`，原始 response/template/review 保留，未进入平台 Task/Comfy/merge。
 - 2026-09-13 C012 T26C：两次 observe --real exit 0，vLLM 已 sleep、任务/Comfy 队列无本批残留；未发现错误 ID 复用，不把诊断失败归因后端丢弃，不重试或提交视频。
+- 2026-09-13 C012 T26C：空间连接词候选 Clip1 单次诊断结构/英文/对白/核心动作核对满足；Clip2 单次诊断保留未译 `两侧` 与 Shot2/4 的 `No dialogue`，证据目录 `.work/c012/T26C-clip2-20260913_185321`。
+- 2026-09-13 C012 T26C：Clip2 外层 wrapper 未捕获原生退出码，`.work/c012/T26C-spatial-clip2-20260913.exit-code.txt` 照实记录缺口；不得以推定值替代，完整 raw response/request/prompt/structure/template/review 均保留。
+- 2026-09-13 C012 T26C/T47：postobserve exit 0，目标库/DATA_DIR匹配、tasks=16/active=0、Comfy=0/0、vLLM sleeping=true；当前模板 10385 bytes/79 行，尚未安装，T26C/T47保持未勾选。
+- 2026-09-13 C012 T26C：reference-positive 候选 selfcheck/preflight exit 0；Clip1 单次 wrapper exit 0，但两条非空对白在 raw response/提取 prompt 中均缺失，证据 `.work/c012/T26C-clip1-20260913_190501`。
+- 2026-09-13 C012 T26C：该 Clip1 为模型漏提，未见错误 ID 复用，未进入 Task/Comfy/merge；Clip2 未调用，postobserve exit 0，tasks=16/active=0、Comfy 0/0、vLLM sleeping=true。
+- 2026-09-13 C012 T47：当前 reference-positive 模板为 10283 bytes/79 行、SHA-256 `ffdf2b930d0f692cb99f4e79af1481fada5294d98a0e4ff821c7632e497b7118`，未安装，旧 10756-byte 安装回读不适用。
+- 2026-09-13 C012 T26C：压缩候选 selfcheck/preflight exit 0；Clip1 单次 wrapper exit 1，raw response/提取 prompt 出现结构、中文非对白、对白翻译/占位、引用绑定失败，证据 `.work/c012/T26C-clip1-20260913_191416`。
+- 2026-09-13 C012 T26C：该 Clip1 判定模型输出失败，未见错误 ID 复用，未进入 Task/Comfy/merge；Clip2 未调用，postobserve exit 0，tasks=16/active=0、Comfy 0/0、vLLM sleeping=true。
+- 2026-09-13 C012 T47：当前压缩模板 5266 bytes/40 行、SHA-256 `8a24a51be87ec4b67acb75417a268deb06d4e242efa39ae09ea13679281392fb`，未安装，旧 10756-byte 安装回读不适用。
+- 2026-09-13 C012：当前 `minimaxh3.txt` 为 6570 UTF-8 bytes/60 lines、SHA-256 `13e271e8b59a1a507f0286c43ae9399bbb3ae9d78aa42a221787e0614055c8d8`；正式 install、安装后/同库重启后 verify 与 API/asyncpg 回读均 exit 0，四 key 无占位。
+- 2026-09-13 C012：正式 Director 页面按 Clip2→Clip1 各提交一次，task #17/#18 均 done，take #7/#8 均非 current，旧 take #4/#3 保留；媒体分别为10.125s/8.0s、H.264 960x544。
+- 2026-09-13 C012：Clip2 formal rendered request 与诊断 request 逐字相等；Clip1 仅差既存 T31 尾注 `（T31生成中编辑）` 十字，exact=false；两段 raw vLLM response 未单独持久化。
+- 2026-09-13 C012：当前 task #17/#18 回读目标库 `ai_drama_studio_c012_m6_20260910`、DATA_DIR `D:\ai_drama_studio\.work\c012\t21-m6-data`，项目资产4项未变、active task=0、Comfy queue=0/0、vLLM sleeping=true。
+- 2026-09-13 C012：Clip2 未回切 Shot3、Clip1 出现局部环境细节幻觉及非核心服装措辞；按 Astra 裁决作为质量限制记录，不追加验收门槛。

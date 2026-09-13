@@ -2,15 +2,20 @@
 
 本目录只保存四个固定设置 key 的批准正文，供正式部署 CLI 读取；安装动作与数据库写入必须经正式设置 API 完成，不在 lifespan 自动覆盖设置。
 
-## 当前批准正文与修订状态（2026-09-13）
+## 当前状态与历史来源（2026-09-13）
 
-需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，作为本轮三处修订前的历史部署基线。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；此前生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。
+当前唯一部署输入是 `minimaxh3.txt` 的 6570 UTF-8 bytes、60 lines、SHA-256 `13e271e8b59a1a507f0286c43ae9399bbb3ae9d78aa42a221787e0614055c8d8`。它已在目标库 `ai_drama_studio_c012_m6_20260910`、DATA_DIR `D:\ai_drama_studio\.work\c012\t21-m6-data` 经正式设置 API install；安装后 verify、同库后端安全重启后 verify 与 API/asyncpg 回读均 exit 0，四个固定 key 齐全、正文逐字等于部署输入、均无 `[占位]`，重启无自动 PATCH。对应证据为 `.work/c012/T26C-formal-current-*`。
 
-本次解除最终正文批准门槛，按此正文继续 T47 正式安装与安装后/同库安全重启后逐字回读，不再要求与 C009 历史正文相同，也不重开模板优化循环。保留局部通用性限制及所有历史失败。T26/AC-19 已通过的需求方裁决保持，不为重新判定 T26 生成视频；本次批准不等于已安装、已重启核验或完整 AC-26 实际消费通过，未执行项仍须逐项取证，若剩余消费路径需改变则单独报告，不静默豁免。
+当前正式消费是同一示范项目/集的 Clip2 task `#17`→take `#7` 与 Clip1 task `#18`→take `#8`，两 task 均 `done/progress=1/error=null`，两 take 均为非 current，旧 current take 保留；Clip2 视频10.125s、Clip1视频8.0s，均为 H.264 960x544。Clip2 formal rendered request 与诊断 request 逐字相等；Clip1 仅差既有 T31 尾注 `（T31生成中编辑）` 十字，exact=false。两段 built prompt、Comfy prompt ID、REST/DB、媒体探针、完整播放和抽帧证据见 `.work/c012/T26D-clip{1,2}-formal-*`；raw vLLM response 未单独持久化。Clip2未回切Shot3、Clip1有局部环境细节幻觉及非核心服装措辞，均是已记录的质量限制，不是额外验收门槛。
+
+需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，作为本轮三处修订前的历史部署基线。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；此前生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换当前6570-byte输入。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。
+
+该批准对应历史10,756-byte批次；其后实际运行批次已按授权切换为当前6570-byte输入。历史批次的安装、失败、task #16与所有原始证据继续保留，不与当前状态混写。
 
 下列 2026-09-10 来源及后续诊断段落是历史记录；涉及 MiniMax 当前正文的旧状态由本节覆盖。
+为避免状态混淆，本节以下历史段落中的“当前候选/当前 B 阶段”只指当时记录的候选，不指当前6570-byte部署输入；当前状态只以上方两段为准。
 
-2026-09-13 后续窄修订授权：当前工作树的 `minimaxh3.txt` 仅允许改动时间轴说明、非对白英文描述、连续场景非核心承接和既有逐镜对白/动作规则；时间只需大致参考 `duration_est` 权重，不以精确比例或毫秒四舍五入作为通过门槛，但仍检查镜头数量/顺序、Shot1起点、后续起点可解析递增且不超请求片长。非对白的 subject/retention/summary/detailed_description/soundscape 用英文，合法 asset_name、对白和明确屏幕文字保留原语言；每镜核心动作、方向/目标/结果仍须在对应段落，空对白不得出现 speech-related placeholder，不做响应后处理。修订后的磁盘文件是 A/B 诊断用部署候选，不等于运行库已安装；两批真实诊断通过后，必须重新经正式设置 API install、安装后 verify、同库安全重启和重启后 verify。旧 T47 安装/回读证据只证明修订前正文，不能复用为当前修订部署通过。
+2026-09-13 后续窄修订授权（历史规则记录）：本轮工作树的 `minimaxh3.txt` 仅允许改动时间轴说明、非对白英文描述、连续场景非核心承接和既有逐镜对白/动作规则；时间只需大致参考 `duration_est` 权重，不以精确比例或毫秒四舍五入作为通过门槛，但仍检查镜头数量/顺序、Shot1起点、后续起点可解析递增且不超请求片长。非对白的 subject/retention/summary/detailed_description/soundscape 用英文，合法 asset_name、对白和明确屏幕文字保留原语言；每镜核心动作、方向/目标/结果仍须在对应段落，空对白不得出现 speech-related placeholder，不做响应后处理。该规则已用于当前6570-byte批的 A/B/C/D 证据。
 
 本轮 A 阶段 renderer selfcheck 与模板人工审计均 exit 0；较早 B 阶段 Clip1 修订模板诊断的时间观察为 `[3.6,6.1]`、旧装置期望为 `[3.2,5.867]`，该精确比较现已由用户撤销，不写成模型数学能力已修复；该批描述混入中文服装词。输入 Shot2 本身提到门口的芳嘉蔓，输出 Subject1 门口目标有输入依据，但 retention 中该主体的画面可见性依据不确定，不能定性为身份引用错误。完整较早证据为 `.work/c012/T26C-clip1-20260913_145948`。
 
@@ -57,15 +62,15 @@ python -X utf8 .work/c012/acceptance.py observe --real
 
 ## 历史 T26 动作诊断记录（不代表当前部署状态）
 
-最终T26裁决（2026-09-11）：需求方接受宿舍既有take#3复核与指定122039原始prompt的真实Comfy球馆视频组合验收，T26通过。证据 `.work/c012/T26-selected-video-20260911_140139/verdict.md`。该历史视频不等于当前候选正文的完整 AC-26 消费证据；T26C/D 保留未完成。T47 已于 2026-09-13 将批准正文经正式设置 API 安装并完成安装后/同库重启回读。独立小样的非压实 reference_name 不符合生产快照约束，其编号失败不证明生产编号缺陷，详见通用性报告开头校正。
+最终T26裁决（2026-09-11，历史）：需求方接受宿舍既有take#3复核与指定122039原始prompt的真实Comfy球馆视频组合验收，T26通过。证据 `.work/c012/T26-selected-video-20260911_140139/verdict.md`。该历史视频不等于当前6570-byte批的完整 AC-26 消费证据；当前T26C/D的正式页面消费以本说明开头的 task #17/#18 记录为准。独立小样的非压实 reference_name 不符合生产快照约束，其编号失败不证明生产编号缺陷，详见通用性报告开头校正。
 
 历史通用性复验（2026-09-11，覆盖下述历史结果）：室外/空镜/多人对白/独立旁白规则已修正，但当时同一模板的球馆与独立小样均未完整通过。球馆仍有未译词和空对白占位，小样仍重排引用身份；证据 `.work/c012/T26-generalization-review.md`。该记录不用于否定 2026-09-13 批准正文的部署事实，也不把历史单次通过升级为稳定性证明。
 
-历史诊断状态（2026-09-11）：需求方授权模板诊断循环后，第11轮球馆输入的原始 prompt 通过结构与逐镜人工检查，见 `.work/c012/T26C-clip2-20260911_122039/review.md`。最终正文使用英文转写流程、独立逐镜对白复制和与本剧本无关的完整格式示例；没有更改五变量/schema/生产实现。累计11轮含1次超时，失败记录保留；仅一次球馆 prompt 通过，不代表稳定性、宿舍输入或视频质量。T47 已完成正式安装，但 T26C 整体仍未完成；以下保留此前修订过程记录。
+历史诊断状态（2026-09-11）：需求方授权模板诊断循环后，第11轮球馆输入的原始 prompt 通过结构与逐镜人工检查，见 `.work/c012/T26C-clip2-20260911_122039/review.md`。最终正文使用英文转写流程、独立逐镜对白复制和与本剧本无关的完整格式示例；累计11轮含1次超时，失败记录保留；仅一次球馆 prompt 通过，不代表稳定性、宿舍输入或视频质量。以下保留此前修订过程记录，当前6570-byte批不由该历史批次替代。
 
 2026-09-11 历史最近一次修订采用统一逐镜结构与空对白显式分支，主体明确后允许无歧义代词。单次模型诊断仅修复了部分缺项，时间及对白/人物引用仍失败；当时文件尚未部署，证据见 `.work/c012/T26C-clip2-20260911_104820/review.md`。
 
-需求方授权将 `minimaxh3.txt` 改为忠实逐镜转写、明确动作与时间的正文（UTF-8/LF）；上文 7,340 字符来源记录描述历史批准输入，旧正文由 git 保留。2026-09-11 继续明确同号 Subject/Picture 定义句式、逐镜主体引用和画风位置。该历史记录中的文件是待模型验证、尚未部署的修订输入；旧诊断绑定失败证据保留。其余三模板不变。T47 当前部署使用 2026-09-13 批准正文；按 C012 spec §6.3，正式平台 Task/take/current 消费仍未验证，不宣称完整 AC-26 质量通过。本次不修改 schema、生产代码或迁移，不增加模板版本机制。
+需求方授权将 `minimaxh3.txt` 改为忠实逐镜转写、明确动作与时间的正文（UTF-8/LF）；上文 7,340 字符来源记录描述历史批准输入，旧正文由 git 保留。2026-09-11 继续明确同号 Subject/Picture 定义句式、逐镜主体引用和画风位置。该历史记录中的文件及绑定失败证据保留；其余三模板不变。当前6570-byte批的正式安装、task/take/current边界与AC-26实际消费见本说明开头，不修改 schema、生产代码或迁移，不增加模板版本机制。
 
 ## 启动与运行前检查
 
@@ -100,15 +105,12 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 `install` 会先完整校验恰好四个 UTF-8 文件及占位符，再按 `script2assets`、`script2shots`、`zimage`、`minimaxh3` 各 PATCH 一次并 GET 逐字核对；`verify` 只 GET，必须显示四个 key 且 PATCH 次数为 0。安装后停止并仅重启本轮拥有的后端进程，在同一数据库和 `DATA_DIR` 下再次执行 `--mode verify`。任一步失败都保存 stdout/stderr/exit 和已成功 key，不重试、不自动回滚或用旧库结果冒充通过。
 
-历史 T47 安装与诊断状态：修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。上一版12,478-byte修订候选的 Clip1/Clip2失败证据仍保留；此前从基线重建的12,043-byte候选已执行一次 Clip1 并因模型漏提 Shot1 对白失败。当前状态以本节上文的五点候选 B 阶段记录为准，历史安装/回读不等于当前候选部署或正式平台 Task/take/current 实际消费证据；T21/M6 之前的正式安装与回读证据只证明当时部署的输入，不把 T26 替代视觉证据写成 AC-26 完整通过。
+历史 T47 安装与诊断状态：修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 的旧部署正文；T47 曾针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。上一版12,478-byte、12,043-byte及其他候选的失败证据仍保留；历史安装/回读不等于当前6570-byte批部署或正式消费证据，T21/M6之前的回读只证明当时输入。
 
 本轮定向修复前只读对照 `.work/c012/T26C-clip1-20260913_161430` 与 `.work/c012/T26C-clip1-20260913_152658`：当前 rendered request 含 Shot1 完整对白，原始 response 与生产 `_built_prompt` 结果均缺该对白；`finish_reason=stop`、completion `937`、total `4198`，请求未带 `max_tokens`，GET `/v1/models` 报 `max_model_len=16384`，没有截断或提取丢失证据。152658 的请求、raw response 与提取 prompt 均含该对白。唯一候选变更限于 COPY DIALOGUE 局部：非空对白在既有镜号/时间、景别/运镜/场景 lead-in 后立即写入同一段落并先于动作句；空对白和其余规则不变。只读根因记录为 `.work/c012/T26C-targeted-root-cause-20260913.*`，本轮一次 Clip1 复验尚未执行。
-本轮局部修复的单次 Clip1 复验仍未通过：`.work/c012/T26C-clip1-20260913_164318` wrapper exit 0 且结构检查全 true，但原始输出先写 Shot1/Shot2 动作、后另起对白行，未满足候选局部规则要求的对白先于动作；完整人工逐镜记录在同目录 `review.md`，终态只读观察在 `.work/c012/T26C-targeted-clip1-postobserve-20260913.*`。按失败即停，未执行 Clip2、重新部署、重启或正式视频消费，所有旧失败证据保留。
-Astra 于 2026-09-13 更正：上述停止将 COPY DIALOGUE 的“先写”提示策略误当成独立验收门槛。该批 raw response 中 Shot1/Shot2 对白均完整逐字位于各自 Shot 块，换行或相对动作句位置不单独判失败；Clip1 对白目标按现行合同通过，但不声称模型遵守该提示策略。保持原始响应与停止记录，不重跑 Clip1；现在仅继续同一候选的单次 Clip2 诊断。
-Clip2 已在同一候选下完成唯一一次真实诊断：`.work/c012/T26C-clip2-20260913_165146` wrapper exit 0，结构/时间轴/英文/空对白检查全 true；人工逐镜确认 Shot1 出场方向与明确指向、Shot2/4 僵住动作及两条原文对白均保留，未见错误 ID 复用。终态观察 `.work/c012/T26C-targeted-clip2-postobserve-20260913.*` 显示目标库/DATA_DIR匹配、tasks=15/active=0、Comfy 0/0、vLLM sleeping=true。Astra 更正后的 Clip1 与本批 Clip2 均满足当前 prompt-level 合同；下一步仅执行正式 install/verify/同库安全重启/verify，之后才进入正式页面视频。
+上述三段为历史批次，原始停止、Astra验收解释更正及 Clip2 诊断证据均保留；当前6570-byte批的B/C证据见本说明开头和 `.work/c012/T26C-formal-current-*`，不与历史候选混写。
 
-2026-09-13 当前候选已完成 C 阶段：`verify-inputs` 的工作树 CRLF 失败证据保留；按 HEAD blob 原始 bytes 恢复 `m6-script.txt` 后，`verify-inputs` 与显式环境 `preflight --real` 均 exit 0。正式 API install、安装后 verify、同库安全重启后 verify 及 API/asyncpg 回读均确认四 key 齐全、正文逐字等于部署输入、无 `[占位]`、DB/DATA_DIR一致，重启未自动 PATCH；原始证据见 `.work/c012/T26C-formal-verify-inputs-failure-20260913.*`、`T26C-formal-verify-inputs-pass-20260913.*`、`T26C-formal-preflight-20260913.*`、`T26C-formal-install-20260913.*`、`T26C-formal-verify-after-install-20260913.*`、`T26C-formal-verify-after-restart-20260913.*`、`T26C-formal-readback-after-restart-20260913.*`。
-随后正式页面仅提交一次 Clip2，task `#16` 为 `done`，新 take `#6` 可读但未切为 current；原 take `#4` 仍为 current。实际 prompt/媒体未满足 AC-26：详细 Shot1 未保留出场方向注视与明确指向，抽帧/完整播放未见指向或第三镜动作；详细 Shot4 有矛盾描述，且保留未翻译场景片段。参考资产 snapshot 正确，无数值 existing_id/asset_id/image_id 复用；snapshot/built prompt 已保存，但 raw vLLM response 未持久化，不能证明后端丢弃。按失败即停，未提交 Clip1，不以该次失败消费完成 T47 或 T26D。
+2026-09-13 历史候选 C/D 记录：旧候选的 `verify-inputs` CRLF失败、安装/回读及 task #16 失败消费证据全部保留；它们不表示当前6570-byte批状态。当前批次状态见本说明开头。
 
 ## 显式恢复与失败处理
 
