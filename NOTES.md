@@ -255,3 +255,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-13 C012 T26D：正式页面 Clip2 task #16 done、take #6 非 current；prompt/媒体未见 Shot1 指向或第三镜，模型漏提可证实，错误 ID 复用未见，raw vLLM 响应未持久化故后端丢弃不可证实；未提交 Clip1。
 - 2026-09-13 C012 T41：最终受控浏览器批次在独立库 `ai_drama_studio_c012_t41g_20260913_181000`/DATA_DIR `D:\ai_drama_studio\.work\c012\t41g-data-20260913_181000` 取得 WS 1013、自动重连后 Task #41 done/100%/详情终态与 DB 一致，验收 JSON status=passed，owned 端口/目录清理。
 - 2026-09-13 C012 T41：页面首轮健康轮询保留 protocol_error；同批隔离后端直接 health 为 HTTP 200 JSON，未把该 UI 观测改写为健康通过；人工窗口 900 秒仅在 acceptance.py slow-page-browser 分支，生产 vLLM/WS 默认未改。
+- 2026-09-13 C012 T41：首个修正批次 `t41h_20260913_180255` 实际生产日志为 `Task websocket closing code=1013 reason=send_timeout`，旧断言只接受 `subscription_overflow` 因而失败；失败 stdout/stderr 与 DB/DATA_DIR/端口证据保留。
+- 2026-09-13 C012 T41：第二个受控批次 `t41i_20260913_181412` 在同一 gated connection 实际 close 1013 后按 socket `1391`→列表 GET `1395`→详情 GET `1400` 重建，Task #41 为 done/1.0/null；实际原因 `send_timeout` 与 T40 的 `subscription_overflow` 分开记录。
+- 2026-09-13 C012 T41：本批 acceptance、Vite 临时进程、后端/stub、数据库连接和临时目录均按拥有关系清理；未调用模型、未提交模型生成任务，生产默认端口保留。

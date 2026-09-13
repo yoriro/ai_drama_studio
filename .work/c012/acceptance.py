@@ -803,20 +803,56 @@ class RecoveryHTTPStub:
 class SlowASGISendGate:
     """Hold the first production task-event send at the ASGI boundary."""
 
-    def __init__(self, application: Any) -> None:
+    def __init__(self, application: Any, *, start_armed: bool = True) -> None:
         self.application = application
         self.release = asyncio.Event()
+        self.armed = asyncio.Event()
+        if start_armed:
+            self.armed.set()
         self.first_send_started = asyncio.Event()
         self.send_cancelled = asyncio.Event()
+        self.websocket_close_observed = asyncio.Event()
         self.first_message: dict[str, object] | None = None
+        self.gated_connection_sequence: object | None = None
+        self.websocket_events: list[dict[str, object]] = []
         self.active_connections = 0
         self.completed_connections = 0
+
+    def arm(self) -> None:
+        self.armed.set()
+
+    def _record_websocket_event(
+        self,
+        message: Mapping[str, object],
+        connection: dict[str, object] | None,
+    ) -> None:
+        event: dict[str, object] = {
+            "event_index": len(self.websocket_events) + 1,
+            "type": message.get("type"),
+        }
+        for key in ("code", "reason"):
+            if key in message:
+                event[key] = message.get(key)
+        if connection is not None:
+            event["connection_sequence"] = connection.get("sequence")
+        next_sequence = getattr(self, "_next_sequence", None)
+        if callable(next_sequence):
+            event["sequence"] = next_sequence()
+        self.websocket_events.append(event)
+        if event.get("type") == "websocket.close":
+            self.websocket_close_observed.set()
+        if connection is not None:
+            connection_events = connection.setdefault("events", [])
+            if isinstance(connection_events, list):
+                connection_events.append(dict(event))
 
     async def __call__(
         self,
         scope: Mapping[str, object],
         receive: Any,
         send: Any,
+        *,
+        connection: dict[str, object] | None = None,
     ) -> None:
         if scope.get("type") != "websocket" or scope.get("path") != "/ws/tasks":
             await self.application(scope, receive, send)
@@ -824,9 +860,20 @@ class SlowASGISendGate:
 
         self.active_connections += 1
 
+        async def gated_receive() -> Any:
+            message = await receive()
+            if isinstance(message, Mapping) and message.get("type") == "websocket.disconnect":
+                self._record_websocket_event(message, connection)
+            return message
+
         async def gated_send(message: Mapping[str, object]) -> None:
+            if message.get("type") == "websocket.close":
+                await send(message)
+                self._record_websocket_event(message, connection)
+                return
             if (
                 message.get("type") == "websocket.send"
+                and self.armed.is_set()
                 and not self.first_send_started.is_set()
             ):
                 self.first_message = {
@@ -837,6 +884,11 @@ class SlowASGISendGate:
                         else None
                     ),
                 }
+                if connection is not None:
+                    self.first_message["connection_sequence"] = connection.get(
+                        "sequence"
+                    )
+                    self.gated_connection_sequence = connection.get("sequence")
                 self.first_send_started.set()
                 try:
                     await self.release.wait()
@@ -846,7 +898,7 @@ class SlowASGISendGate:
             await send(message)
 
         try:
-            await self.application(scope, receive, gated_send)
+            await self.application(scope, gated_receive, gated_send)
         finally:
             self.active_connections -= 1
             self.completed_connections += 1
@@ -867,10 +919,16 @@ class RecordingSlowASGISendGate(SlowASGISendGate):
     """Add request ordering evidence for the real TasksPage browser run."""
 
     def __init__(self, application: Any) -> None:
-        super().__init__(application)
+        super().__init__(application, start_armed=False)
         self.http_requests: list[dict[str, object]] = []
         self.websocket_connections: list[dict[str, object]] = []
         self._sequence = 0
+        self.arm_event_sequence: int | None = None
+
+    def arm(self) -> int:
+        self.arm_event_sequence = self._next_sequence()
+        super().arm()
+        return self.arm_event_sequence
 
     def _next_sequence(self) -> int:
         self._sequence += 1
@@ -899,7 +957,21 @@ class RecordingSlowASGISendGate(SlowASGISendGate):
             async def recording_send(message: Mapping[str, object]) -> None:
                 if message.get("type") == "http.response.start":
                     request["status"] = message.get("status")
+                response_body = None
+                if (
+                    message.get("type") == "http.response.body"
+                    and request.get("method") == "GET"
+                    and isinstance(request.get("path"), str)
+                    and str(request["path"]).startswith("/api/tasks/")
+                    and isinstance(message.get("body"), bytes)
+                ):
+                    previous_body = request.get("response_body", "")
+                    if not isinstance(previous_body, str):
+                        previous_body = ""
+                    response_body = previous_body + message["body"].decode("utf-8")
                 await send(message)
+                if response_body is not None:
+                    request["response_body"] = response_body
 
             await self.application(scope, receive, recording_send)
             return
@@ -908,10 +980,16 @@ class RecordingSlowASGISendGate(SlowASGISendGate):
             connection: dict[str, object] = {
                 "sequence": self._next_sequence(),
                 "path": scope.get("path"),
+                "events": [],
             }
             self.websocket_connections.append(connection)
             try:
-                await super().__call__(scope, receive, send)
+                await super().__call__(
+                    scope,
+                    receive,
+                    send,
+                    connection=connection,
+                )
             finally:
                 connection["completed"] = True
             return
@@ -2652,6 +2730,7 @@ async def command_ws_slow_page_browser(
     target_task_id: int | None = None
     final_state: dict[str, object] | None = None
     gate: RecordingSlowASGISendGate | None = None
+    gate_arm_sequence: int | None = None
     server: Any | None = None
     server_task: asyncio.Task[Any] | None = None
     server_port: int | None = None
@@ -2924,6 +3003,43 @@ async def command_ws_slow_page_browser(
                             )
                         await asyncio.sleep(0.1)
 
+                    pre_release_detail_reads = [
+                        request
+                        for request in gate.http_requests
+                        if request.get("method") == "GET"
+                        and request.get("path") == f"/api/tasks/{target_task_id}"
+                        and request.get("status") == 200
+                        and isinstance(request.get("response_body"), str)
+                    ]
+                    if not pre_release_detail_reads:
+                        raise AcceptanceFailure(
+                            "T41 target detail was not read with HTTP 200 before release: "
+                            f"{gate.http_requests!r}"
+                        )
+                    pre_release_detail = pre_release_detail_reads[-1]
+                    try:
+                        pre_release_detail_payload = json.loads(
+                            pre_release_detail["response_body"]
+                        )
+                    except json.JSONDecodeError as exc:
+                        raise AcceptanceFailure(
+                            "T41 pre-release target detail response was not JSON: "
+                            f"{pre_release_detail!r}"
+                        ) from exc
+                    if not isinstance(pre_release_detail_payload, Mapping):
+                        raise AcceptanceFailure(
+                            "T41 pre-release target detail response was not an object: "
+                            f"{pre_release_detail_payload!r}"
+                        )
+                    if (
+                        pre_release_detail_payload.get("status") != "running"
+                        or pre_release_detail_payload.get("progress") != 0
+                    ):
+                        raise AcceptanceFailure(
+                            "T41 target detail was not running before release: "
+                            f"{pre_release_detail_payload!r}"
+                        )
+                    gate_arm_sequence = gate.arm()
                     dependency_stub.server.chat_release.set()
                     for episode_id in episode_ids[
                         SLOW_PAGE_BROWSER_PRE_TASK_COUNT + 1 :
@@ -2977,8 +3093,77 @@ async def command_ws_slow_page_browser(
                         )
                     except asyncio.TimeoutError as exc:
                         raise AcceptanceFailure(
-                            "T41 browser WebSocket did not cancel the held send after overflow"
+                            "T41 browser WebSocket did not cancel the held send after slow close"
                         ) from exc
+                    try:
+                        await asyncio.wait_for(
+                            gate.websocket_close_observed.wait(), timeout=10
+                        )
+                    except asyncio.TimeoutError as exc:
+                        raise AcceptanceFailure(
+                            "T41 production websocket.close was not observed after send cancellation"
+                        ) from exc
+
+                    close_events = [
+                        event
+                        for event in gate.websocket_events
+                        if event.get("type") == "websocket.close"
+                    ]
+                    gated_close_events = [
+                        event
+                        for event in close_events
+                        if event.get("connection_sequence")
+                        == gate.gated_connection_sequence
+                    ]
+                    if not gated_close_events:
+                        raise AcceptanceFailure(
+                            "T41 production did not emit a websocket.close on the gated connection: "
+                            f"events={gate.websocket_events!r}"
+                        )
+                    actual_close = gated_close_events[-1]
+                    actual_close_code = actual_close.get("code")
+                    actual_close_sequence = actual_close.get("sequence")
+                    if not isinstance(actual_close_code, int):
+                        raise AcceptanceFailure(
+                            f"T41 production websocket.close code was not recorded: {actual_close!r}"
+                        )
+                    if actual_close_code != 1013:
+                        raise AcceptanceFailure(
+                            f"T41 production websocket.close code mismatch: {actual_close!r}"
+                        )
+                    if not isinstance(gate_arm_sequence, int) or not isinstance(
+                        actual_close_sequence, int
+                    ):
+                        raise AcceptanceFailure(
+                            f"T41 gate/close event sequence was not recorded: "
+                            f"arm={gate_arm_sequence!r} close={actual_close!r}"
+                        )
+                    if actual_close_sequence <= gate_arm_sequence:
+                        raise AcceptanceFailure(
+                            f"T41 websocket.close preceded gate arm: "
+                            f"arm={gate_arm_sequence} close={actual_close!r}"
+                        )
+                    production_close_logs = [
+                        message
+                        for message in log_handler.messages
+                        if "Task websocket closing code=" in message
+                    ]
+                    overflow_logs = [
+                        message
+                        for message in production_close_logs
+                        if "reason=subscription_overflow" in message
+                    ]
+                    accepted_close_reason_logs = [
+                        message
+                        for message in production_close_logs
+                        if "reason=send_timeout" in message
+                        or "reason=subscription_overflow" in message
+                    ]
+                    if not accepted_close_reason_logs:
+                        raise AcceptanceFailure(
+                            "T41 production task WebSocket logs did not record an accepted slow-close reason: "
+                            f"{production_close_logs!r}"
+                        )
                     try:
                         await asyncio.wait_for(
                             asyncio.sleep(0), timeout=0.1
@@ -3051,21 +3236,75 @@ async def command_ws_slow_page_browser(
                         raise AcceptanceFailure(
                             f"T41 browser emitted cancel POSTs: {cancel_posts!r}"
                         )
-                    second_ws = (
-                        gate.websocket_connections[1]
-                        if len(gate.websocket_connections) >= 2
-                        else None
-                    )
+                    reconnecting_sockets = [
+                        connection
+                        for connection in gate.websocket_connections
+                        if isinstance(connection.get("sequence"), int)
+                        and connection["sequence"] > actual_close_sequence
+                    ]
+                    second_ws = min(
+                        reconnecting_sockets,
+                        key=lambda connection: int(connection["sequence"]),
+                    ) if reconnecting_sockets else None
                     if second_ws is None:
                         raise AcceptanceFailure(
                             f"T41 browser did not establish a reconnecting WebSocket: "
                             f"{gate.websocket_connections!r}"
                         )
-                    if int(second_ws["sequence"]) >= int(list100[1]["sequence"]):
+                    second_ws_sequence = second_ws.get("sequence")
+                    if not isinstance(second_ws_sequence, int):
+                        raise AcceptanceFailure(
+                            f"T41 reconnect WebSocket sequence was not recorded: {second_ws!r}"
+                        )
+                    if actual_close_sequence >= second_ws_sequence:
+                        raise AcceptanceFailure(
+                            "T41 reconnect WebSocket was not established after the observed close: "
+                            f"close={actual_close!r} reconnect={second_ws!r}"
+                        )
+                    reconnect_lists = [
+                        request
+                        for request in list100
+                        if isinstance(request.get("sequence"), int)
+                        and request["sequence"] > second_ws_sequence
+                    ]
+                    if not reconnect_lists:
+                        raise AcceptanceFailure(
+                            "T41 reconnect did not produce a limit=100 list read after the new socket: "
+                            f"socket={second_ws!r} list={list100!r}"
+                        )
+                    second_list = min(
+                        reconnect_lists,
+                        key=lambda request: int(request["sequence"]),
+                    )
+                    second_list_sequence = second_list.get("sequence")
+                    if not isinstance(second_list_sequence, int):
+                        raise AcceptanceFailure(
+                            f"T41 reconnect list sequence was not recorded: {second_list!r}"
+                        )
+                    if actual_close_sequence >= second_list_sequence:
+                        raise AcceptanceFailure(
+                            "T41 reconnect list read did not follow the observed close: "
+                            f"close={actual_close!r} list={second_list!r}"
+                        )
+                    if int(second_ws["sequence"]) >= int(second_list["sequence"]):
                         raise AcceptanceFailure(
                             "T41 reconnect list GET was not socket-first"
                         )
-                    target_detail = detail_reads[-1]
+                    reconnect_details = [
+                        request
+                        for request in detail_reads
+                        if isinstance(request.get("sequence"), int)
+                        and request["sequence"] > second_ws_sequence
+                    ]
+                    if not reconnect_details:
+                        raise AcceptanceFailure(
+                            "T41 reconnect did not produce a target detail read after the new socket: "
+                            f"socket={second_ws!r} detail={detail_reads!r}"
+                        )
+                    target_detail = min(
+                        reconnect_details,
+                        key=lambda request: int(request["sequence"]),
+                    )
                     if target_detail.get("status") != 200:
                         raise AcceptanceFailure(
                             f"T41 final target detail read was not HTTP 200: {target_detail!r}"
@@ -3147,19 +3386,28 @@ async def command_ws_slow_page_browser(
                         target_episode_id=target_episode_id,
                         release_file=str(release_path),
                         target_before_release=target_state,
+                        pre_release_target_detail=pre_release_detail,
+                        pre_release_target_detail_payload=pre_release_detail_payload,
                         websocket_connections=gate.websocket_connections,
                         first_gated_message=gate.first_message,
                         send_cancelled=gate.send_cancelled.is_set(),
-                        overflow_logs=[
-                            message
-                            for message in log_handler.messages
-                            if "subscription_overflow" in message
+                        gate_arm_sequence=gate_arm_sequence,
+                        gated_connection_sequence=gate.gated_connection_sequence,
+                        websocket_events=gate.websocket_events,
+                        websocket_disconnects=[
+                            event
+                            for event in gate.websocket_events
+                            if event.get("type") == "websocket.disconnect"
                         ],
                         task_count=len(task_ids),
                         event_lower_bound=(
                             SLOW_PAGE_BROWSER_POST_TASK_COUNT * 3 + 1
                         ),
-                        websocket_close_code=1013,
+                        websocket_close=actual_close,
+                        websocket_close_code=actual_close_code,
+                        production_close_logs=production_close_logs,
+                        accepted_close_reason_logs=accepted_close_reason_logs,
+                        overflow_logs=overflow_logs,
                         list_limit_100_reads=list100,
                         target_detail_reads=detail_reads,
                         http_trace=gate.http_requests,
