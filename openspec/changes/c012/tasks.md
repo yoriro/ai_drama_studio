@@ -220,6 +220,8 @@
   - 2026-09-11最新裁决：需求方接受指定prompt的真实Comfy生成作为T26替代验收，本项原部署路径不再是T26的前置。以下未执行操作及失败记录保留，不冒充已完成部署；候选模板的部署状态仍须在发布收口如实核对。
   - 最新状态（覆盖以下历史单次通过）：需求方授权通用性修正后，当前同版球馆 `.work/c012/T26C-clip2-20260911_132008` 与独立小样 `T26-generalization-sample-20260911_131923` 均结构exit0但内容未通过；前者有未翻译词及空对白占位，后者重排引用身份/旁白编号。完整证据与通路见 `.work/c012/T26-generalization-review.md`；未部署/生成视频，T26C保持未勾选。
   - 当前结果（覆盖以下历史状态）：用户授权循环第11轮球馆prompt经结构及逐镜人工核对通过，原始输出 `.work/c012/T26C-clip2-20260911_122039/prompt.txt`，review.md/checks.json留证，命令exit0。总11轮含1次超时，旧失败保留；Clip1模型诊断、设置部署/重启/视频均未执行，T26C整体仍不勾选。
+  - 2026-09-13当前授权：不重新生成以重判已通过的T26；本轮仅为AC-26补取一次Clip1真实模型诊断，并在T26D按Clip2→Clip1各一次正式平台消费。失败即保留证据并停止后续；T47已完成的部署证据保留，实际消费未完成前不勾选T47。
+  - 2026-09-13实际失败：唯一一次 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 1` exit 1，证据目录 `.work/c012/T26C-clip1-20260913_143707`。标题/镜头标签/时间标签存在，但期望切点 `[3.2,5.867]` 被模型输出为 `[3.0,5.5]`；详细描述漏掉输入 Shot1 完整对白。Subject/Picture 映射正确，无数值 existing_id/asset_id/image_id 复用；该诊断未进入平台提交/合并路径，未观察到后端丢弃。保留 `.work/c012/T26C-clip1-diagnostic-20260913.*`、`T26C-clip1-postdiagnostic-20260913.*` 与同目录 review.md；T26C、T26D、T47、T50及T34–T36不勾选。
   - 最新统一逐镜结构批次：`.work/c012/T26C-clip2-20260911_104820/review.md`；场景/景别/static及空对白分支改善，但时间点变为180/350/480秒，人物标签与对白归属错误，诊断exit1。未部署/生成视频，保持未完成；全部旧证据保留。
   - 2026-09-11新批结果：Clip2诊断exit0，三组Subject/Picture定义与四镜时间检查通过；人工发现详细场景标签、景别/固定运镜及对白格式缺项，见 `.work/c012/T26C-clip2-20260911_104029/review.md`。T26C保持未通过，Clip1、部署及视频未执行；旧失败证据保留。
   - 本轮结果：Clip2修正装置后一次模型输出已恢复四镜与指向，但Picture/Subject绑定及结构不满足，exit1，详见 `.work/c012/T26-template-review.md`；Clip1、API部署/重启回读未执行。
@@ -393,7 +395,7 @@
   - 追溯行：C012 取消心跳失败与重启资源恢复。
   - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_worker_recovery.py` 四个独立用例，分别覆盖 queued 取消与完成先胜、取消安全点单赢家、重启后 queued 恰一次 handler/资产副作用、heartbeat 异常传播与 handler 取消，以及 DB 不可达时 running 不伪报 failed、恢复后 `server restarted` 收口。全新隔离库 `ai_drama_studio_c012_t46_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py` 为 `11 passed in 1.42s`、exit 0，stderr 为空，日志 `.work/c012/T46-test-targeted.stdout.log`、`.work/c012/T46-test-targeted.stderr.log`、`.work/c012/T46-test-targeted.exit-code.txt`；R `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle` 为 status passed、exit 0，完整事件 `.work/c012/T46-recovery-acceptance.json`，DATA_DIR `D:\ai_drama_studio\.work\c012\t46-data-20260911`，库/DATA_DIR及运行状态与 T45 证据一致，最终临时目录不存在、stub handler=0。未修改既有测试、生产代码、模板或剧本。
 
-- [x] T47 关闭最终交付模板与部署门槛（B4）
+- [ ] T47 关闭最终交付模板与部署门槛（B4）
   - 2026-09-13 最新裁决：需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，现逐字写入 `backend/deployment/templates/minimaxh3.txt`。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换本次批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。 本次解除最终正文批准门槛，按此正文继续 T47 正式安装与安装后/同库安全重启后逐字回读，不再要求与 C009 历史正文相同，也不重开模板优化循环。保留局部通用性限制及所有历史失败。T26/AC-19 已通过的需求方裁决保持，不为重新判定 T26 生成视频；本次批准不等于已安装、已重启核验或完整 AC-26 实际消费通过，未执行项仍须逐项取证，若剩余消费路径需改变则单独报告，不静默豁免。 下列 2026-09-11 核对数据保留为历史，不表示本次正文仍待批准。
   - 依赖：既有 T21 证据与 2026-09-13 需求方对 10,756-byte 最终正文的明确批准（spec 外部依赖及 T47 批准段）。正文已确定，不再以 C009 差异或旧候选失败阻塞安装；先核实目标 DB/DATA_DIR、当前任务及进程归属，再按正式 API 安装。与 CPU 线独立。
   - 交付：按本次已批准正文及 spec 的最新执行顺序，经现有正式设置API安装/安装后及同库安全重启后逐字回读，其他三模板不变；复用有效T21新库证据并核对相关输入变化，补当前正文所缺实际消费证据。不得为T26重新生成；若剩余AC-26消费路径需改动，先交需求方裁决并同步spec，不能擅自取消T26C/D或整个AC。
