@@ -102,6 +102,11 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 本轮定向修复前只读对照 `.work/c012/T26C-clip1-20260913_161430` 与 `.work/c012/T26C-clip1-20260913_152658`：当前 rendered request 含 Shot1 完整对白，原始 response 与生产 `_built_prompt` 结果均缺该对白；`finish_reason=stop`、completion `937`、total `4198`，请求未带 `max_tokens`，GET `/v1/models` 报 `max_model_len=16384`，没有截断或提取丢失证据。152658 的请求、raw response 与提取 prompt 均含该对白。唯一候选变更限于 COPY DIALOGUE 局部：非空对白在既有镜号/时间、景别/运镜/场景 lead-in 后立即写入同一段落并先于动作句；空对白和其余规则不变。只读根因记录为 `.work/c012/T26C-targeted-root-cause-20260913.*`，本轮一次 Clip1 复验尚未执行。
 本轮局部修复的单次 Clip1 复验仍未通过：`.work/c012/T26C-clip1-20260913_164318` wrapper exit 0 且结构检查全 true，但原始输出先写 Shot1/Shot2 动作、后另起对白行，未满足候选局部规则要求的对白先于动作；完整人工逐镜记录在同目录 `review.md`，终态只读观察在 `.work/c012/T26C-targeted-clip1-postobserve-20260913.*`。按失败即停，未执行 Clip2、重新部署、重启或正式视频消费，所有旧失败证据保留。
+Astra 于 2026-09-13 更正：上述停止将 COPY DIALOGUE 的“先写”提示策略误当成独立验收门槛。该批 raw response 中 Shot1/Shot2 对白均完整逐字位于各自 Shot 块，换行或相对动作句位置不单独判失败；Clip1 对白目标按现行合同通过，但不声称模型遵守该提示策略。保持原始响应与停止记录，不重跑 Clip1；现在仅继续同一候选的单次 Clip2 诊断。
+Clip2 已在同一候选下完成唯一一次真实诊断：`.work/c012/T26C-clip2-20260913_165146` wrapper exit 0，结构/时间轴/英文/空对白检查全 true；人工逐镜确认 Shot1 出场方向与明确指向、Shot2/4 僵住动作及两条原文对白均保留，未见错误 ID 复用。终态观察 `.work/c012/T26C-targeted-clip2-postobserve-20260913.*` 显示目标库/DATA_DIR匹配、tasks=15/active=0、Comfy 0/0、vLLM sleeping=true。Astra 更正后的 Clip1 与本批 Clip2 均满足当前 prompt-level 合同；下一步仅执行正式 install/verify/同库安全重启/verify，之后才进入正式页面视频。
+
+2026-09-13 当前候选已完成 C 阶段：`verify-inputs` 的工作树 CRLF 失败证据保留；按 HEAD blob 原始 bytes 恢复 `m6-script.txt` 后，`verify-inputs` 与显式环境 `preflight --real` 均 exit 0。正式 API install、安装后 verify、同库安全重启后 verify 及 API/asyncpg 回读均确认四 key 齐全、正文逐字等于部署输入、无 `[占位]`、DB/DATA_DIR一致，重启未自动 PATCH；原始证据见 `.work/c012/T26C-formal-verify-inputs-failure-20260913.*`、`T26C-formal-verify-inputs-pass-20260913.*`、`T26C-formal-preflight-20260913.*`、`T26C-formal-install-20260913.*`、`T26C-formal-verify-after-install-20260913.*`、`T26C-formal-verify-after-restart-20260913.*`、`T26C-formal-readback-after-restart-20260913.*`。
+随后正式页面仅提交一次 Clip2，task `#16` 为 `done`，新 take `#6` 可读但未切为 current；原 take `#4` 仍为 current。实际 prompt/媒体未满足 AC-26：详细 Shot1 未保留出场方向注视与明确指向，抽帧/完整播放未见指向或第三镜动作；详细 Shot4 有矛盾描述，且保留未翻译场景片段。参考资产 snapshot 正确，无数值 existing_id/asset_id/image_id 复用；snapshot/built prompt 已保存，但 raw vLLM response 未持久化，不能证明后端丢弃。按失败即停，未提交 Clip1，不以该次失败消费完成 T47 或 T26D。
 
 ## 显式恢复与失败处理
 
