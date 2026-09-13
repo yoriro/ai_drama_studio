@@ -10,16 +10,16 @@ non_diegetic_music:
 
 REFERENCE MAP
 Reference array position k (starting at 1) maps to <Subject k> and <Picture k>. Ignore slot_no for numbering. Define every reference once, in array order. Use this line pattern, replacing k with the actual position:
-<Subject k> is 原始asset_name from <Picture k>. Brief English description of the character or environment.
-Keep the asset name in its original language ONLY in this definition. Translate the rest of the description fully into English. For image_source=override use "as shown in <Picture k>" and do not guess appearance. You cannot see the pictures. A four-view character reference depicts one person.
-Keep each reference definition compact, selecting key identifying features rather than translating every source clause. English applies to descriptive prose, NOT to dialogue: original Chinese dialogue is mandatory and must remain Chinese. Original asset names and copied dialogue/screen text are the only exceptions to English prose.
+<Subject k> is 原始asset_name from <Picture k>. Briefly describe the character or environment in English.
+Keep the asset name in its original language ONLY in this definition. Translate every other word of the definition fully into English, including clothing, colors, materials, body features and setting details. For image_source=override use "as shown in <Picture k>" and do not guess appearance. You cannot see the pictures. A four-view character reference depicts one person.
+English applies to every descriptive region: subject definitions after the asset name, retention features, summary, shot actions, clothing, colors, materials, locations, soundscape and music. Do not copy Chinese source wording into those regions. The only allowed non-English content is the original asset name in its definition, copied dialogue inside <d> tags, and explicit visible screen text in quotes.
 Outside definitions and original dialogue, use Subject tags instead of character names. Every shot must identify its visible character and its location with their Subject tags. Pronouns are allowed after identity is clear; use a tag again when the actor changes or the target could be ambiguous.
 Speaker codes such as (S1) belong only to speech attribution beside the full Subject tag. In summary, actions and soundscape use full Subject tags or clear pronouns, not standalone S1/S2 aliases.
 
 DETAILED SHOTS: ONE INPUT ITEM = ONE OUTPUT PARAGRAPH
 Use local labels [Shot 1] through [Shot N], not the input order numbers. Keep exactly N paragraphs, in array order. Each includes its own shot size, camera, scene, actions and dialogue.
 Shot 1 starts with "[Shot 1]" and no timestamp.
-Every later shot starts with "[Shot i] At MM:SS.mmm,". Treat duration_est values as relative weights: first compute the full-precision cumulative start as requested_duration * sum(previous duration_est) / sum(all duration_est), then round only that final cumulative start to the nearest millisecond and format it as MM:SS.mmm. Do not use the raw cumulative duration directly unless sum(all duration_est) equals requested_duration. Calculate every start from the complete input array before writing any shot header; the final shot lasts to requested_duration.
+Every later shot starts with "[Shot i] At MM:SS.mmm,". Use duration_est values as a rough relative pacing guide when choosing cumulative starts; do not treat an exact ratio, fixed rounding formula or example timestamp as a pass condition. Choose starts from the complete input array before writing any shot header. Keep the starts parseable, strictly increasing, non-negative and within requested_duration; the final shot lasts to requested_duration.
 
 After the label/time write the shot size, camera and location before the action:
 Shot size: 远景=extreme wide shot, 全景=wide shot, 中景=medium shot, 近景=medium close-up, 特写=close-up.
@@ -69,7 +69,7 @@ overall_soundscape:
 Sea wind moves through the lighthouse room, the folded map rustles, and the lamp mechanism clicks as the beam turns across the waves.
 non_diegetic_music:
 N/A
-END EXAMPLE. The example's cumulative starts are 7 × 1.5 / 5.0 = 2.100 and 7 × (1.5 + 0.5) / 5.0 = 2.800; descriptive prose is entirely English, and the empty-dialogue shot ends with its action with no speech-related placeholder. Generate the ACTUAL input below with the same formatting discipline, using its own references, complete dialogue and calculated times.
+END EXAMPLE. Its timestamps are illustrative only and are not a timing formula or values to copy; descriptive prose is entirely English, and the empty-dialogue shot ends with its action with no speech-related placeholder. Generate the ACTUAL input below with the same formatting discipline, using its own references, complete dialogue and rough weight-guided starts.
 
 ACTUAL INPUT
 shots = {{shots}}
@@ -81,6 +81,6 @@ user_note = {{user_note}}
 FINAL CHECK BEFORE OUTPUT
 FIRST count nonempty input dialogue items. The output must contain exactly that many <d>[Chinese]...original words...</d> speech spans for Chinese input, each under its corresponding [Shot i], with the original words and punctuation intact. Zero speech spans is forbidden if any input dialogue is nonempty. THEN compare actions, correct speaker/scene tags, shot size, camera and times. Check all Picture and Subject tags end with >. English applies only to surrounding prose; do not delete the original dialogue to satisfy it. Return only the JSON object with the complete six-section prompt.
 
-Use the actual number of shots, references, shot sizes and calculated times from INPUT, not the example values. Only Shot 1 omits At. Every shot from 2 through N MUST contain At followed by its own calculated MM:SS.mmm before the shot size, on the SAME line as its [Shot i] label. Exactly N-1 At timestamps are required. Preserve dialogue while adding these headers; do not trade one requirement for the other.
-In the actual output, translate EVERY descriptive sentence into English, including the entire scene definition; preserve Chinese only in each original asset name and the quoted spoken/screen words. Empty-dialogue shots end at the action, as demonstrated; they contain no speech-related placeholder.
+Use the actual number of shots, references and shot sizes from INPUT, not the example values. Use rough duration_est-guided starts from the actual input; do not copy example timestamps or require exact proportional arithmetic. Only Shot 1 omits At. Every shot from 2 through N MUST contain At followed by its own parseable MM:SS.mmm start before the shot size, on the SAME line as its [Shot i] label. Exactly N-1 At timestamps are required, and starts must be strictly increasing and within requested_duration. Preserve dialogue while adding these headers; do not trade one requirement for the other.
+In the actual output, translate EVERY non-dialogue descriptive sentence into English, including the entire scene definition, clothing, colors, materials, actions, retention, summary and soundscape; preserve Chinese only in each original asset name at its definition, the quoted spoken words and explicit quoted screen text. Empty-dialogue shots end at the action, as demonstrated; they contain no speech-related placeholder.
 Check each paragraph for contradictory motion claims: a still body can coexist with a moving facial feature. Preserve both specifically; do not append a blanket "no movement in the face or body" if any described feature moves. Do not reverse an input change in summary or add an absolute stillness statement that cancels an input action. Keep the other requirements, including timestamps and original dialogue, intact.
