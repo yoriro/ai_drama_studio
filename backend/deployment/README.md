@@ -4,7 +4,7 @@
 
 ## 当前批准正文与修订状态（2026-09-13）
 
-需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，作为本轮三处修订前的部署基线。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；此前生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。
+需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，作为本轮三处修订前的历史部署基线。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；此前生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。
 
 本次解除最终正文批准门槛，按此正文继续 T47 正式安装与安装后/同库安全重启后逐字回读，不再要求与 C009 历史正文相同，也不重开模板优化循环。保留局部通用性限制及所有历史失败。T26/AC-19 已通过的需求方裁决保持，不为重新判定 T26 生成视频；本次批准不等于已安装、已重启核验或完整 AC-26 实际消费通过，未执行项仍须逐项取证，若剩余消费路径需改变则单独报告，不静默豁免。
 
@@ -25,9 +25,11 @@
 - `script2assets.txt`：C005 `openspec/changes/C005/spec.md` §5.1；1,253 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
 - `script2shots.txt`：归档 C006 `openspec/archive/C006/spec.md` §5.1；1,181 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
 - `zimage.txt`：归档 C007 §4.1 与 T13 批准的单一 `zimage` 正文；使用历史正式设置读回的 2,770 个字符原文恢复，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行，未按摘要或长度重写。
-- `minimaxh3.txt`：本轮新候选的批准基线来自 2026-09-13 `.work/c012/T47-deployment-proposal.txt`；该基线为 10,756 UTF-8 bytes、86 行，保留批准正文内原有的示例代码围栏，文件使用 UTF-8/LF，末尾换行。上一版12,478-byte候选及其 SHA-256 `2e635a84735ad267112b430f74fee25fab00f97c83693101409185d12bc3be48` 仅作为历史来源和失败证据保留；本轮候选从上述基线重新构建，当前新候选待 A/B 诊断。D-014/C009 下载文件及其正文仅作为历史来源证据保留。
+- `minimaxh3.txt`：10,756 UTF-8 bytes、86 行正文是 2026-09-13 的历史批准基线；随后已授权 T26C 修订使 HEAD `6c809e1` 中的 tracked 文件在本轮五点候选前为 12,221 bytes、88 行。当前五点候选仅在工作树中，快照为 `.work/c012/T47-template-five-point-20260913.txt`、10,146 bytes/79 行，尚未经正式设置 API 安装；上一版12,478-byte候选及其 SHA-256 `2e635a84735ad267112b430f74fee25fab00f97c83693101409185d12bc3be48` 仅作为历史来源和失败证据保留。D-014/C009 下载文件及其正文仅作为历史来源证据保留。
 
-四个文件名分别对应 `script2assets`、`script2shots`、`zimage`、`minimaxh3`，正文保留批准来源中的占位符、换行和末尾换行语义。T47 已经针对修订前正文通过正式设置 API 完成安装，并在安装后及同库后端重启后逐字回读；当前修订候选尚未重新安装，迁移占位符只用于新库安装前核对。
+四个文件名分别对应 `script2assets`、`script2shots`、`zimage`、`minimaxh3`，正文保留批准来源中的占位符、换行和末尾换行语义。T47 已经针对历史批准正文通过正式设置 API 完成安装，并在安装后及同库后端重启后逐字回读；当前五点候选尚未重新安装，迁移占位符只用于新库安装前核对。
+
+2026-09-13 当前五点候选 B 阶段：A `python -X utf8 .work/c012/prompt_diagnostic.py selfcheck` exit 0，真实 `python -X utf8 .work/c012/acceptance.py preflight --real` exit 0；Clip1 仅一次 `.work/c012/T26C-clip1-20260913_183540`，结构与核心逐镜内容经 Astra 复核通过，原始疑点与裁决保留；Clip2 仅一次 `.work/c012/T26C-clip2-20260913_184107`，wrapper exit 1，唯一结构失败是场景定义未译 `两侧`，其他结构/对白/空对白/时间检查为 true。两次 `observe --real` exit 0；诊断未进入平台 Task/Comfy/merge，未见错误 ID 复用，不进入重新安装、重启回读或 T26D 正式视频。
 
 ## 显式部署命令
 
@@ -98,7 +100,7 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 `install` 会先完整校验恰好四个 UTF-8 文件及占位符，再按 `script2assets`、`script2shots`、`zimage`、`minimaxh3` 各 PATCH 一次并 GET 逐字核对；`verify` 只 GET，必须显示四个 key 且 PATCH 次数为 0。安装后停止并仅重启本轮拥有的后端进程，在同一数据库和 `DATA_DIR` 下再次执行 `--mode verify`。任一步失败都保存 stdout/stderr/exit 和已成功 key，不重试、不自动回滚或用旧库结果冒充通过。
 
-修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。上一版12,478-byte修订候选的 Clip1/Clip2失败证据仍保留；本轮从基线重建的12,043-byte候选已执行一次 Clip1 并因模型漏提 Shot1 对白失败，当前候选尚未重新安装/回读，也缺少新正文被正式平台 Task/take/current 实际消费的证据；T21/M6 之前的正式安装与回读证据只证明当时部署的输入，不把 T26 替代视觉证据写成 AC-26 完整通过。
+历史 T47 安装与诊断状态：修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。上一版12,478-byte修订候选的 Clip1/Clip2失败证据仍保留；此前从基线重建的12,043-byte候选已执行一次 Clip1 并因模型漏提 Shot1 对白失败。当前状态以本节上文的五点候选 B 阶段记录为准，历史安装/回读不等于当前候选部署或正式平台 Task/take/current 实际消费证据；T21/M6 之前的正式安装与回读证据只证明当时部署的输入，不把 T26 替代视觉证据写成 AC-26 完整通过。
 
 本轮定向修复前只读对照 `.work/c012/T26C-clip1-20260913_161430` 与 `.work/c012/T26C-clip1-20260913_152658`：当前 rendered request 含 Shot1 完整对白，原始 response 与生产 `_built_prompt` 结果均缺该对白；`finish_reason=stop`、completion `937`、total `4198`，请求未带 `max_tokens`，GET `/v1/models` 报 `max_model_len=16384`，没有截断或提取丢失证据。152658 的请求、raw response 与提取 prompt 均含该对白。唯一候选变更限于 COPY DIALOGUE 局部：非空对白在既有镜号/时间、景别/运镜/场景 lead-in 后立即写入同一段落并先于动作句；空对白和其余规则不变。只读根因记录为 `.work/c012/T26C-targeted-root-cause-20260913.*`，本轮一次 Clip1 复验尚未执行。
 本轮局部修复的单次 Clip1 复验仍未通过：`.work/c012/T26C-clip1-20260913_164318` wrapper exit 0 且结构检查全 true，但原始输出先写 Shot1/Shot2 动作、后另起对白行，未满足候选局部规则要求的对白先于动作；完整人工逐镜记录在同目录 `review.md`，终态只读观察在 `.work/c012/T26C-targeted-clip1-postobserve-20260913.*`。按失败即停，未执行 Clip2、重新部署、重启或正式视频消费，所有旧失败证据保留。

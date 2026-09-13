@@ -258,3 +258,6 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-13 C012 T41：首个修正批次 `t41h_20260913_180255` 实际生产日志为 `Task websocket closing code=1013 reason=send_timeout`，旧断言只接受 `subscription_overflow` 因而失败；失败 stdout/stderr 与 DB/DATA_DIR/端口证据保留。
 - 2026-09-13 C012 T41：第二个受控批次 `t41i_20260913_181412` 在同一 gated connection 实际 close 1013 后按 socket `1391`→列表 GET `1395`→详情 GET `1400` 重建，Task #41 为 done/1.0/null；实际原因 `send_timeout` 与 T40 的 `subscription_overflow` 分开记录。
 - 2026-09-13 C012 T41：本批 acceptance、Vite 临时进程、后端/stub、数据库连接和临时目录均按拥有关系清理；未调用模型、未提交模型生成任务，生产默认端口保留。
+- 2026-09-13 C012 T26C：当前五点候选以 HEAD 前 12221-byte/88-line 模板为基线，候选快照为 10146-byte/79-line；selfcheck 与真实 preflight exit 0，未安装运行库。
+- 2026-09-13 C012 T26C：Clip1 单次真实诊断经 Astra 复核通过；Clip2 单次诊断 exit 1，唯一结构失败为场景定义未译 `两侧`，原始 response/template/review 保留，未进入平台 Task/Comfy/merge。
+- 2026-09-13 C012 T26C：两次 observe --real exit 0，vLLM 已 sleep、任务/Comfy 队列无本批残留；未发现错误 ID 复用，不把诊断失败归因后端丢弃，不重试或提交视频。
