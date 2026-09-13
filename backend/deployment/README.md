@@ -2,7 +2,15 @@
 
 本目录只保存四个固定设置 key 的批准正文，供后续 T18 显式部署 CLI 使用；本 task 不安装模板、不修改数据库，也不在 lifespan 自动覆盖设置。
 
-来源与逐字复核（2026-09-10）：
+## 当前批准正文（2026-09-13）
+
+需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，现逐字写入 `backend/deployment/templates/minimaxh3.txt`。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换本次批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。
+
+本次解除最终正文批准门槛，按此正文继续 T47 正式安装与安装后/同库安全重启后逐字回读，不再要求与 C009 历史正文相同，也不重开模板优化循环。保留局部通用性限制及所有历史失败。T26/AC-19 已通过的需求方裁决保持，不为重新判定 T26 生成视频；本次批准不等于已安装、已重启核验或完整 AC-26 实际消费通过，未执行项仍须逐项取证，若剩余消费路径需改变则单独报告，不静默豁免。
+
+下列 2026-09-10 来源及后续诊断段落是历史记录；涉及 MiniMax 当前正文的旧状态由本节覆盖。
+
+来源与逐字复核（2026-09-10，历史）：
 
 - `script2assets.txt`：C005 `openspec/changes/C005/spec.md` §5.1；1,253 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
 - `script2shots.txt`：归档 C006 `openspec/archive/C006/spec.md` §5.1；1,181 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
@@ -80,7 +88,7 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 `install` 会先完整校验恰好四个 UTF-8 文件及占位符，再按 `script2assets`、`script2shots`、`zimage`、`minimaxh3` 各 PATCH 一次并 GET 逐字核对；`verify` 只 GET，必须显示四个 key 且 PATCH 次数为 0。安装后停止并仅重启本轮拥有的后端进程，在同一数据库和 `DATA_DIR` 下再次执行 `--mode verify`。任一步失败都保存 stdout/stderr/exit 和已成功 key，不重试、不自动回滚或用旧库结果冒充通过。
 
-当前工作树中的 `minimaxh3.txt` 是 T26 诊断候选，T26C/T26D 仍未完成，不能把它写成已部署。T21/M6 之前的正式安装与回读证据只证明当时部署的输入；候选正文如需成为运行配置，必须重新满足上述 install、安装后 GET、同库重启后 GET 及 M6 消费门槛。
+当前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 尚待安装及重启回读，不能把批准写成已部署。T21/M6 之前的正式安装与回读证据只证明当时部署的输入；本次批准正文成为运行配置，必须满足上述 install、安装后 GET、同库重启后 GET 及 M6 消费门槛。
 
 ## 显式恢复与失败处理
 
