@@ -453,28 +453,34 @@
   - 追溯行：C012 范围与阶段回归及交付一致性。
   - 2026-09-11完成CPU线：全新数据库 `ai_drama_studio_c012_t49_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t49-data-20260911` 上，修正 DSN 后 `python -m alembic upgrade head`、`current`、`check` 均 exit 0，head=`c012_asset_name_unique`，原始证据分别为 `.work/c012/T49-corrected-alembic-upgrade.stdout.log`/`.stderr.log`/`.exit-code.txt`、`.work/c012/T49-corrected-alembic-current.stdout.log`/`.stderr.log`/`.exit-code.txt`、`.work/c012/T49-corrected-alembic-check.stdout.log`/`.stderr.log`/`.exit-code.txt`；`python -m pytest -q` 为 `414 passed in 206.68s (0:03:26)`、exit 0、stderr为空，原始证据 `.work/c012/T49-backend-pytest.stdout.log`、`.stderr.log`、`.exit-code.txt`。首次 wrapper 的 DSN 拼接错误命中 `ai_drama_studio_c005_acceptance_20260826`，已用精确 downgrade 回到 `6b8e3f0a1d24` 并只读核对无本次唯一约束；该失败/回滚及日志路径修正均保留于 `.work/c012/T49-accidental-config-db-*`、`.work/c012/T49-backend-pytest-logging-correction.log`，不计入 T49 通过。前端自 T33 受测 commit `8886e9f` 至当前 HEAD 无 diff，复用 T33 `35 files/175 tests` 和 `68 modules` 原始日志，复用审计 `.work/c012/T49-frontend-reuse.stdout.log`/`.stderr.log`/`.exit-code.txt` 为 exit 0；`git diff --check` exit 0，`.work/c012/T49-git-diff-check.stdout.log`/`.stderr.log`/`.exit-code.txt`。因 T47/AC-26 仍阻塞，本项仅关闭 CPU 阶段并恢复 T33，不宣称发布通过、不进入 T50/T32–T36。
 
-- [ ] T50 交付修复完成报告与发布一致性核对
+- [x] T50 交付修复完成报告与发布一致性核对
   - 依赖：T47、T49，B1–B7及原26条AC必需门槛均关闭。交付：`.work/c012/completion.md` 六段报告，分别列状态/commit、spec追溯、取舍边界、实际/复用测试、操作→观测（含异常）、NOTES/DECISIONS候选及未验证；审查问题逐项给修复commit与证据。恢复T32；报告给Astra，未经复审不自行archive/push/删证据。
   - R：无；PRD §0、§11 M6、§12；AC-01/25。
   - 验收：人工逐条核对报告、spec/TRACE、checkbox、提交内容和真实exit；R `git diff --check`、`git status --short --untracked-files=no`、`git log --oneline -n 20`。若T47待决定，提前给未完成报告并列已完成CPU项，不勾T50或收尾。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [ ] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
+  - 2026-09-13完成：`.work/c012/completion.md` 已按六段写入当前状态、commit/文件、spec/TRACE追溯、取舍与偏离、实际命令/失败证据、人工操作→观测、NOTES/DECISIONS/AGENTS；当前6570-byte部署和T26C/D消费的exact限制、task #3 raw response缺失及所有失败证据均未隐瞒。T50收口核对的 `git diff --check` exit 0、无新增生产代码/测试，全量CPU结果复用T49 `414 passed`；T22/T23/T26/T30/T31/T32/T47/T48/T49状态与当前报告一致。
+
+- [x] `NOTES.md` 已更新（无可更新内容则在完成报告中写「无」）
   - 标识：T34；依赖：T50。本轮修复后重新核对，仅记录实际环境/依赖/失败根因和已验证结果，不复制旧库状态为当前事实。
   - R：无；PRD §10、§11 M6、§12；AC-25。
   - 验收：人工将新增事实逐项对到原始命令/日志；R `git diff --check`。文档改动不重跑G。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [ ] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
+  - 2026-09-13完成：完成报告第6段列出3项已验证候选，未修改 `DECISIONS.md`，候选等待Sol采纳；`git diff --check` exit 0。
+
+- [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - 标识：T35；依赖：T34。只提炼已经验证且适用于后续change的候选；R2产品规则已在PRD，不另造相互覆盖的版本合同。
   - R：无；PRD §11 M6；AC-25。
   - 验收：人工核对报告“候选/无”与DECISIONS无重复或冲突；R `git diff --check`。未采纳候选不冒称既有决定。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-- [ ] change 文档与 commit 状态一致
+  - 2026-09-13完成：已按当前6570-byte模板、T26C/D、T47证据回填 tasks/spec/TRACE/README/NOTES 并提交；`completion.md`记录收口边界，保留 AGENTS/PRD 用户改动、`.work`失败证据与示范库媒体，不archive/push/删证据。
+
+- [x] change 文档与 commit 状态一致
   - 标识：T36；依赖：T35。仅在本表前置全部完成、26条AC都有真假证据、外部依赖门槛解除后收口；保留失败记录/限制，不顺手archive/push或纳入AGENTS用户改动。
   - R：无；PRD §0、§11 M6；AC-01/25。
   - 验收：R `git status --short`、`git diff --check`、`git show --stat HEAD`、`git ls-tree -r --name-only HEAD openspec/changes/c012`；逐项核对PRD/spec/tasks/trace与受测commit，确保非文档输入变化都有相关新证据，完成报告明确提交状态。
