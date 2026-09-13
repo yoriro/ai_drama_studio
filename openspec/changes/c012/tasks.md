@@ -469,7 +469,7 @@
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-  - 2026-09-13完成：完成报告第6段列出3项已验证候选，未修改 `DECISIONS.md`，候选等待Sol采纳；`git diff --check` exit 0。
+  - 2026-09-13完成：`NOTES.md` 追加5行实际核验事实，分别记录当前6570-byte模板及哈希、正式install/verify/重启回读、task #17/#18与take #7/#8、prompt精确性差异、目标库/DATA_DIR/资产与队列状态及质量限制；每行均可回到对应 `.work/c012/` 原始日志，`git diff --check` exit 0。
 
 - [x] `DECISIONS.md` 候选项已在完成报告中列出（无则写「无」）
   - 标识：T35；依赖：T34。只提炼已经验证且适用于后续change的候选；R2产品规则已在PRD，不另造相互覆盖的版本合同。
@@ -478,7 +478,7 @@
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
 
-  - 2026-09-13完成：已按当前6570-byte模板、T26C/D、T47证据回填 tasks/spec/TRACE/README/NOTES 并提交；`completion.md`记录收口边界，保留 AGENTS/PRD 用户改动、`.work`失败证据与示范库媒体，不archive/push/删证据。
+  - 2026-09-13完成：`completion.md` 第6段列出3项仅供Sol裁决的候选，未修改 `DECISIONS.md`，未把候选写成既有决定；候选分别涉及模板部署闭环、prompt精确性与编辑标记边界、一次性完整请求/响应诊断。
 
 - [x] change 文档与 commit 状态一致
   - 标识：T36；依赖：T35。仅在本表前置全部完成、26条AC都有真假证据、外部依赖门槛解除后收口；保留失败记录/限制，不顺手archive/push或纳入AGENTS用户改动。
@@ -486,3 +486,4 @@
   - 验收：R `git status --short`、`git diff --check`、`git show --stat HEAD`、`git ls-tree -r --name-only HEAD openspec/changes/c012`；逐项核对PRD/spec/tasks/trace与受测commit，确保非文档输入变化都有相关新证据，完成报告明确提交状态。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
+  - 2026-09-13完成：复核 `AGENTS.md`、PRD、spec、tasks、TRACEABILITY、当前受测commit与工作树边界；`tasks.md` 无未勾选项，`git status --short --untracked-files=no` 仅保留用户既有 `AGENTS.md` 与 `docs/PRD-v1.2.md`，`git diff --check` exit 0，未archive/push或清理 `.work/c012/` 证据。

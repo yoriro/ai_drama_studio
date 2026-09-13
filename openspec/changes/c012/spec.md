@@ -56,7 +56,7 @@
 
 **2026-09-11 历史审查更新（覆盖下表规划时的“尚未执行”状态）**：审查基线 `c0830c3..21c04f3`；T21 已有旧批准四模板安装及重启回读证据，PostgreSQL 与隔离完整回归本轮实际通过；只读 health 显示 vLLM/Comfy healthy、binding valid，但不替代后续 GPU 动作前的占用核验。当时提交 minimaxh3 与正式设置 GET 不相等，正式部署 CLI `verify` exit 1；当时 PRD §12.2 的交付模板门槛阻塞。原始证据 `.work/c012/review-20260911.md`、`probe-results-20260911_153817/template-verify.stderr.log`；原数据库、媒体、GPU任务与失败证据保留。该历史状态不覆盖当前6570-byte批。
 
-**2026-09-13 当前6570-byte批状态（事实回填，不新增AC）**：按 Astra 授权的 format-example 候选，`backend/deployment/templates/minimaxh3.txt` 为 6570 UTF-8 bytes/60 lines、SHA-256 `13e271e8b59a1a507f0286c43ae9399bbb3ae9d78aa42a221787e0614055c8d8`。Clip1/Clip2各一次模型诊断均exit 0并经逐项结构、时间、英文、对白、引用、核心动作核对；正式设置 API install、安装后 verify、同库安全重启后 verify 与 API/asyncpg回读均exit 0，四key逐字等于部署输入且无`[占位]`。真实页面消费 task `#17/#18` 均done并生成非current take `#7/#8`，旧current保留；当前prompt/媒体/DB/播放证据见T26D与TRACEABILITY。Clip2请求与诊断请求逐字相等；Clip1仅差既存T31尾注 `（T31生成中编辑）` 十字，exact=false，另有非核心描述/局部环境限制，均已显式记录。该状态不解除T22未完成门槛、不改写既有失败证据。
+**2026-09-13 当前6570-byte批状态（事实回填，不新增AC）**：按 Astra 授权的 format-example 候选，`backend/deployment/templates/minimaxh3.txt` 为 6570 UTF-8 bytes/60 lines、SHA-256 `13e271e8b59a1a507f0286c43ae9399bbb3ae9d78aa42a221787e0614055c8d8`。Clip1/Clip2各一次模型诊断均exit 0并经逐项结构、时间、英文、对白、引用、核心动作核对；正式设置 API install、安装后 verify、同库安全重启后 verify 与 API/asyncpg回读均exit 0，四key逐字等于部署输入且无`[占位]`。真实页面消费 task `#17/#18` 均done并生成非current take `#7/#8`，旧current保留；当前prompt/媒体/DB/播放证据见T26D与TRACEABILITY。Clip2请求与诊断请求逐字相等；Clip1仅差既存T31尾注 `（T31生成中编辑）` 十字，exact=false，另有非核心描述/局部环境限制，均已显式记录。T22已按背景配角可省略的新门槛完成；task #3原响应缺失仍保留，不宣称真模型新增人物已验证，也不改写既有失败证据。
 
 | 依赖与来源 | 开工/验收门槛 | 当前证据 | 缺失项与状态 |
 |---|---|---|---|
