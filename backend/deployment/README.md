@@ -14,7 +14,9 @@
 
 本轮 A 阶段 renderer selfcheck 与模板人工审计均 exit 0；较早 B 阶段 Clip1 修订模板诊断的时间观察为 `[3.6,6.1]`、旧装置期望为 `[3.2,5.867]`，该精确比较现已由用户撤销，不写成模型数学能力已修复；该批描述混入中文服装词。输入 Shot2 本身提到门口的芳嘉蔓，输出 Subject1 门口目标有输入依据，但 retention 中该主体的画面可见性依据不确定，不能定性为身份引用错误。完整较早证据为 `.work/c012/T26C-clip1-20260913_145948`。
 
-当前 B 阶段唯一一次 Clip1 修订模板诊断命令 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 1` wrapper exit 0，证据为 `.work/c012/T26C-clip1-20260913_152658`；结构/时间轴/非对白英文检查均为 true，观察起点 `[3.0,5.5]` 满足当前时间合同，两条对白逐字存在。但逐镜人工核对发现 Shot2 漏掉输入事实“坐在书桌前”，因此是模型漏提导致的语义失败。未见错误 ID 复用；诊断不进入平台 Task、Comfy 或合并路径，不能归因后端丢弃。后检 tasks=15/active=0、Comfy=0/0、vLLM sleeping=true；完整记录见同目录 `review.md` 与 `post-diagnostic-observation.json`。按失败即停，不进入 Clip2、当前候选正文 install/verify/重启或正式视频；原始请求、响应、模板全文及所有旧失败证据保留，T26C/D/T47仍未完成。
+当前 B 阶段唯一一次 Clip1 修订模板诊断命令 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 1` wrapper exit 0，证据为 `.work/c012/T26C-clip1-20260913_152658`；结构/时间轴/非对白英文检查均为 true，观察起点 `[3.0,5.5]` 满足当前时间合同，两条对白逐字存在。原人工复核记录 Shot2 未重复“坐在书桌前”；Astra依据用户最新连续场景裁决确认该非核心姿态可由前镜/整体场景承接，不作为本批阻塞，原始响应未被改写，后续视频仍须实际观察姿态/空间衔接。未见错误 ID 复用；诊断不进入平台 Task、Comfy 或合并路径，不能归因后端丢弃。后检 tasks=15/active=0、Comfy=0/0、vLLM sleeping=true；完整记录见同目录 `review.md` 与 `post-diagnostic-observation.json`。按裁决继续一次 Clip2 诊断；两批通过前不进入当前候选正文 install/verify/重启或正式视频。
+
+当前 B 阶段唯一一次 Clip2 修订模板诊断命令 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 2` wrapper exit 1，证据为 `.work/c012/T26C-clip2-20260913_154409`；结构检查的 headings/shot labels/time labels/time_axis 为 true，但 `english_non_dialogue=false`，场景定义混入“两侧设有观众席”。时间起点 `[3.0,5.5,8.0]` 合法；人工核对还发现 Shot1 详细段落漏掉球员出场方向注视及明确指向动作，summary不能替代该镜核心动作。两条对白逐字存在，未见错误 ID 复用；诊断不进入平台 Task、Comfy 或合并路径，不能归因后端丢弃。后检 tasks=15/active=0、Comfy=0/0、vLLM sleeping=true；完整记录见同目录 `review.md` 与 `post-diagnostic-observation.json`。按失败即停，不进入当前候选正文 install/verify/重启、T26D或正式视频。
 
 来源与逐字复核（2026-09-10，历史）：
 
