@@ -296,12 +296,13 @@
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 真实生成中的修订竞态。
 
-- [ ] T32 汇总发布操作说明与各层证据边界
+- [x] T32 汇总发布操作说明与各层证据边界
   - 依赖：T31。交付：完善`backend/deployment/README.md`：安装/启动/四模板verify/显式恢复操作、示范媒体链接、环境与依赖实测结果、失败处理；完成报告按六段记录文件commit、spec追溯、取舍、自动验证、操作→观测、沉淀。明确未验证原生200%/动态reduced-motion与真模型随机性，不把受控证据升级为真实GPU。
   - R：无；PRD §10、§11 M6、§12；AC-01/25。
   - 验收：人工对照spec 26条AC及trace全部具体节点/原始日志；`git diff --check`；核验最终报告至少一条异常分支、示范库未清空、正式模板未被矩阵fixture覆盖；确认仅保留本轮需要资源，未知用户资源不动。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
+  - 2026-09-13完成：更新 `backend/deployment/README.md`，修正当前 2026-09-13 批准正文、正式设置 API install/verify/重启回读、显式 DB/DATA_DIR、恢复失败规则、示范媒体入口、R/B/真实 GPU 证据边界与未验证限制；历史 T26 诊断状态均明确标注为历史。只读人工审计 `.work/c012/T32-manual-audit-20260913-corrected.stdout.log` exit 0：正式模板与批准输入逐字相等（10756 bytes，SHA-256 `2118b57d3472bd6a25247cb0ddad658e01e77a3539faf4963de08d33e569e3fd`）、模板无 tracked diff；示范库 project #2/episode #2 存在，4 项资产、28 条分镜、3 个 Clip、5 个视频、15 个 Task，active Task=0；API health/binding healthy/valid。审计首轮因错误假定 `assets.episode_id` 失败的原始输出 `.work/c012/T32-manual-audit-20260913.stdout.log` 与 exit=1 保留，修正后未修改生产数据；当前 Comfy/vLLM 只做 GET，未知资源未停止。未新增测试，未运行会触碰 vLLM sleep/wake 的 `preflight --real`，不以该未运行项冒充真实 GPU 验收；`git diff --check` 另存于 T32 文档验收证据。
 
 - [x] T33 G2 最终完整回归与最终输入归属
   - 依赖：T32。交付：最终实现、测试、依赖、装置与配置的完整回归证据；若与G1相应输入完全相同，按AGENTS逐套引用实际原始结果，后加测试/部署驱动对应套件必须更新。真实M6专项失败不能用G2覆盖。
