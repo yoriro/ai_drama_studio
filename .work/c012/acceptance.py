@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import functools
 import hashlib
 import io
 import json
@@ -2036,6 +2037,7 @@ SLOW_PAGE_BROWSER_TASK_COUNT = (
     + 1
     + SLOW_PAGE_BROWSER_POST_TASK_COUNT
 )
+T41_BROWSER_MANUAL_TIMEOUT_SECONDS = 900.0
 
 
 async def slow_page_http_json(
@@ -2656,6 +2658,8 @@ async def command_ws_slow_page_browser(
     shutdown_result: dict[str, object] | None = None
     cleanup_result: str | None = None
     task_logger: logging.Logger | None = None
+    gen_assets_module: Any | None = None
+    original_vllm_client: Any | None = None
     log_handler = CapturedLogHandler()
     release_path_value = os.environ.get("C012_T41_RELEASE_FILE")
     release_path = Path(
@@ -2666,6 +2670,16 @@ async def command_ws_slow_page_browser(
     if release_path.exists():
         raise AcceptanceFailure(
             f"T41 browser release marker already exists: {release_path}"
+        )
+    confirmation_path_value = os.environ.get("C012_T41_CONFIRM_FILE")
+    confirmation_path = Path(
+        confirmation_path_value
+        if confirmation_path_value
+        else EVIDENCE_DIR / "t41-browser-final-confirmation"
+    ).resolve()
+    if confirmation_path.exists():
+        raise AcceptanceFailure(
+            f"T41 browser final confirmation marker already exists: {confirmation_path}"
         )
     raw_port = os.environ.get("C012_T41_BACKEND_PORT")
     if raw_port is None:
@@ -2711,6 +2725,13 @@ async def command_ws_slow_page_browser(
                 import uvicorn
 
                 from app.main import app as production_app
+                import app.tasks.gen_assets as gen_assets_module
+
+                original_vllm_client = gen_assets_module.VLLMClient
+                gen_assets_module.VLLMClient = functools.partial(
+                    original_vllm_client,
+                    timeout=T41_BROWSER_MANUAL_TIMEOUT_SECONDS,
+                )
 
                 gate = RecordingSlowASGISendGate(production_app)
                 server_port = requested_port
@@ -2877,16 +2898,21 @@ async def command_ws_slow_page_browser(
                                 "task_id": target_task_id,
                                 "target_episode_id": target_episode_id,
                                 "release_file": str(release_path),
+                                "confirmation_file": str(confirmation_path),
                                 "instruction": (
                                     "Open the running task detail, then create the release marker; "
-                                    "the marker releases only the external model stub."
+                                    "the marker releases only the external model stub. After the "
+                                    "reconnected page visibly renders the terminal target row and "
+                                    "expanded detail, create the confirmation marker."
                                 ),
                             },
                             ensure_ascii=False,
                         ),
                         flush=True,
                     )
-                    release_deadline = time.monotonic() + 180
+                    release_deadline = (
+                        time.monotonic() + T41_BROWSER_MANUAL_TIMEOUT_SECONDS
+                    )
                     while not release_path.is_file():
                         if server_task.done():
                             raise AcceptanceFailure(
@@ -3044,6 +3070,75 @@ async def command_ws_slow_page_browser(
                         raise AcceptanceFailure(
                             f"T41 final target detail read was not HTTP 200: {target_detail!r}"
                         )
+                    terminal_tasks = final_state.get("tasks")
+                    terminal_target = next(
+                        (
+                            task
+                            for task in terminal_tasks
+                            if isinstance(task, Mapping)
+                            and task.get("id") == target_task_id
+                        ),
+                        None,
+                    ) if isinstance(terminal_tasks, list) else None
+                    if not isinstance(terminal_target, Mapping):
+                        raise AcceptanceFailure(
+                            f"T41 final target task was not in terminal DB state: {final_state!r}"
+                        )
+                    print(
+                        json.dumps(
+                            {
+                                "status": "browser-final-confirmation-required",
+                                "browser_address": frontend_address,
+                                "task_id": target_task_id,
+                                "confirmation_file": str(confirmation_path),
+                                "expected_terminal_detail": {
+                                    key: terminal_target.get(key)
+                                    for key in (
+                                        "status",
+                                        "progress",
+                                        "error_msg",
+                                        "finished_at",
+                                    )
+                                },
+                                "instruction": (
+                                    "Do not submit a mutation. Confirm the target row and its "
+                                    "expanded terminal detail are visibly rendered, then create "
+                                    "the confirmation file."
+                                ),
+                            },
+                            ensure_ascii=False,
+                        ),
+                        flush=True,
+                    )
+                    confirmation_deadline = (
+                        time.monotonic() + T41_BROWSER_MANUAL_TIMEOUT_SECONDS
+                    )
+                    while not confirmation_path.is_file():
+                        if server_task.done():
+                            raise AcceptanceFailure(
+                                "T41 production server exited before browser final confirmation"
+                            )
+                        if time.monotonic() >= confirmation_deadline:
+                            raise AcceptanceFailure(
+                                "T41 browser final confirmation marker was not observed: "
+                                f"{confirmation_path}"
+                            )
+                        await asyncio.sleep(0.1)
+                    evidence.add(
+                        "browser_final_confirmation",
+                        confirmation_file=str(confirmation_path),
+                        marker_size=confirmation_path.stat().st_size,
+                        target_task= {
+                            key: terminal_target.get(key)
+                            for key in (
+                                "id",
+                                "status",
+                                "progress",
+                                "error_msg",
+                                "finished_at",
+                            )
+                        },
+                    )
                     evidence.add(
                         "browser_ready_and_reconnect",
                         browser_address=frontend_address,
@@ -3086,6 +3181,8 @@ async def command_ws_slow_page_browser(
                 )
             if task_logger is not None:
                 task_logger.removeHandler(log_handler)
+            if gen_assets_module is not None and original_vllm_client is not None:
+                gen_assets_module.VLLMClient = original_vllm_client
             if request_log:
                 evidence.add(
                     "production_request_log",

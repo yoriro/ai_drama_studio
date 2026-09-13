@@ -403,3 +403,9 @@ Luna 新增独立测试 `test_c012_lock_edit_pairs.py::test_c012_lock_edit_pairs
 2026-09-13 B阶段结果：Clip1 与 Clip2 的单次模型诊断均按现行合同完成。Clip1 中对白相对动作句的编排位置不作为独立门槛；本次只确认对白逐字归属、核心动作/方向/结果、引用、英文、时间轴与空对白规则。两批通过后才可进入正式设置 API 部署、安装后/重启后回读及正式视频消费。
 
 2026-09-13 C/D 当前证据：C阶段已在同一目标 DB/DATA_DIR 上完成当前批准正文的正式 API install、安装后 verify、同库安全重启后 verify 与 API/asyncpg 逐字回读；四 key 齐全、正文等于部署输入、无占位，`verify-inputs` 的原始 CRLF 失败与按 HEAD blob bytes 恢复记录均保留。D阶段按 Clip2→Clip1 顺序仅提交了 Clip2 一次，task `#16` 完成并生成新 take `#6`，但详细提示与媒体未满足 AC-26；因失败即停未提交 Clip1。输入 snapshot/built prompt 已保存，raw vLLM response 未持久化，因此“模型漏提”可由输入/输出与画面证据支持，“错误 ID 复用”未发现，“后端丢弃”无法由当前持久化边界证明；T26D/T47及其后继保持未完成。
+
+### T41 B5 最终浏览器验收证据（2026-09-13）
+
+在 T40 已交付装置基础上，最终一次人工浏览器批次使用正式 `TasksPage`、生产 `app.main:app`/lifespan/`TaskQueue`/`gen_assets_handler`/`EventBus`/WS/DB 和真实网络入口；仅外部模型依赖使用本地 stub。独立库为 `ai_drama_studio_c012_t41g_20260913_181000`，DATA_DIR 为 `D:\ai_drama_studio\.work\c012\t41g-data-20260913_181000`，后端端口 `65222`，前端端口 `5175`。页面在 `limit=100` 下先展开 running Task #41；释放单一 marker 后，真实客户端收到 WS `1013`，在途发送取消并自动重连，随后页面列表和展开详情显示服务端终态 `done/progress=1/error=—/finished_at=17:47:21`，与独立 DB/HTTP 200 详情回读一致；浏览器无生成/取消 POST 重放。确认 marker 只在终态 DOM 实际观察后创建，结构化验收为 `status=passed`，owned 端口、进程、连接和临时目录清理。完整记录见 `.work/c012/T41-browser-final-acceptance-3-20260913.json` 与 `.work/c012/T41-browser-final-manual-20260913.md`。
+
+该批为受控人工准备窗口：验收装置只在 `slow-page-browser` 分支把外部 `VLLMClient` timeout 和两个人工 deadline 设为 900 秒，生产默认 vLLM 120 秒、WS 10 秒及队列/handler/提交逻辑未改；因此只证明 ASGI 应用背压触发真实浏览器关闭与重建，不宣称 TCP 拥塞或真实 vLLM 120 秒超时行为。页面初次健康轮询曾显示 `protocol_error`，同批次直接 health 请求为 HTTP 200 JSON；该差异作为人工走查限制保留，不改写为 UI 健康通过。

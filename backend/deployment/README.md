@@ -138,3 +138,9 @@ T31 的真实页面操作、task #15 旧 payload、Shot #2 `changed`、Clip #1 `
 真实 M6 证据使用正式 UI/API/WS、真实 PostgreSQL、vLLM、ComfyUI、workflow、GPU 和 `DATA_DIR`；T27–T30 的 B/R 矩阵使用隔离数据库、隔离文件目录与受控 vLLM/Comfy stub，只能证明生产业务/任务/资源通路，不能证明真实模型质量或 GPU 结果。T26 指定 prompt 的直接 Comfy 证据不登记为平台 Task、ClipVideo、current 或模板部署。
 
 截至本说明，T47 的四模板安装、安装后及同库重启回读已完成，但仅针对三处修订前正文；上一版修订候选的 Clip1/Clip2失败证据保留，本轮12,043-byte候选 Clip1 单次诊断因模型漏提 Shot1 对白失败，Clip2、重新部署回读未执行。T26C/T26D 与 AC-26 的正式平台消费/两段正式新 take 门槛仍未完成。T49 已在新隔离库完成最终 CPU 回归；原生桌面 200%、动态 `reduced-motion`、真模型随机性/跨输入稳定性未验证；trash 的受控计时分支也不等于真实等待 24 小时。所有这些限制必须在发布报告中保留，不能用受控证据升级为真实 GPU 或发布结论。
+
+## T41 最终 B5 浏览器批次（2026-09-13）
+
+最终一次人工批次复用正式 `TasksPage` 与生产 `app.main:app`/lifespan/`TaskQueue`/`gen_assets_handler`/`EventBus`/WS/DB，独立库为 `ai_drama_studio_c012_t41g_20260913_181000`，DATA_DIR 为 `D:\ai_drama_studio\.work\c012\t41g-data-20260913_181000`，隔离后端 `65222`、Vite `5175`，仅外部模型 stub 为 `54833`。页面将任务数量设为100并展开 Task #41 的 running 详情；单一 release marker 后真实 WS 关闭 `1013`、在途发送取消，重连后目标行/详情观察为 `done/100%/error=—/finished_at=17:47:21`，结构化验收 `status=passed`，独立 DB/HTTP 200 详情与页面终态字段一致，浏览器 mutation POST 为0。`limit=100` 读取151次、详情读取5次、生成 POST 127 为装置建立受控任务的生产入口记录，不是浏览器重放；确认 marker 在终态 DOM 观察后才创建。证据为 `.work/c012/T41-browser-final-acceptance-3-20260913.json`、`.work/c012/T41-browser-final-manual-20260913.md` 及 `.work/c012/T41-browser-final-3-20260913.stdout.log`。
+
+该批只在 acceptance.py 的 `slow-page-browser` 分支为人工准备窗口设置外部 `VLLMClient` timeout/deadline 900 秒；生产 vLLM 默认120秒、WS 10秒、队列/handler/提交路径未改，不证明 TCP 拥塞或真实模型120秒超时。页面首轮健康轮询留下 `protocol_error`，隔离后端直接 health 为 HTTP 200 JSON；该观测保留为 UI 限制。验收结束后隔离后端、stub、端口和临时 DATA_DIR 均清理，生产端口未触碰。

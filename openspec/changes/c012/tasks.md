@@ -365,6 +365,7 @@
   - 验收：R `npm.cmd --prefix frontend run test -- src/features/tasks/taskSlowConsumerReconnect.test.tsx`；人工在输出的真实地址完成上述路径，观测断线提示、socket-first及列表/详情GET、进度/error/finished_at与DB一致、POST不增加；R `python -X utf8 .work/c012/probe-review-reconnect.py`。如需修改前端生产逻辑，先报告新定位，不扩改既有组件测试。
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 慢连接后的页面权威重建。
+  - 2026-09-13最终浏览器批次：仅扩展 `.work/c012/acceptance.py` 的 `slow-page-browser` 受控人工窗口，将该分支外部 `VLLMClient` 显式 timeout 与 release/confirmation deadline 设为 900 秒，生产默认120秒、WS 10秒、队列/handler/提交路径不变；`python -m py_compile .work/c012/acceptance.py` exit 0。独立库 `ai_drama_studio_c012_t41g_20260913_181000`、DATA_DIR `D:\ai_drama_studio\.work\c012\t41g-data-20260913_181000`、后端 `65222`、前端 `5175`、外部 stub `54833`；正式 TasksPage 先将任务数量设为100并展开 running 的 Task #41，再只释放一次 marker。随后真实 WS 关闭 `1013`、在途 send 被取消，页面重连后目标行及展开详情观察为 `done/100%/error=—/finished_at=17:47:21`；确认 marker 在该 DOM 观察后创建，验收 JSON `status=passed`，`limit=100` 列表读取151次、详情读取5次、浏览器 mutation POST 为0（生成 POST 127 为受控任务建立记录）、目标终态与独立 DB 精确一致，owned 端口/后端/stub/临时目录清理。完整人工记录 `.work/c012/T41-browser-final-manual-20260913.md`，结构化证据 `.work/c012/T41-browser-final-acceptance-3-20260913.json`；初次健康轮询保留 `protocol_error`，直连隔离后端 health 为 HTTP 200 JSON，不将该 UI 观测改写为健康通过。
 
 - [x] T42 补齐 L4/L5 实际操作对与双向锁等待（B6）
   - 2026-09-11窄修复裁决：L5 replace→delete已取得业务红测（串行404、并发500）；仅增加 `services/clips.py::delete_clip` 锁后目标存在性复核，严格按spec末尾T42裁决，不改锁顺序/空关系损坏校验/测试。红测不是T42通过。补跑 B `python -m pytest -q tests/api/test_c008_clip_delete.py`，与本项两文件矩阵全部通过后提交并进入T43；无需Astra代写实现。
