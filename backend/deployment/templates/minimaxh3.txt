@@ -19,7 +19,7 @@ Speaker codes such as (S1) belong only to speech attribution beside the full Sub
 DETAILED SHOTS: ONE INPUT ITEM = ONE OUTPUT PARAGRAPH
 Use local labels [Shot 1] through [Shot N], not the input order numbers. Keep exactly N paragraphs, in array order. Each includes its own shot size, camera, scene, actions and dialogue.
 Shot 1 starts with "[Shot 1]" and no timestamp.
-Every later shot starts with "[Shot i] At MM:SS.mmm,". Its time in seconds is requested_duration * sum(previous duration_est) / sum(all duration_est). Convert seconds correctly: 3 seconds is 00:03.000; 5.5 seconds is 00:05.500. Minutes stay 00 for times below 60 seconds. The final shot lasts to requested_duration.
+Every later shot starts with "[Shot i] At MM:SS.mmm,". Treat duration_est values as relative weights: first compute the full-precision cumulative start as requested_duration * sum(previous duration_est) / sum(all duration_est), then round only that final cumulative start to the nearest millisecond and format it as MM:SS.mmm. Do not use the raw cumulative duration directly unless sum(all duration_est) equals requested_duration. Calculate every start from the complete input array before writing any shot header; the final shot lasts to requested_duration.
 
 After the label/time write the shot size, camera and location before the action:
 Shot size: 远景=extreme wide shot, 全景=wide shot, 中景=medium shot, 近景=medium close-up, 特写=close-up.
@@ -31,12 +31,12 @@ Do not invent bridge movements to connect shots: a gesture specified in one shot
 
 COPY DIALOGUE INTO ITS OWN SHOT
 This is required content, not an optional sound suggestion. A paragraph for an input item with nonempty dialogue is INCOMPLETE until it contains that exact spoken text. English-only descriptive prose never authorizes deleting or translating Chinese dialogue.
-Process input item i completely before item i+1. Read ONLY item i's dialogue:
-- Empty string: write no speech sentence and no dialogue tags or silence placeholder. End with the action.
-- Nonempty string: remove the speaker-name prefix only, then copy every remaining character and punctuation exactly into [Shot i]. Identify its speaker using this syntax:
+For each input item i, create its complete [Shot i] paragraph before starting item i+1. First place every utterance from item i into that same paragraph in its original order with its exact speaker, then fill in the shot size, camera, location and action details; never use a summary such as "speaks" or "urges her" instead of the copied dialogue.
+- Empty string: write no speech sentence, no dialogue tags and no silence placeholder. End with the action.
+- Nonempty string: remove only the recognized speaker-name prefix, then copy every remaining character and punctuation exactly into [Shot i]. Identify each recognized speaker using this syntax:
 <Subject k> (Sk) says, <d>[Chinese]原对白</d>
-Both k values are the same reference position; retain S. Use literal [Chinese] for Chinese dialogue. Other languages use their English language name. Briefly describe the voice on its first spoken line. Never move a line to another shot, omit it, translate it, or add subtitles.
-Formatting example only: if the current item's dialogue is "甲:请等一下。" and 甲 maps to reference 2, that SAME paragraph ends with <Subject 2> (S2) says, <d>[Chinese]请等一下。</d>. If the next item's dialogue is empty, the next paragraph has no speech tags. Do not copy this example's words or identity into the actual result.
+All k values for one recognized speaker are the same reference position; retain S. Use literal [Chinese] for Chinese dialogue. Other languages use their English language name. Briefly describe the voice on its first spoken line. Never move a line to another shot, omit it, translate it, or add subtitles. Do not alter the existing multi-speaker or unmapped-source semantics.
+For each input item, compare its paragraph against that item's dialogue character by character, including the number and order of utterances; do not validate dialogue only by counting tags globally. If the current item is empty, its paragraph has no speech tags. Do not copy example words or identities into the actual result.
 
 OTHER SECTIONS
 summary: start with [reference generation], then briefly summarize using Subject tags and only actions present in the detailed shots.
@@ -48,25 +48,28 @@ non_diegetic_music: N/A unless requested.
 No output resolution, frame rate, Target duration or duration range. user_note may refine composition/actions but cannot change shot count/order, dialogue, identity or requested_duration.
 
 COMPLETE FORMAT EXAMPLE — unrelated miniature, do not reuse its characters, actions, timings or style.
-Example input: references are character 李舟 wearing a red coat and scene 工作室 with a wooden desk; two static medium shots of equal duration; total duration 4 seconds; style watercolor animation. First shot: 李舟 stands by the desk, dialogue "李舟:开始吧。" Second shot: 李舟 looks toward the window, dialogue is empty.
+Example input: references are character 洛岚 in a red coat, character 戚野 in a dark scarf, and scene 海边灯塔 with a brass lamp and a sea-facing window; three shots with duration_est values 1.5, 0.5 and 3.0, whose total weight is 5.0 rather than requested_duration 7 seconds; style watercolor animation. Shot 1: 洛岚 holds a folded map beside the lamp and watches the dark sea, dialogue "洛岚:海风会带走信号，但我会等到天亮。" Shot 2: 戚野 crosses from the stairwell and shields the lamp flame with one hand, dialogue "戚野:那就把灯点亮。" Shot 3: the lamp beam sweeps across the waves while both figures remain by the window, dialogue is empty.
 Example prompt string:
 subject_definitions:
-<Subject 1> is 李舟 from <Picture 1>. A person wearing a red coat.
-<Subject 2> is 工作室 from <Picture 2>. A studio with a wooden desk and a window.
+<Subject 1> is 洛岚 from <Picture 1>. A traveler wearing a red coat.
+<Subject 2> is 戚野 from <Picture 2>. A watchful traveler wearing a dark scarf.
+<Subject 3> is 海边灯塔 from <Picture 3>. A lighthouse room with a brass lamp and a sea-facing window.
 summary:
-[reference generation] <Subject 1> stands beside a desk in <Subject 2>, speaks, and then looks toward the window.
+[reference generation] <Subject 1> watches the sea beside the lamp in <Subject 3>, <Subject 2> shields the flame, and the beam sweeps across the waves.
 retention_analysis:
-<Subject 1> (appears in [Shot 1], [Shot 2]): fully_preserved - red coat and identity from the reference.
-<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - studio layout, desk and window.
+<Subject 1> (appears in [Shot 1], [Shot 3]): fully_preserved - red coat and traveler identity.
+<Subject 2> (appears in [Shot 2], [Shot 3]): fully_preserved - dark scarf and traveler identity.
+<Subject 3> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - brass lamp, sea-facing window and lighthouse room.
 detailed_description:
 Watercolor animation following the character and environment references.
-[Shot 1] Medium shot. The camera remains static. Inside <Subject 2>, <Subject 1> stands beside the wooden desk. In a calm, clear voice, <Subject 1> (S1) says, <d>[Chinese]开始吧。</d>
-[Shot 2] At 00:02.000, medium shot. The camera remains static. Inside <Subject 2>, <Subject 1> turns to look toward the window.
+[Shot 1] Medium shot. The camera remains static. Inside <Subject 3>, <Subject 1> holds the folded map beside the brass lamp and watches the dark sea. In a steady voice, <Subject 1> (S1) says, <d>[Chinese]海风会带走信号，但我会等到天亮。</d>
+[Shot 2] At 00:02.100, close-up. The camera pushes in. Inside <Subject 3>, <Subject 2> crosses from the stairwell and shields the lamp flame with one hand. In a lower voice, <Subject 2> (S2) says, <d>[Chinese]那就把灯点亮。</d>
+[Shot 3] At 00:02.800, wide shot. The camera remains static. Inside <Subject 3>, the lamp beam sweeps across the waves while <Subject 1> and <Subject 2> remain by the window.
 overall_soundscape:
-Quiet room ambience and a faint rustle of clothing.
+Sea wind moves through the lighthouse room, the folded map rustles, and the lamp mechanism clicks as the beam turns across the waves.
 non_diegetic_music:
 N/A
-END EXAMPLE. Notice: descriptive prose is entirely English; the empty-dialogue shot ends with its action, with no "No dialogue" text. Generate the ACTUAL input below with the same formatting discipline, using its own references, complete dialogue and calculated times.
+END EXAMPLE. The example's cumulative starts are 7 × 1.5 / 5.0 = 2.100 and 7 × (1.5 + 0.5) / 5.0 = 2.800; descriptive prose is entirely English, and the empty-dialogue shot ends with its action with no speech-related placeholder. Generate the ACTUAL input below with the same formatting discipline, using its own references, complete dialogue and calculated times.
 
 ACTUAL INPUT
 shots = {{shots}}
@@ -78,9 +81,6 @@ user_note = {{user_note}}
 FINAL CHECK BEFORE OUTPUT
 FIRST count nonempty input dialogue items. The output must contain exactly that many <d>[Chinese]...original words...</d> speech spans for Chinese input, each under its corresponding [Shot i], with the original words and punctuation intact. Zero speech spans is forbidden if any input dialogue is nonempty. THEN compare actions, correct speaker/scene tags, shot size, camera and times. Check all Picture and Subject tags end with >. English applies only to surrounding prose; do not delete the original dialogue to satisfy it. Return only the JSON object with the complete six-section prompt.
 
-PARAGRAPH HEADER PATTERNS (format examples, not this storyboard):
-[Shot 1] Medium shot. The camera remains static. Inside <Subject 2>, <Subject 1> performs the FIRST input item's action. Any FIRST-item dialogue belongs here.
-[Shot 2] At 00:02.000, close-up. The camera remains static. Inside <Subject 2>, <Subject 1> performs the SECOND input item's action. Any SECOND-item dialogue belongs here.
 Use the actual number of shots, references, shot sizes and calculated times from INPUT, not the example values. Only Shot 1 omits At. Every shot from 2 through N MUST contain At followed by its own calculated MM:SS.mmm before the shot size, on the SAME line as its [Shot i] label. Exactly N-1 At timestamps are required. Preserve dialogue while adding these headers; do not trade one requirement for the other.
 In the actual output, translate EVERY descriptive sentence into English, including the entire scene definition; preserve Chinese only in each original asset name and the quoted spoken/screen words. Empty-dialogue shots end at the action, as demonstrated; they contain no speech-related placeholder.
 Check each paragraph for contradictory motion claims: a still body can coexist with a moving facial feature. Preserve both specifically; do not append a blanket "no movement in the face or body" if any described feature moves. Do not reverse an input change in summary or add an absolute stillness statement that cancels an input action. Keep the other requirements, including timestamps and original dialogue, intact.

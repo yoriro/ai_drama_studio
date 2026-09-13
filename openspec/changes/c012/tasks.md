@@ -222,12 +222,14 @@
   - 当前结果（覆盖以下历史状态）：用户授权循环第11轮球馆prompt经结构及逐镜人工核对通过，原始输出 `.work/c012/T26C-clip2-20260911_122039/prompt.txt`，review.md/checks.json留证，命令exit0。总11轮含1次超时，旧失败保留；Clip1模型诊断、设置部署/重启/视频均未执行，T26C整体仍不勾选。
   - 2026-09-13当前授权：不重新生成以重判已通过的T26；本轮仅为AC-26补取一次Clip1真实模型诊断，并在T26D按Clip2→Clip1各一次正式平台消费。失败即保留证据并停止后续；T47已完成的部署证据保留，实际消费未完成前不勾选T47。
   - 2026-09-13实际失败：唯一一次 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 1` exit 1，证据目录 `.work/c012/T26C-clip1-20260913_143707`。标题/镜头标签/时间标签存在，但期望切点 `[3.2,5.867]` 被模型输出为 `[3.0,5.5]`；详细描述漏掉输入 Shot1 完整对白。Subject/Picture 映射正确，无数值 existing_id/asset_id/image_id 复用；该诊断未进入平台提交/合并路径，未观察到后端丢弃。保留 `.work/c012/T26C-clip1-diagnostic-20260913.*`、`T26C-clip1-postdiagnostic-20260913.*` 与同目录 review.md；T26C、T26D、T47、T50及T34–T36不勾选。
+  - 2026-09-13新授权：需求方批准仅修订 `backend/deployment/templates/minimaxh3.txt` 的计时比例公式、逐镜对白先复制再补画面信息、删除重复 `PARAGRAPH HEADER PATTERNS` 并收拢为一套与M6无关的三镜六段示例；不改五变量/schema/其他模板/生产代码/测试/剧本/验收标准。按 A→B→C→D 验证，B 先 Clip1 宿舍、后 Clip2 球馆各一次真实诊断，任一失败即停止且不循环；C需两批通过后重新经正式设置 API 部署/重启回读，旧T47部署仅作历史；D再按Clip2→Clip1各一次正式视频。
+  - 2026-09-13修订批次实际失败：使用磁盘修订模板仅执行一次 Clip1 宿舍诊断，命令 exit 1，证据目录 `.work/c012/T26C-clip1-20260913_145948`，实际模板全文另存为同目录 `template.txt`。结构检查 headings/shot labels/time labels=true，但期望切点 `[3.2,5.867]`、观察值 `[3.6,6.1]`；两条输入对白均逐字存在，但描述混入中文服装词，且 Shot2 写入未绑定该镜的 `<Subject 1>` 交互/保真。无数值 existing_id/asset_id/image_id 复用；未进入平台 Task/Comfy/合并路径，不能归因后端丢弃。Clip2、修订正文部署及 T26D 均未执行，T26C/T26D/T47/T50及T34–T36保持未勾选。
   - 最新统一逐镜结构批次：`.work/c012/T26C-clip2-20260911_104820/review.md`；场景/景别/static及空对白分支改善，但时间点变为180/350/480秒，人物标签与对白归属错误，诊断exit1。未部署/生成视频，保持未完成；全部旧证据保留。
   - 2026-09-11新批结果：Clip2诊断exit0，三组Subject/Picture定义与四镜时间检查通过；人工发现详细场景标签、景别/固定运镜及对白格式缺项，见 `.work/c012/T26C-clip2-20260911_104029/review.md`。T26C保持未通过，Clip1、部署及视频未执行；旧失败证据保留。
   - 本轮结果：Clip2修正装置后一次模型输出已恢复四镜与指向，但Picture/Subject绑定及结构不满足，exit1，详见 `.work/c012/T26-template-review.md`；Clip1、API部署/重启回读未执行。
   - 依赖：T26B、真实GPU独占和空队列。每个片段仅一次诊断，保存原始结果后人工逐镜核对；两者均通过才单次正式PATCH minimaxh3并GET/安全重启/GET。
   - R：R4、R11；PRD §3.2、§6.3、§7、§12.2；AC-15/16/26。
-  - 验收：根目录 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 2`，通过后同命令 `--clip 1`；人工对照原快照逐镜动作/对白，两个prompt全部通过。正式API PATCH `/api/prompt-templates/minimaxh3`，在backend目录两次 `python -m app.deploy_templates --base-url http://127.0.0.1:8000 --input-dir deployment/templates --mode verify`（安装后/同库重启后），均exit0；其他三个模板正文未变。
+  - 验收：根目录先执行 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 1`，再执行同命令 `--clip 2`；人工对照原快照逐镜动作/对白，两个prompt全部通过。正式API PATCH `/api/prompt-templates/minimaxh3`，在backend目录两次 `python -m app.deploy_templates --base-url http://127.0.0.1:8000 --input-dir deployment/templates --mode verify`（安装后/同库重启后），均exit0；其他三个模板正文未变。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 MiniMax 模板动作与逐镜保真；C012 真实外部依赖与GPU资源归属。
 
@@ -235,6 +237,7 @@
   - 2026-09-11最新裁决：本项作为T26前置的正式页面重生成路径已由需求方批准的“宿舍既有take复核＋指定球馆prompt真实Comfy生成”替代，不再阻塞T26。保留原路径未执行记录，不把直接Comfy结果记为平台新Task或新take。
   - 最新窄授权：需求方指定122039原始球馆prompt并接受局部通用性退化，先交付临时 `.work/c012/generate_selected_prompt.py`（命令 `python -m py_compile .work/c012/generate_selected_prompt.py`），再显式 `DATA_DIR=.work/c012/t21-m6-data` 执行一次。记录真实Comfy请求/事件/输出与AC-19视觉结果；该直接通路差异见spec §6.3，不能冒充正式Task/current或据此直接勾选本项。
   - 依赖：T26C。按Clip2再Clip1各一次正式生成，分别保存Task/新take/实际prompt/快照/媒体与时间点；原current不自动切换，失败停止后续生成，不改seed重抽。
+  - 2026-09-13当前执行顺序：仅在本轮修订模板的Clip1宿舍、Clip2球馆诊断均通过且修订正文完成正式设置API部署/安装后及同库重启回读后，才从正式页面按Clip2→Clip1各提交一次；本轮总计最多两次，不使用旧T47安装回读或旧Clip2 prompt替代，任一失败停止。
   - R：R4、R11；PRD §3.2、§6.2–6.4、§7、§11 M6；AC-18/19/26。
   - 验收：人工正式UI提交→Task终态→新take详情/独立DB→完整播放；每个实际prompt与输入逐镜核对，MP4可解码且动作满足AC-19；根目录 `python -X utf8 .work/c012/acceptance.py observe --real` 记录空队列/sleeping/资源身份。一次生成失败或动作缺项保留证据，不勾选T26。不因模板改动运行完整pytest。
   - 计划测试层级：跨进程/资源生命周期。
@@ -407,6 +410,7 @@
   - 运行库只读回读实际为 `ai_drama_studio_c012_m6_20260910`、`127.0.0.1:5432`：四个 key 均非占位；运行库 `minimaxh3` 为 13248 bytes、SHA-256 `e2a1638cf13e2853a263ebe7db383d2c7ce222780bc4a937ca38845c48d63f7a`，其余三 key 与当前三份部署输入的 SHA-256 一致。T21 的同库/DATA_DIR 重启回读仍记录四 key 精确、无占位、verify 零 PATCH；完整本次数据库原始回读见 `.work/c012/T47-runtime-template-readback.stdout.log`，摘要见 `.work/c012/T47-read-only-summary.stdout.log`及stderr/exit。
   - `T26C-clip2-20260911_122039` 原始 prompt/request/response/checks 只读核对为 model=`Qwen3-30B-A3B-Instruct-2507-AWQ-4bit`、temperature=`0.2`、`template_matches_request=true`、`raw_response_unchanged=true`、结构/映射/英文检查为 true；`video_generated=false`。本次 T47 未运行 install、重启后 verify、新模型调用或新生成任务。批准正文与当前候选的差异没有得到新的明确批准，故 T47/AC-26 仍阻塞，不自动部署或覆盖运行库。
   - 2026-09-13完成：现场复用 T21/T31 所属 8000 后端（旧 PID `23876`，同目标库/DATA_DIR、15 个任务且 active=0）经正式 CLI install，输出 `installed=script2assets,script2shots,zimage,minimaxh3`、exit 0；安装后 verify 与同库安全重启后 verify 均输出四 key、exit 0。只停止旧 PID 23876 并以同一 `ai_drama_studio_c012_m6_20260910`、`D:\ai_drama_studio\.work\c012\t21-m6-data` 启动新 PID `33148`；健康首检为 vLLM/Comfy healthy、workflow binding valid，15 个任务仍 active=0。最终 API/asyncpg 回读四 key 恰好齐全，四份正文逐字等于当前部署输入且均非占位；`minimaxh3` 为 10756 bytes/86 行、SHA-256 `2118b57d3472bd6a25247cb0ddad658e01e77a3539faf4963de08d33e569e3fd`；重启后日志中的模板 PATCH 次数为 0。原始证据为 `.work/c012/T47-ownership-preflight-20260913.stdout.log`、`T47-install-20260913.*`、`T47-verify-after-install-20260913.*`、`T47-restart-*.{stdout.log,exit-code.txt}`、`T47-verify-after-restart-20260913.*`、`T47-readback-after-restart-20260913.*`；首次命令解析/第二次 advisory-lock 启动失败证据保留在本轮 T47 启动日志/工具输出中。未调用模型或提交生成任务，未停止外部 Comfy/vLLM；正式平台 Task/take/current 对新正文的实际消费证据仍缺失，按最新裁决单独报告，不将 T26 既有替代视觉证据升级为 AC-26 完整消费。
+  - 2026-09-13本轮修订约束：上述 install/verify/重启回读只针对旧10,756-byte正文；修订模板落盘后须重新完成 C 阶段，旧证据保留但不能作为修订正文当前部署通过。T47继续未勾选。
 
 - [x] T48 核查准确用例ID、修复证据与旧任务状态（B7）
   - 依赖：T37–T46，T47的实际状态已记录。交付：核对本轮文档已补的14个准确ID，再逐条追加新增回归真实nodeid/参数；逐条将B1–B7映射到修复commit/原始输出/AC，按各修复任务恢复旧checkbox；失败/未运行保持未勾选，T26裁决不撤销。

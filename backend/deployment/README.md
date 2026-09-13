@@ -2,22 +2,26 @@
 
 本目录只保存四个固定设置 key 的批准正文，供正式部署 CLI 读取；安装动作与数据库写入必须经正式设置 API 完成，不在 lifespan 自动覆盖设置。
 
-## 当前批准正文（2026-09-13）
+## 当前批准正文与修订状态（2026-09-13）
 
-需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，现逐字写入 `backend/deployment/templates/minimaxh3.txt`。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换本次批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。
+需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文，作为本轮三处修订前的部署基线。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；此前生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。
 
 本次解除最终正文批准门槛，按此正文继续 T47 正式安装与安装后/同库安全重启后逐字回读，不再要求与 C009 历史正文相同，也不重开模板优化循环。保留局部通用性限制及所有历史失败。T26/AC-19 已通过的需求方裁决保持，不为重新判定 T26 生成视频；本次批准不等于已安装、已重启核验或完整 AC-26 实际消费通过，未执行项仍须逐项取证，若剩余消费路径需改变则单独报告，不静默豁免。
 
 下列 2026-09-10 来源及后续诊断段落是历史记录；涉及 MiniMax 当前正文的旧状态由本节覆盖。
+
+2026-09-13 后续窄修订授权：当前工作树的 `minimaxh3.txt` 仅允许改动计时比例公式、逐镜对白复制顺序和重复示例收拢三处。修订后的磁盘文件是待 A/B 诊断的部署候选，不等于运行库已安装；两批真实诊断通过后，必须重新经正式设置 API install、安装后 verify、同库安全重启和重启后 verify。旧 T47 安装/回读证据只证明修订前正文，不能复用为当前修订部署通过。
+
+本轮 A 阶段 renderer selfcheck 与模板人工审计均 exit 0；B 阶段 Clip1 修订模板诊断已按授权执行一次并 exit 1：期望切点 `[3.2,5.867]`，模型输出 `[3.6,6.1]`，另有描述语言和镜头引用缺项，完整证据为 `.work/c012/T26C-clip1-20260913_145948`。按失败即停，未执行 Clip2、修订正文 install/verify/重启或视频；原始请求、响应和实际模板全文保留，T26C/D/T47仍未完成。
 
 来源与逐字复核（2026-09-10，历史）：
 
 - `script2assets.txt`：C005 `openspec/changes/C005/spec.md` §5.1；1,253 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
 - `script2shots.txt`：归档 C006 `openspec/archive/C006/spec.md` §5.1；1,181 个字符，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行。
 - `zimage.txt`：归档 C007 §4.1 与 T13 批准的单一 `zimage` 正文；使用历史正式设置读回的 2,770 个字符原文恢复，正文不含 Markdown 围栏，文件使用 UTF-8/LF，末尾无换行，未按摘要或长度重写。
-- `minimaxh3.txt`：2026-09-13 需求方批准的 `.work/c012/T47-deployment-proposal.txt`；10,756 UTF-8 bytes、86 行，保留批准正文内原有的示例代码围栏，文件使用 UTF-8/LF，末尾换行；此前 D-014/C009 下载文件及其正文仅作为历史来源证据保留。
+- `minimaxh3.txt`：三处窄修订前的批准基线来自 2026-09-13 `.work/c012/T47-deployment-proposal.txt`；该基线为 10,756 UTF-8 bytes、86 行，保留批准正文内原有的示例代码围栏，文件使用 UTF-8/LF，末尾换行；当前工作树修订候选及其新 hash 待 A 阶段校验，D-014/C009 下载文件及其正文仅作为历史来源证据保留。
 
-四个文件名分别对应 `script2assets`、`script2shots`、`zimage`、`minimaxh3`，正文保留批准来源中的占位符、换行和末尾换行语义。T47 已经通过正式设置 API 完成安装，并在安装后及同库后端重启后逐字回读；迁移占位符只用于新库安装前核对。
+四个文件名分别对应 `script2assets`、`script2shots`、`zimage`、`minimaxh3`，正文保留批准来源中的占位符、换行和末尾换行语义。T47 已经针对修订前正文通过正式设置 API 完成安装，并在安装后及同库后端重启后逐字回读；当前修订候选尚未重新安装，迁移占位符只用于新库安装前核对。
 
 ## 显式部署命令
 
@@ -88,7 +92,7 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 `install` 会先完整校验恰好四个 UTF-8 文件及占位符，再按 `script2assets`、`script2shots`、`zimage`、`minimaxh3` 各 PATCH 一次并 GET 逐字核对；`verify` 只 GET，必须显示四个 key 且 PATCH 次数为 0。安装后停止并仅重启本轮拥有的后端进程，在同一数据库和 `DATA_DIR` 下再次执行 `--mode verify`。任一步失败都保存 stdout/stderr/exit 和已成功 key，不重试、不自动回滚或用旧库结果冒充通过。
 
-当前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。T21/M6 之前的正式安装与回读证据只证明当时部署的输入；当前仍缺少新正文被正式平台 Task/take/current 实际消费的证据，不把 T26 替代视觉证据写成 AC-26 完整通过。
+修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。当前工作树的三处修订候选已在 Clip1 诊断失败，尚未重新安装/回读，也缺少新正文被正式平台 Task/take/current 实际消费的证据；T21/M6 之前的正式安装与回读证据只证明当时部署的输入，不把 T26 替代视觉证据写成 AC-26 完整通过。
 
 ## 显式恢复与失败处理
 
@@ -119,4 +123,4 @@ T31 的真实页面操作、task #15 旧 payload、Shot #2 `changed`、Clip #1 `
 
 真实 M6 证据使用正式 UI/API/WS、真实 PostgreSQL、vLLM、ComfyUI、workflow、GPU 和 `DATA_DIR`；T27–T30 的 B/R 矩阵使用隔离数据库、隔离文件目录与受控 vLLM/Comfy stub，只能证明生产业务/任务/资源通路，不能证明真实模型质量或 GPU 结果。T26 指定 prompt 的直接 Comfy 证据不登记为平台 Task、ClipVideo、current 或模板部署。
 
-截至本说明，T47 的四模板安装、安装后及同库重启回读已完成；T26C/T26D 与 AC-26 的正式平台消费/两段正式新 take 门槛仍未完成。T49 已在新隔离库完成最终 CPU 回归；原生桌面 200%、动态 `reduced-motion`、真模型随机性/跨输入稳定性未验证；trash 的受控计时分支也不等于真实等待 24 小时。所有这些限制必须在发布报告中保留，不能用受控证据升级为真实 GPU 或发布结论。
+截至本说明，T47 的四模板安装、安装后及同库重启回读已完成，但仅针对三处修订前正文；当前修订候选尚待 T26C A/B 诊断及重新部署回读。T26C/T26D 与 AC-26 的正式平台消费/两段正式新 take 门槛仍未完成。T49 已在新隔离库完成最终 CPU 回归；原生桌面 200%、动态 `reduced-motion`、真模型随机性/跨输入稳定性未验证；trash 的受控计时分支也不等于真实等待 24 小时。所有这些限制必须在发布报告中保留，不能用受控证据升级为真实 GPU 或发布结论。
