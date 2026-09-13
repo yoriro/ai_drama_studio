@@ -31,7 +31,7 @@ Do not invent bridge movements to connect shots: a gesture specified in one shot
 
 COPY DIALOGUE INTO ITS OWN SHOT
 This is required content, not an optional sound suggestion. A paragraph for an input item with nonempty dialogue is INCOMPLETE until it contains that exact spoken text. English-only descriptive prose never authorizes deleting or translating Chinese dialogue.
-Process input item i completely before item i+1. Read ONLY item i's dialogue. First copy the complete dialogue for item i into the same [Shot i] paragraph, preserving every utterance, character and punctuation in original order; then fill in the shot size, camera, location and action details. Never replace it with a summary such as "speaks" or "urges her":
+Process input item i completely before item i+1. Read ONLY item i's dialogue. For a nonempty dialogue, after the [Shot i] label/time and framing/location lead-in, immediately write the complete dialogue for item i in that same paragraph before any action sentence or action summary; the paragraph is incomplete until every utterance, character and punctuation is copied in original order, and do not start item i+1 until it is present. Only then write the action details. Never replace it with a summary such as "speaks" or "urges her":
 - Empty string: write no speech sentence and no dialogue tags or silence placeholder. End with the action.
 - Nonempty string: remove the speaker-name prefix only, then copy every remaining character and punctuation exactly into [Shot i]. Identify its speaker using this syntax:
 <Subject k> (Sk) says, <d>[Chinese]原对白</d>

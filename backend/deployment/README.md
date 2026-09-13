@@ -100,6 +100,9 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 修订前工作树中的 `minimaxh3.txt` 是 2026-09-13 明确批准的最终部署正文；T47 已针对该旧正文完成 install、安装后 GET、同库重启后 GET，且四 key 逐字回读一致。上一版12,478-byte修订候选的 Clip1/Clip2失败证据仍保留；本轮从基线重建的12,043-byte候选已执行一次 Clip1 并因模型漏提 Shot1 对白失败，当前候选尚未重新安装/回读，也缺少新正文被正式平台 Task/take/current 实际消费的证据；T21/M6 之前的正式安装与回读证据只证明当时部署的输入，不把 T26 替代视觉证据写成 AC-26 完整通过。
 
+本轮定向修复前只读对照 `.work/c012/T26C-clip1-20260913_161430` 与 `.work/c012/T26C-clip1-20260913_152658`：当前 rendered request 含 Shot1 完整对白，原始 response 与生产 `_built_prompt` 结果均缺该对白；`finish_reason=stop`、completion `937`、total `4198`，请求未带 `max_tokens`，GET `/v1/models` 报 `max_model_len=16384`，没有截断或提取丢失证据。152658 的请求、raw response 与提取 prompt 均含该对白。唯一候选变更限于 COPY DIALOGUE 局部：非空对白在既有镜号/时间、景别/运镜/场景 lead-in 后立即写入同一段落并先于动作句；空对白和其余规则不变。只读根因记录为 `.work/c012/T26C-targeted-root-cause-20260913.*`，本轮一次 Clip1 复验尚未执行。
+本轮局部修复的单次 Clip1 复验仍未通过：`.work/c012/T26C-clip1-20260913_164318` wrapper exit 0 且结构检查全 true，但原始输出先写 Shot1/Shot2 动作、后另起对白行，未满足候选局部规则要求的对白先于动作；完整人工逐镜记录在同目录 `review.md`，终态只读观察在 `.work/c012/T26C-targeted-clip1-postobserve-20260913.*`。按失败即停，未执行 Clip2、重新部署、重启或正式视频消费，所有旧失败证据保留。
+
 ## 显式恢复与失败处理
 
 恢复只针对本轮明确拥有的后端进程和数据库。先记录监听 PID、数据库名、`DATA_DIR` 与当前任务；不要终止未知用户的 vLLM、ComfyUI 或任务。

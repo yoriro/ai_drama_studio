@@ -248,3 +248,5 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-11 C012 T47：直接回读同库`ai_drama_studio_c012_m6_20260910`显示四key非占位且minimaxh3仍为批准源；未部署、未重启验证、未新调用模型或生成任务，T47/AC-26保持阻塞。
 - 2026-09-11 C012 T49：首次迁移wrapper的DSN拼接语法错误实际命中既有`ai_drama_studio_c005_acceptance_20260826`，随后精确downgrade回`6b8e3f0a1d24`并核对本次唯一约束不存在；失败/回滚日志保留于`.work/c012/T49-accidental-config-db-*`。
 - 2026-09-11 C012 T49：修正DSN后新库`ai_drama_studio_c012_t49_20260911`/DATA_DIR`D:\ai_drama_studio\.work\c012\t49-data-20260911`迁移三项exit0，完整backend为`414 passed in 206.68s`；frontend沿T33无diff复用test/build exit0，T47阻塞所以仅CPU线。
+- 2026-09-13 C012 T26C 定向根因核对：当前 Clip1 rendered request 含完整 Shot1 对白，raw response 与生产 `_built_prompt` 均缺；finish_reason=stop、completion=937、max_model_len=16384，无截断/解析丢失证据；152658 对照批次保留对白。
+- 2026-09-13 C012 T26C 单次对白修复诊断：结构检查全 true、Shot1/2 对白恢复且 Shot3 空对白无占位，但两镜均动作后才出现对白，局部顺序规则失败；postobserve 为 tasks=15/active=0、Comfy 0/0、vLLM sleeping=true，未进入 Clip2。
