@@ -9,3 +9,12 @@ venv/
 node_modules/
 frontend/dist/
 data/
+
+# Local acceptance evidence and runtime data (keep existing tracked drivers).
+/.work/
+/.runtime/
+
+# Reproducible tool caches.
+.vite/
+.ruff_cache/
+*.tsbuildinfo
