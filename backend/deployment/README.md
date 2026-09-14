@@ -1,5 +1,7 @@
 # C012 正式模板部署输入
 
+> 路径整理（2026-09-14）：验收驱动现位于 `backend/scripts/c012_acceptance.py`，锁顺序记录现位于 `openspec/archive/c012/lock-order.md`。下文相应入口已更新；历史原始日志中的旧路径不改写，证据输出仍位于本地 `.work/c012/`。
+
 本目录只保存四个固定设置 key 的批准正文，供正式部署 CLI 读取；安装动作与数据库写入必须经正式设置 API 完成，不在 lifespan 自动覆盖设置。
 
 ## 当前状态与历史来源（2026-09-13）
@@ -34,7 +36,7 @@
 
 四个文件名分别对应 `script2assets`、`script2shots`、`zimage`、`minimaxh3`，正文保留批准来源中的占位符、换行和末尾换行语义。T47 已经针对历史批准正文通过正式设置 API 完成安装，并在安装后及同库后端重启后逐字回读；当前五点候选尚未重新安装，迁移占位符只用于新库安装前核对。
 
-2026-09-13 当前五点候选 B 阶段：A `python -X utf8 .work/c012/prompt_diagnostic.py selfcheck` exit 0，真实 `python -X utf8 .work/c012/acceptance.py preflight --real` exit 0；Clip1 仅一次 `.work/c012/T26C-clip1-20260913_183540`，结构与核心逐镜内容经 Astra 复核通过，原始疑点与裁决保留；Clip2 仅一次 `.work/c012/T26C-clip2-20260913_184107`，wrapper exit 1，唯一结构失败是场景定义未译 `两侧`，其他结构/对白/空对白/时间检查为 true。两次 `observe --real` exit 0；诊断未进入平台 Task/Comfy/merge，未见错误 ID 复用，不进入重新安装、重启回读或 T26D 正式视频。
+2026-09-13 当前五点候选 B 阶段：A `python -X utf8 .work/c012/prompt_diagnostic.py selfcheck` exit 0，真实 `python -X utf8 backend/scripts/c012_acceptance.py preflight --real` exit 0；Clip1 仅一次 `.work/c012/T26C-clip1-20260913_183540`，结构与核心逐镜内容经 Astra 复核通过，原始疑点与裁决保留；Clip2 仅一次 `.work/c012/T26C-clip2-20260913_184107`，wrapper exit 1，唯一结构失败是场景定义未译 `两侧`，其他结构/对白/空对白/时间检查为 true。两次 `observe --real` exit 0；诊断未进入平台 Task/Comfy/merge，未见错误 ID 复用，不进入重新安装、重启回读或 T26D 正式视频。
 
 ## 显式部署命令
 
@@ -53,9 +55,9 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 `m6-script.txt` 与 C012 spec §6.1 的 `text` 代码块逐字保存，当前 `SCRIPT_CHAR_LIMIT` 由验收驱动读取并检查。三连跑的唯一追加句为“球馆内，工作人员陈宁走到芳嘉蔓身边递给她一张入场券。”；两个片段目标依次为“芳嘉蔓进门催促、乔彦茜抬眼回应后继续吃饭”和“芳嘉蔓指向出场球员、乔彦茜由平静变为僵住”。
 
 ```powershell
-python -X utf8 .work/c012/acceptance.py verify-inputs
-python -X utf8 .work/c012/acceptance.py preflight --real
-python -X utf8 .work/c012/acceptance.py observe --real
+python -X utf8 backend/scripts/c012_acceptance.py verify-inputs
+python -X utf8 backend/scripts/c012_acceptance.py preflight --real
+python -X utf8 backend/scripts/c012_acceptance.py observe --real
 ```
 
 `preflight --real` 读取当前绑定、Comfy 节点/LoRA、队列和 vLLM sleep/wake 状态；`observe --real` 只做 GET 与数据库 SELECT，不创建任务、不生成、不写业务数据，也不接入生成重放器。
@@ -118,7 +120,7 @@ python -m app.deploy_templates --base-url "$env:C012_BASE_URL" --input-dir deplo
 
 1. 后端异常退出后，以同一 `DATABASE_URL`、`DATA_DIR` 和外部服务地址启动一个后端实例。
 2. 启动恢复会把遗留 `running` 任务置为 `failed`，`error_msg` 为 `server restarted`；`queued` 任务保持 `queued` 并由唯一 worker 后续消费。第二个同库后端因 advisory lock 拒绝启动，不得并行运行。
-3. 使用正式 REST/DB 读取任务终态、队列和媒体，再执行 `python -X utf8 .work/c012/acceptance.py observe --real`；不要通过重新提交、复制 payload 或手工改库“恢复”任务。
+3. 使用正式 REST/DB 读取任务终态、队列和媒体，再执行 `python -X utf8 backend/scripts/c012_acceptance.py observe --real`；不要通过重新提交、复制 payload 或手工改库“恢复”任务。
 4. vLLM/Comfy/绑定/数据库检查失败时停止当前验收并保留原始错误；任务失败、取消或媒体提交失败均按生产错误合同记录，不自动重试。
 
 API 输入错误遵循统一合同：资源/任务冲突或前置条件使用 `409`，内容/业务校验使用 `422`，未知资源使用 `404`；错误体必须有非空 `detail.code` 与 `detail.message`。R5/R5a/R10 等生成前置失败是 `202` 加立即失败 Task，不改成 `409/422`，也不调用外部模型或媒体服务。

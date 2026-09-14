@@ -10,7 +10,7 @@ node_modules/
 frontend/dist/
 data/
 
-# Local acceptance evidence and runtime data (keep existing tracked drivers).
+# Local acceptance evidence and runtime data; drivers live in backend/scripts/.
 /.work/
 /.runtime/
 

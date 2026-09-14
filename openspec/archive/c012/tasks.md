@@ -1,12 +1,14 @@
 # C012 执行任务
 
+> 路径整理（2026-09-14）：验收驱动现位于 `backend/scripts/c012_acceptance.py`，锁顺序记录现位于 `openspec/archive/c012/lock-order.md`。下文相应入口已更新；历史原始日志中的旧路径不改写，证据输出仍位于本地 `.work/c012/`。
+
 规划基线 `c0830c3`；实际执行状态以各项 checkbox 和对应证据为准。先读本 change spec 与已修订 PRD R2。依赖是完成门槛，不以“已写代码”代替。不得修改任何既有测试；新回归文件一次写清本 task 的全部用例。红测仅在明确的诊断 task 中按预期失败验收，不得把装置启动失败冒充缺陷复现。
 
 ## 命令与执行纪律
 
 - `B:` 表示 CWD=`D:\ai_drama_studio\backend`，`R:` 表示 CWD=`D:\ai_drama_studio`；下列命令省略该前缀时仍按明确标注的 CWD 执行。
 - B命令前由T01提供本批显式DATABASE_URL/DATA_DIR；CLI的C012_BASE_URL为实际已核验的后端地址，不提供虚构常量。pytest不能使用真实M6库，正式模板与GPU不得由pytest连接。
-- `.work/c012/acceptance.py` 及所有 `test_c012_*.py`、`taskSlowConsumerReconnect.test.tsx` 都是计划新交付文件，不代表当前存在。命令运行必须保存原始stdout/stderr/exit；运行元数据列出commit、库名和DATA_DIR但隐藏DSN凭据。
+- `backend/scripts/c012_acceptance.py` 及所有 `test_c012_*.py`、`taskSlowConsumerReconnect.test.tsx` 都是计划新交付文件，不代表当前存在。命令运行必须保存原始stdout/stderr/exit；运行元数据列出commit、库名和DATA_DIR但隐藏DSN凭据。
 - G1=T16，G2=T33；2026-09-11审查修复阶段完整回归为T49。完整回归不逐task运行；前端/后端/文档分开按影响面验收。同受测输入按AGENTS列commit、差异、环境、命令、原日志和exit后复用。失败或输入改变后的旧结果不得充当最终通过。
 - task内发现工具参数、依赖初始化、工作目录、进程调用、事件循环或日志采集缺陷，允许在当前授权装置范围诊断修复并另批运行相关检查；保留首次失败。不得改断言/业务语义、重试生产失败任务、跳过必需门槛或绕过安全层。产品语义/PRD冲突仍停止上报。
 
@@ -30,58 +32,58 @@
   - 追溯行：C012 验收装置生产通路与生命周期；C012 范围与阶段回归及交付一致性。
 
 - [x] T02 交付单一受控验收装置及其自检
-  - 依赖：T01。交付：`.work/c012/acceptance.py`，完整实现spec §8的selfcheck/locks/migration/names/ws/cascade/recovery/trash子命令、合法离线媒体与隔离fixture、生产服务调用屏障、原始证据采集和owned资源清理。不代写生产handler、EventBus或业务结果；同一异步fixture使用单loop。
+  - 依赖：T01。交付：`backend/scripts/c012_acceptance.py`，完整实现spec §8的selfcheck/locks/migration/names/ws/cascade/recovery/trash子命令、合法离线媒体与隔离fixture、生产服务调用屏障、原始证据采集和owned资源清理。不代写生产handler、EventBus或业务结果；同一异步fixture使用单loop。
   - R：无；PRD §6.1、§6.4、§10；AC-02。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py selfcheck`；必须逐项得到真实成功exit0、故意失败非零、stderr+0不误判、启动失败停止、同源HTTP/WS/DB身份、子进程/端口/连接清理结果；记录spec §8各替代边界。仅`--help`/py_compile不算完成。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py selfcheck`；必须逐项得到真实成功exit0、故意失败非零、stderr+0不误判、启动失败停止、同源HTTP/WS/DB身份、子进程/端口/连接清理结果；记录spec §8各替代边界。仅`--help`/py_compile不算完成。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期。
 
 - [x] T03 固定锁图、独立回归与修复前复现
-  - 依赖：T02。交付：`.work/c012/lock-order.md`枚举spec L1–L5的实际显式/隐式锁边、Task/关系/FK/索引锁和既有断言；一次性新增完整`backend/tests/task_system/test_c012_lock_order.py`（L1–L5参数），实际调用生产service/commit，不修改旧C009锁测试。
+  - 依赖：T02。交付：`openspec/archive/c012/lock-order.md`枚举spec L1–L5的实际显式/隐式锁边、Task/关系/FK/索引锁和既有断言；一次性新增完整`backend/tests/task_system/test_c012_lock_order.py`（L1–L5参数），实际调用生产service/commit，不修改旧C009锁测试。
   - R：R3、R4、R12；PRD §3.2、§3.3、§6.1/6.4；AC-03/04。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py locks --case all`记录各格实际结果；B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L1`修复前须因目标锁等待/40P01及无死锁断言失败而红，原始错误与SQL等待关系完整；若未复现或因fixture/语义冲突失败，停止诊断，不直接改锁。此task验收的是已证实的缺陷及可运行装置，不宣称L1通过。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py locks --case all`记录各格实际结果；B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L1`修复前须因目标锁等待/40P01及无死锁断言失败而红，原始错误与SQL等待关系完整；若未复现或因fixture/语义冲突失败，停止诊断，不直接改锁。此task验收的是已证实的缺陷及可运行装置，不宣称L1通过。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
 - [x] T04 修复视频最终提交的源行锁顺序
   - 依赖：T03。交付：仅`services/clip_video_commit.py`及同一锁环直接必需的`services/generate_clip_video.py`顺序/锁后重读；遵循spec §2，保留Task条件终态、缓存、媒体补偿、入队快照和Asset→Clip既有入口合同。不修改T03测试。
   - R：R4；PRD §3.2、§6.1/6.4；AC-03。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L1`、`python -m pytest -q tests/task_system/test_c009_clip_video_commit.py tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L1`。两种先锁方向都有完整take/后续排队结果和无40P01证据。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L1`、`python -m pytest -q tests/task_system/test_c009_clip_video_commit.py tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 backend/scripts/c012_acceptance.py locks --case L1`。两种先锁方向都有完整take/后续排队结果和无40P01证据。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
 - [x] T05 对齐资产编辑、换图和删除的关联锁顺序
   - 依赖：T04。交付：`services/assets.py`内上述三类路径按spec偏序取必要行锁、锁后重读；保留no-op、revision、changed/stale、R12与文件补偿。不新增全项目锁。
   - R：R12；PRD §3.2、§3.3、§6.4；AC-04。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L2`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L2`；含shot-bound/slot-only资产的双向交错。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L2`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 backend/scripts/c012_acceptance.py locks --case L2`；含shot-bound/slot-only资产的双向交错。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
 - [x] T06 对齐分镜文本与绑定编辑锁顺序
   - 依赖：T05。交付：`services/shots.py`按spec §2取得候选资产/Shot锁并重新验证归属与绑定；保留公开字段、422、no-op和级联，不加入分镜结构编辑功能。
   - R：R5a；PRD §3.2、§3.3、§3.4；AC-04。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L3`；R `python -X utf8 .work/c012/acceptance.py locks --case L3`；实际绑定编辑与视频提交两方向的快照/修订结果均符合spec。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L3`；R `python -X utf8 backend/scripts/c012_acceptance.py locks --case L3`；实际绑定编辑与视频提交两方向的快照/修订结果均符合spec。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
 - [x] T07 对齐片段创建及相关关系行锁顺序
   - 依赖：T06。交付：`services/clips.py`中create/slot/delete与同一锁环有关的查询顺序和FOR UPDATE锁表范围；其余业务原样。不得删除必要归属/占用校验。
   - R：R5、R5a、R7、R9、R12；PRD §3.3、§3.4、§6.4；AC-04。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L4`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case L4`；同时验证create冲突、slot变化与删除后的引用/媒体赢家。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py -k L4`、`python -m pytest -q tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 backend/scripts/c012_acceptance.py locks --case L4`；同时验证create冲突、slot变化与删除后的引用/媒体赢家。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
 - [x] T08 对齐分镜覆盖的锁顺序并关闭全部锁探针
   - 依赖：T07。交付：`tasks/gen_shots.py`既有覆盖事务的Asset/Shot/Clip及媒体关系锁按spec排列，源快照与R3失败无损保持；更新锁图的实际边与证据，不扩大队列并行度。
   - R：R3；PRD §3.2、§3.3、§6.1/6.4；AC-03/04。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py tests/task_system/test_c006_gen_shots.py tests/task_system/test_c006_cancel_commit_race.py tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 .work/c012/acceptance.py locks --case all`。全格无40P01/超时且原断言保持；失败不得进入真实GPU步骤。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_lock_order.py tests/task_system/test_c006_gen_shots.py tests/task_system/test_c006_cancel_commit_race.py tests/task_system/test_c009_enqueue_locks.py`；R `python -X utf8 backend/scripts/c012_acceptance.py locks --case all`。全格无40P01/超时且原断言保持；失败不得进入真实GPU步骤。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
 - [x] T09 交付资产名称旧库预检与唯一约束迁移
   - 依赖：T08。交付：一条新Alembic revision、ORM唯一约束；迁移内只读冲突/非规范名称预检及明确报错，downgrade仅移除本约束；新增`backend/tests/task_system/test_c012_asset_name_migration.py`。历史两条migration不改。
   - R：R2；PRD §3.1、§4、§5资产名称约束；AC-05。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py migration`；B `python -m pytest -q tests/task_system/test_c012_asset_name_migration.py`、`python -m alembic current`、`python -m alembic check`。空库、合法旧库、精确/规范化碰撞、空白/非规范名、失败数据无损与down/up逐项检查；不操作真实旧业务库。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py migration`；B `python -m pytest -q tests/task_system/test_c012_asset_name_migration.py`、`python -m alembic current`、`python -m alembic check`。空库、合法旧库、精确/规范化碰撞、空白/非规范名、失败数据无损与down/up逐项检查；不操作真实旧业务库。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 资产名称唯一约束迁移与旧库预检。
 
@@ -102,7 +104,7 @@
 - [x] T12 验证名称竞争与取消/提交原子性
   - 依赖：T11。交付：独立`backend/tests/task_system/test_c012_asset_name_races.py`，覆盖两个正式API写入、手动与生成竞争、取消与marker提交；如失败只修T10/T11归属的根因，保留原失败且不改既有测试。
   - R：R2；PRD §3.1、§3.2、§6.1/6.4；AC-08/09。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_asset_name_races.py tests/task_system/test_c005_cancel_commit_race.py`；R `python -X utf8 .work/c012/acceptance.py names`。实际独立连接锁等待、一胜一409/生成同类型复用、异类型failed及精确DB行/marker必须有原始结果。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_asset_name_races.py tests/task_system/test_c005_cancel_commit_race.py`；R `python -X utf8 backend/scripts/c012_acceptance.py names`。实际独立连接锁等待、一胜一409/生成同类型复用、异类型failed及精确DB行/marker必须有原始结果。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 资产名称并发与任务原子提交。
 
@@ -118,7 +120,7 @@
 - [x] T14 实现 WS owner 超时关闭和子任务释放
   - 依赖：T13。交付：`api/tasks.py`发送10秒上限、溢出/发送异常关闭、同时完成事件处理、取消后await；新增`backend/tests/task_system/test_c012_ws_lifecycle.py`。不修改Task REST或事件JSON字段。
   - R：无；PRD §5任务、§6.1/6.4；AC-11。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_ws_lifecycle.py tests/task_system/test_c012_event_bus.py`；R `python -X utf8 .work/c012/acceptance.py ws`。受控ASGI慢send与真实网络WS分开记录，1013/日志、连接基线、零pending子任务、Task不误failed及健康订阅均验证。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_ws_lifecycle.py tests/task_system/test_c012_event_bus.py`；R `python -X utf8 backend/scripts/c012_acceptance.py ws`。受控ASGI慢send与真实网络WS分开记录，1013/日志、连接基线、零pending子任务、Task不误failed及健康订阅均验证。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
@@ -153,16 +155,16 @@
   - 追溯行：C012 四份正式模板生产部署：全新生产等价库迁移后仅经设置 API 安装 `script2assets/script2shots/zimage/minimaxh3`，安装后及后端重启后四个 key 齐全、与批准输入逐字一致且无占位。
 
 - [x] T19 交付真实输入与被动验收观测能力
-  - 依赖：T18。交付：同一`.work/c012/acceptance.py`扩展spec §8的preflight --real/verify-inputs/observe --real；从spec §6.1逐字保存`backend/deployment/m6-script.txt`，记录三连跑追加句与两个动作片段目标。只新增观测能力，不接入生成重放器。
+  - 依赖：T18。交付：同一`backend/scripts/c012_acceptance.py`扩展spec §8的preflight --real/verify-inputs/observe --real；从spec §6.1逐字保存`backend/deployment/m6-script.txt`，记录三连跑追加句与两个动作片段目标。只新增观测能力，不接入生成重放器。
   - R：无；PRD §7、§10、§11 M6、§12；AC-02/16/18。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py verify-inputs`、`python -X utf8 .work/c012/acceptance.py selfcheck`；全文与spec逐字相等且不超实际SCRIPT_CHAR_LIMIT，observer无mutation、无DB种业务数据，来源/失败/清理自检通过。自检使用隔离端点，不冒充真实服务通过。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py verify-inputs`、`python -X utf8 backend/scripts/c012_acceptance.py selfcheck`；全文与spec逐字相等且不超实际SCRIPT_CHAR_LIMIT，observer无mutation、无DB种业务数据，来源/失败/清理自检通过。自检使用隔离端点，不冒充真实服务通过。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 真实外部依赖与GPU资源归属。
 
 - [x] T20 现场验证真实外部依赖与资源归属
   - 依赖：T19；外部依赖实际满足。交付：本轮DB/DATA_DIR/配置、vLLM模型/sleep、Comfy队列/节点/绑定/LoRA和端口进程归属报告。只启动缺失且明确属于本轮的服务，不终止用户未知任务。
   - R：无；PRD §6.3、§8、§10、§12.1/12.3/12.4；AC-16。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py preflight --real`；实际health、object_info、queue、sleep(level1)/wake/is_sleeping和独立DB身份逐项记录；地址/模型/权重缺失保持spec外部依赖阻塞，不修改workflow或猜参数绕过。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py preflight --real`；实际health、object_info、queue、sleep(level1)/wake/is_sleeping和独立DB身份逐项记录；地址/模型/权重缺失保持spec外部依赖阻塞，不修改workflow或猜参数绕过。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 真实外部依赖与GPU资源归属。
 
@@ -176,28 +178,28 @@
 - [x] T22 真实模型三次资产提取验收
   - 依赖：T21。交付：独立检验项目的三次任务、请求快照、集合A与三次DB/API回读；从正式浏览器录入同一原文、两次生成，再仅添加spec追加句后第三次生成。
   - R：R2；PRD §3.1、§3.2、§7、§11 M6；AC-17。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`被动记录；人工按spec §6.2逐步操作；断言第二次新增0/A逐字段相同；第三次新增0或仅陈宁character+1，且A不变。陈宁未输出可接受，不得把合法新增候选被后端丢弃当作允许省略。优先复用 task #1–#3 原始请求快照、各阶段 DB/API 结果及 task #4 单次诊断，以只读对比和人工复核完成，不再提交生成任务、不跑全量 pytest。新增 `.work/c012/T22-reassessment.md` 逐项列新条件/观测/证据、原失败与响应缺失限制；原比较报告/日志保留不改。复核全部满足后回填追溯、勾选并提交；其他模型失败、非陈宁额外新增、已有项变化仍失败，不直接SQL/改模板/重跑到绿。未新增时明确本批不证明真实新增人物，插入/去重仍引用 T11/T12 已有正式证据。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py observe --real`被动记录；人工按spec §6.2逐步操作；断言第二次新增0/A逐字段相同；第三次新增0或仅陈宁character+1，且A不变。陈宁未输出可接受，不得把合法新增候选被后端丢弃当作允许省略。优先复用 task #1–#3 原始请求快照、各阶段 DB/API 结果及 task #4 单次诊断，以只读对比和人工复核完成，不再提交生成任务、不跑全量 pytest。新增 `.work/c012/T22-reassessment.md` 逐项列新条件/观测/证据、原失败与响应缺失限制；原比较报告/日志保留不改。复核全部满足后回填追溯、勾选并提交；其他模型失败、非陈宁额外新增、已有项变化仍失败，不直接SQL/改模板/重跑到绿。未新增时明确本批不证明真实新增人物，插入/去重仍引用 T11/T12 已有正式证据。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 真模型三次资产提取。
 
 - [x] T23 示范集真实生成资产及参考图
   - 依赖：T21及当前真实外部依赖；不依赖T22通过。交付：通过真实UI创建新示范项目/集、选定并记录风格、录入spec全文、完整资产提取；为两个动作段所需参考人物/场景出图并选择current，保存真实任务与媒体/快照证据。
   - R：R2、R4、R9、R11；PRD §2.1、§3.1/3.5、§6.2/6.3、§11 M6；AC-18（前半）、AC-16。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`；人工逐个正式生成按钮→task→PNG画廊/current→独立DB回读；至少人物、场景各一条真实Z-Image；两个链路分别消费script2assets/zimage正式正文，无后台补资产/上传假图代替生成。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py observe --real`；人工逐个正式生成按钮→task→PNG画廊/current→独立DB回读；至少人物、场景各一条真实Z-Image；两个链路分别消费script2assets/zimage正式正文，无后台补资产/上传假图代替生成。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 四模板生产消费：M6 一集剧本→资产→出图→分镜→两个片段视频全链路分别实际读取四份正式模板且无后台人工干预或 fallback。
 
 - [x] T24 示范集真实生成整集分镜并预检创建两个片段
   - 依赖：T23。交付：真实script2shots任务、整集分镜、两个目标连续同场景片段的preview/request/slots/current参考证据；记录精确Shot/Asset/Clip ID，不硬编码历史ID。
   - R：R1、R3、R5、R5a、R6、R7、R8、R9；PRD §3.1/3.4、§7、§9、§11 M6；AC-18（中段）。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`；真实UI“生成分镜”→分镜内容核对→A/B分别preview/create；回读顺序、候选、1..9引用、duration与固定slot映射；本轮按spec §6.2仅经正式UI修改原Shot description补齐抬眼/指向，不重跑整集分镜生成、不改其他字段；GET/DB逐字段核验revision及changed/stale后才重勾T24。原动作预检漏检及旧分镜证据保留，不能直接种分镜或混合场景。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py observe --real`；真实UI“生成分镜”→分镜内容核对→A/B分别preview/create；回读顺序、候选、1..9引用、duration与固定slot映射；本轮按spec §6.2仅经正式UI修改原Shot description补齐抬眼/指向，不重跑整集分镜生成、不改其他字段；GET/DB逐字段核验revision及changed/stale后才重勾T24。原动作预检漏检及旧分镜证据保留，不能直接种分镜或混合场景。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 四模板生产消费：M6 一集剧本→资产→出图→分镜→两个片段视频全链路分别实际读取四份正式模板且无后台人工干预或 fallback。
 
 - [x] T25 示范集两个真实片段视频与 take 回读
   - 依赖：T24。交付：A/B分别真实生成、可播放MP4、actual_duration、画廊/current和四模板消费全链证据；记录每个task的正式请求、payload/进程/GPU/文件通路。
   - R：R4、R6、R9、R10、R11；PRD §3.2/3.4/3.5、§6.2/6.3/6.4、§11 M6；AC-18（完成）、AC-16。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`；人工真实UI生成两次、打开take/切current、媒体播放；独立只读DB和正式REST逐字段一致、视频可解码且actual>0、当前take引用正确；结束queue空/sleeping/temp0。本轮仅对原两个Clip各显式提交一次新视频任务（总计最多两次），必须另保存新payload的Shot修订与动作、新built_prompt、take/current和原始exit；不改seed抽到绿，旧take保留。T25因修正后输入重开，旧技术通过记录不删除；新输入/提示词缺动作立即记录失败，不擅改prompt。视觉语义由T26判定。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py observe --real`；人工真实UI生成两次、打开take/切current、媒体播放；独立只读DB和正式REST逐字段一致、视频可解码且actual>0、当前take引用正确；结束queue空/sleeping/temp0。本轮仅对原两个Clip各显式提交一次新视频任务（总计最多两次），必须另保存新payload的Shot修订与动作、新built_prompt、take/current和原始exit；不改seed抽到绿，旧take保留。T25因修正后输入重开，旧技术通过记录不删除；新输入/提示词缺动作立即记录失败，不擅改prompt。视觉语义由T26判定。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 四模板生产消费：M6 一集剧本→资产→出图→分镜→两个片段视频全链路分别实际读取四份正式模板且无后台人工干预或 fallback；C012 真实外部依赖与GPU资源归属。
 
@@ -254,7 +256,7 @@
   - 依赖：T26C。按Clip2再Clip1各一次正式生成，分别保存Task/新take/实际prompt/快照/媒体与时间点；原current不自动切换，失败停止后续生成，不改seed重抽。
   - 2026-09-13当前执行顺序：仅在本轮修订模板的Clip1宿舍、Clip2球馆诊断均通过且修订正文完成正式设置API部署/安装后及同库重启回读后，才从正式页面按Clip2→Clip1各提交一次；本轮总计最多两次，不使用旧T47安装回读或旧Clip2 prompt替代，任一失败停止。
   - R：R4、R11；PRD §3.2、§6.2–6.4、§7、§11 M6；AC-18/19/26。
-  - 验收：人工正式UI提交→Task终态→新take详情/独立DB→完整播放；每个实际prompt与输入逐镜核对，MP4可解码且动作满足AC-19；根目录 `python -X utf8 .work/c012/acceptance.py observe --real` 记录空队列/sleeping/资源身份。一次生成失败或动作缺项保留证据，不勾选T26。不因模板改动运行完整pytest。
+  - 验收：人工正式UI提交→Task终态→新take详情/独立DB→完整播放；每个实际prompt与输入逐镜核对，MP4可解码且动作满足AC-19；根目录 `python -X utf8 backend/scripts/c012_acceptance.py observe --real` 记录空队列/sleeping/资源身份。一次生成失败或动作缺项保留证据，不勾选T26。不因模板改动运行完整pytest。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 MiniMax 模板动作与逐镜保真；C012 真实外部依赖与GPU资源归属。
   - 2026-09-13 D阶段按授权只提交正式页面 Clip2 一次：新 task `#16`（`gen_clip_video`）终态 `done`、progress=1、error=null；新 take `#6` 为 10.125s/H.264 960x544、DB/API 可读但 `is_current=false`，原 take `#4` 仍为 current，未提交 Clip1。完整 task snapshot、built prompt、take/Clip/Asset 回读见 `.work/c012/T26D-clip2-submit-20260913.json`、`T26D-clip2-readback-20260913.json`、`T26D-clip2-prompt-compare-20260913.*`；媒体探针与完整播放证据见 `.work/c012/T26D-clip2-media-probe-20260913.*`、`.work/c012/T26D-clip2-20260913/review.md`。输入/输出核对显示模型漏提 Shot1 的出场方向注视与明确指向，详细 Shot4 另有自相矛盾描述，且保留未翻译场景片段；抽帧/完整播放未观察到指向或第三镜动作。正确参考资产已进入 snapshot，未发现数值 existing_id/asset_id/image_id 复用；snapshot/built prompt 已持久化，raw vLLM response 未持久化，后端丢弃不可证实。按失败即停，保留 task #1–#3/T22、T26 及本轮失败证据，不重试、不提交 Clip1；T26D、T47、T50、T34–T36保持未勾选。
@@ -272,10 +274,10 @@
 ## D. 级联、恢复与发布收口
 
 - [x] T02A 补交 cascade、recovery、trash 的实际验收入口
-  - 依赖：T01及T02已有基础装置/selfcheck实测、T19。交付：仅在既有 `.work/c012/acceptance.py` 补齐三个实际分发和命令实现；不创建第二runner，不把reserved改成成功或仅删掉报错。原T02整体撤回完成，其基础装置已通过证据保留；本项通过并集成后核对T02完整交付再恢复勾选。
+  - 依赖：T01及T02已有基础装置/selfcheck实测、T19。交付：仅在既有 `backend/scripts/c012_acceptance.py` 补齐三个实际分发和命令实现；不创建第二runner，不把reserved改成成功或仅删掉报错。原T02整体撤回完成，其基础装置已通过证据保留；本项通过并集成后核对T02完整交付再恢复勾选。
   - 所有权：本次明确委派 luna_worker_7 在其 `C:/Users/Administrator/.codex/worktrees/4fb3/ai_drama_studio` 副本修改该装置的三个命令及直接必需的fixture/采集逻辑；不得改其他命令语义、真实GPU通路、生产或旧测试。luna_worker_6 保留主工作区集成/共享文档/提交责任。此项是受控执行者不得修改验收脚本限制的一次明确范围扩展；双方不得同时编辑主目录脚本。
   - R：R2、R3、R4、R9、R12；PRD §3.2/3.3、§6.1/6.4、§10、§11 M6；AC-02/20/22/24。
-  - 验收：在显式独立数据库/DATA_DIR、仅stub外部服务的环境，R `python -X utf8 .work/c012/acceptance.py selfcheck`、同入口 `cascade`、`recovery`、`trash`。三个命令分别实际经过spec §8规定的生产service/独立进程/数据库/文件通路并取得对应矩阵、恢复/互斥及清理证据；至少保留一条自检故意失败非零和资源退出结果。纯CLI分发、仅包装既有9 passed、空events或reserved均不算交付。原始命令/环境身份/事件/exit分批另存，不能伪造独立进程证据。此项先验证装置可用，不能替代T27/T29/T30专属用例和规定人工检查；不为本装置再写“测试测试”的独立套件，不触发完整pytest。
+  - 验收：在显式独立数据库/DATA_DIR、仅stub外部服务的环境，R `python -X utf8 backend/scripts/c012_acceptance.py selfcheck`、同入口 `cascade`、`recovery`、`trash`。三个命令分别实际经过spec §8规定的生产service/独立进程/数据库/文件通路并取得对应矩阵、恢复/互斥及清理证据；至少保留一条自检故意失败非零和资源退出结果。纯CLI分发、仅包装既有9 passed、空events或reserved均不算交付。原始命令/环境身份/事件/exit分批另存，不能伪造独立进程证据。此项先验证装置可用，不能替代T27/T29/T30专属用例和规定人工检查；不为本装置再写“测试测试”的独立套件，不触发完整pytest。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵；C012 取消心跳失败与重启资源恢复；C012 trash 启动与定时清理。
 
@@ -283,11 +285,11 @@
 - [x] T27 验证 M6 九行全级联及所有明确子分支
   - 依赖：T02、T02A、T16、T19及独立受控环境；不依赖T22/T26。交付：新增`backend/tests/task_system/test_c012_cascade.py`按spec §7完整九行分参数，复用生产服务/独立连接/实际媒体；在隔离受控浏览器逐格记录UI变化，不能破坏真实示范集。只补跨链路覆盖，不复制纯规则用例。需求方本轮允许按spec §7.1修复此task新增未提交测试文件：loop/engine生命周期、可达marker夹具与字段期望、数据表示、合法模板、JSON和媒体fixture；不改已提交旧测试/生产。保留首次6 failed，删除Clip的500先取traceback定位，未证明fixture原因不得擅改生产；恒真自比较改为操作前后比较。
   - R：R2、R3、R4、R9、R12；PRD §3.2、§3.3、§6.4、§11 M6；AC-20。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_cascade.py`；R `python -X utf8 .work/c012/acceptance.py cascade`；精确行/ID/revision/current和文件bytes对照，编辑/换图/绑定增删/模板变更分支逐项记录；R3成功和模型失败都验证。实施后向既有九条§3.3追溯行追加实际节点。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_cascade.py`；R `python -X utf8 backend/scripts/c012_acceptance.py cascade`；精确行/ID/revision/current和文件bytes对照，编辑/换图/绑定增删/模板变更分支逐项记录；R3成功和模型失败都验证。实施后向既有九条§3.3追溯行追加实际节点。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 M6 全级联矩阵。
 
-  - 2026-09-11补齐回填：T02A 的 `selfcheck/cascade/recovery/trash` 受控通路均已有独立 exit 0 证据；T27 提交 `e5edebfcfaeb42ad26543d2b6f893d87eefb5b79` 的九行回归最终为 `10 passed in 6.02s`、exit 0，R `python -X utf8 .work/c012/acceptance.py cascade` 最终 exit 0。受控浏览器 batch4 逐格记录脚本/资产/分镜绑定/风格模板/删除/Clip 成功与媒体播放，R 记录九行 API/队列/handler/DB/媒体事件；证据为 `.work/c012/T27-luna-test-after-media-fixture-rerun.log`、`.work/c012/T27-luna-cascade-media-fixture-rerun.log`、`.work/c012/T27-luna-cascade-acceptance-20260911-media-rerun.json`、`.work/c012/T27-browser-ui-evidence-20260911-batch4.md`、`.work/c012/T27-browser-vllm-capture-20260911-batch4.json`、`.work/c012/T27-browser-readback-20260911-batch4.json`。首次六项失败、媒体 fixture 失败及原始装置失败均保留；本回填不覆盖 T22/T26 的边界。
+  - 2026-09-11补齐回填：T02A 的 `selfcheck/cascade/recovery/trash` 受控通路均已有独立 exit 0 证据；T27 提交 `e5edebfcfaeb42ad26543d2b6f893d87eefb5b79` 的九行回归最终为 `10 passed in 6.02s`、exit 0，R `python -X utf8 backend/scripts/c012_acceptance.py cascade` 最终 exit 0。受控浏览器 batch4 逐格记录脚本/资产/分镜绑定/风格模板/删除/Clip 成功与媒体播放，R 记录九行 API/队列/handler/DB/媒体事件；证据为 `.work/c012/T27-luna-test-after-media-fixture-rerun.log`、`.work/c012/T27-luna-cascade-media-fixture-rerun.log`、`.work/c012/T27-luna-cascade-acceptance-20260911-media-rerun.json`、`.work/c012/T27-browser-ui-evidence-20260911-batch4.md`、`.work/c012/T27-browser-vllm-capture-20260911-batch4.json`、`.work/c012/T27-browser-readback-20260911-batch4.json`。首次六项失败、媒体 fixture 失败及原始装置失败均保留；本回填不覆盖 T22/T26 的边界。
 
 - [x] T28 复核错误矩阵与外部输入边界
   - 依赖：T27。交付：spec §7错误格与当前既有用例节点对照、真实页面至少一条409/422及202立即failed的操作→观测记录。默认复用既有测试；若发现新的M6跨链路缺口，仅新增`backend/tests/task_system/test_c012_error_paths.py`并登记节点，不修改旧断言。
@@ -299,7 +301,7 @@
 - [x] T29 验证取消、心跳DB失败、崩溃恢复和单进程互斥
   - 依赖：T28、T02A。交付：新增`backend/tests/task_system/test_c012_recovery.py`，真实应用进程/DB/文件；queued/running取消与成功竞争、心跳错误/DB不可用时的真实限制、同库重启和第二实例拒绝。不加入心跳重试或伪造failed。
   - R：无；PRD §3.2、§6.1、§6.4、§11 M6；AC-22。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_recovery.py`；R `python -X utf8 .work/c012/acceptance.py recovery`。确定性进程屏障验证running→failed、queued保留/claim一次、副作用一次、advisory锁释放/拒绝、temp与连接退出；只使用本轮owned隔离进程。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_recovery.py`；R `python -X utf8 backend/scripts/c012_acceptance.py recovery`。确定性进程屏障验证running→failed、queued保留/claim一次、副作用一次、advisory锁释放/拒绝、temp与连接退出；只使用本轮owned隔离进程。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 取消心跳失败与重启资源恢复。
   - 2026-09-11复核完成：原 T29 独立回归日志 `T29-luna-recovery-test-20260911.log` 为 `4 passed in 0.90s`、exit 0，原 recovery 命令日志 `T29-luna-recovery-acceptance-20260911.log` 为 status passed、exit 0；T45/T46 对同一生产 recovery 装置进行了后续完整结构化重验，未改变 T29 的取消、重启、互斥与资源边界。T29 原始日志和失败证据均保留，T46 复核使用独立库与 DATA_DIR。
@@ -307,14 +309,14 @@
 - [x] T30 验证生产 trash 启动和每日清理
   - 依赖：T29、T02A。交付：新增`backend/tests/task_system/test_c012_trash_cleanup.py`，真实文件/启动进程和每日调用路径；cutoff前/恰好/之后、trash外媒体、IO失败与shutdown。仅验证生产清理，发现越界/生命周期缺陷先报告定位，不顺手扩大清理范围。
   - R：无；PRD §6.4、§10、§11 M6；AC-24。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_trash_cleanup.py`；R `python -X utf8 .work/c012/acceptance.py trash`；记录精确保留/删除文件与bytes，受控计时等待与真实启动证据分开，明确不是实际24小时长跑。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_trash_cleanup.py`；R `python -X utf8 backend/scripts/c012_acceptance.py trash`；记录精确保留/删除文件与bytes，受控计时等待与真实启动证据分开，明确不是实际24小时长跑。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 trash 启动与定时清理。
 
 - [x] T31 真实视频生成期间的分镜编辑与 stale 验收
   - 依赖：T22、T26、T30及真实资源前置仍满足。交付：在示范集既有一个Clip发起新的真实生成，确认owned任务running后经真实UI改相关Shot文本；记录旧payload、新take、changed/stale和双维UI，保留原示范take。
   - R：R4；PRD §3.2、§3.3、§6.2、§11 M6；AC-23。
-  - 验收：R `python -X utf8 .work/c012/acceptance.py observe --real`；人工UI生成→确认真实running→编辑→终态，独立DB/REST逐字段比较，旧payload不变、产物保存而不回写normal/fresh；B `python -m pytest -q tests/task_system/test_c009_clip_video_commit.py`补齐Clip/Asset漂移与无变化既有分支。GPU失败不自动重跑。
+  - 验收：R `python -X utf8 backend/scripts/c012_acceptance.py observe --real`；人工UI生成→确认真实running→编辑→终态，独立DB/REST逐字段比较，旧payload不变、产物保存而不回写normal/fresh；B `python -m pytest -q tests/task_system/test_c009_clip_video_commit.py`补齐Clip/Asset漂移与无变化既有分支。GPU失败不自动重跑。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 真实生成中的修订竞态。
 
@@ -359,9 +361,9 @@
   - 追溯行：C012 EventBus 有界订阅与慢连接释放。
 
 - [x] T40 交付真实慢关闭页面验收装置（B5前置）
-  - 依赖：T39。交付：仅扩展现有 `.work/c012/acceptance.py ws --case slow-page` 的参数、受控ASGI send闸门、生产进度发布和handler释放；独立默认app/DB/DATA_DIR与真实网络WS，外部服务stub，无新增生产端点/handler替换/第二runner。输出浏览器地址、任务ID、真实overflow/关闭原因/请求日志、终态独立回读与shutdown通路。
+  - 依赖：T39。交付：仅扩展现有 `backend/scripts/c012_acceptance.py ws --case slow-page` 的参数、受控ASGI send闸门、生产进度发布和handler释放；独立默认app/DB/DATA_DIR与真实网络WS，外部服务stub，无新增生产端点/handler替换/第二runner。输出浏览器地址、任务ID、真实overflow/关闭原因/请求日志、终态独立回读与shutdown通路。
   - R：无；PRD §6.1、§6.4、§11 M6；AC-02/11/12。
-  - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py ws --case slow-page`；原生WS实际收到1013，任务终态来自生产handler，装置事件与DB身份可核查；故意失败非零，无owned进程/连接残留。先完成装置自检，再交T41实际浏览器消费；ASGI闸门不宣称TCP拥塞。
+  - 验收：R `python -m py_compile backend/scripts/c012_acceptance.py`、`python -X utf8 backend/scripts/c012_acceptance.py ws --case slow-page`；原生WS实际收到1013，任务终态来自生产handler，装置事件与DB身份可核查；故意失败非零，无owned进程/连接残留。先完成装置自检，再交T41实际浏览器消费；ASGI闸门不宣称TCP拥塞。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 慢连接后的页面权威重建。
 
@@ -372,7 +374,7 @@
   - 计划测试层级：任务系统 mock。
   - 追溯行：C012 慢连接后的页面权威重建。
   - 2026-09-13旧批次证据修正：批次 `t41g_20260913_181000` 的 acceptance JSON 虽为 `status=passed`，但当时装置未完整记录实际关闭原因与关闭→重连→权威 GET 的事件链，且页面首轮健康轮询保留 `protocol_error`；该批仅保留历史/部分人工观察，不计为当前 B5 证据。其失败/不完整文件不删除。
-  - 2026-09-13当前 B5 浏览器批次：仅扩展 `.work/c012/acceptance.py` 的 `slow-page-browser` 受控人工窗口，将该分支外部 `VLLMClient` 显式 timeout 与 release/confirmation deadline 设为 900 秒，生产默认120秒、WS 10秒、队列/handler/提交路径不变；修正后的 `python -X utf8 -m py_compile .work/c012/acceptance.py` exit 0。独立库 `ai_drama_studio_c012_t41i_20260913_181412`、DATA_DIR `D:\ai_drama_studio\.work\c012\t41i-data-20260913_181412`、后端 `65223`、前端 `5175`、外部 stub `50603`；正式 TasksPage 将任务数量设为100并展开 running 的 Task #41，释放一次 marker 后先记录 HTTP 200 的 running/progress=0，再 arm 闸门。真实同连接 WS 关闭码 `1013`（event sequence `1339`），在途 send 被取消；生产日志的实际原因是 `send_timeout`，不是 T40 的 `subscription_overflow`。页面按实际重连 socket `1391` 后首个列表 GET `1395`、目标详情 GET `1400`，观察到 `done/100%/error=—/finished_at=18:16:33`；确认 marker 在该 DOM 观察后创建，验收 JSON `status=passed`，`limit=100` 列表读取均为 HTTP 200，浏览器 mutation POST 为0（生成 POST 127 为受控任务建立记录），目标终态与独立 DB 精确一致。人工记录 `.work/c012/T41-browser-arm-manual-20260913_181412.md`，结构化证据 `.work/c012/probe-b5-browser-evidence.json`（`ws-acceptance.json` 为同批原始输出）；owned 后端/stub/临时目录及端口清理，默认生产端口保留。该批仍只证明 ASGI 背压引发真实应用层关闭和页面权威重建，不宣称 TCP 拥塞。
+  - 2026-09-13当前 B5 浏览器批次：仅扩展 `backend/scripts/c012_acceptance.py` 的 `slow-page-browser` 受控人工窗口，将该分支外部 `VLLMClient` 显式 timeout 与 release/confirmation deadline 设为 900 秒，生产默认120秒、WS 10秒、队列/handler/提交路径不变；修正后的 `python -X utf8 -m py_compile backend/scripts/c012_acceptance.py` exit 0。独立库 `ai_drama_studio_c012_t41i_20260913_181412`、DATA_DIR `D:\ai_drama_studio\.work\c012\t41i-data-20260913_181412`、后端 `65223`、前端 `5175`、外部 stub `50603`；正式 TasksPage 将任务数量设为100并展开 running 的 Task #41，释放一次 marker 后先记录 HTTP 200 的 running/progress=0，再 arm 闸门。真实同连接 WS 关闭码 `1013`（event sequence `1339`），在途 send 被取消；生产日志的实际原因是 `send_timeout`，不是 T40 的 `subscription_overflow`。页面按实际重连 socket `1391` 后首个列表 GET `1395`、目标详情 GET `1400`，观察到 `done/100%/error=—/finished_at=18:16:33`；确认 marker 在该 DOM 观察后创建，验收 JSON `status=passed`，`limit=100` 列表读取均为 HTTP 200，浏览器 mutation POST 为0（生成 POST 127 为受控任务建立记录），目标终态与独立 DB 精确一致。人工记录 `.work/c012/T41-browser-arm-manual-20260913_181412.md`，结构化证据 `.work/c012/probe-b5-browser-evidence.json`（`ws-acceptance.json` 为同批原始输出）；owned 后端/stub/临时目录及端口清理，默认生产端口保留。该批仍只证明 ASGI 背压引发真实应用层关闭和页面权威重建，不宣称 TCP 拥塞。
 
 - [x] T42 补齐 L4/L5 实际操作对与双向锁等待（B6）
   - 2026-09-11窄修复裁决：L5 replace→delete已取得业务红测（串行404、并发500）；仅增加 `services/clips.py::delete_clip` 锁后目标存在性复核，严格按spec末尾T42裁决，不改锁顺序/空关系损坏校验/测试。红测不是T42通过。补跑 B `python -m pytest -q tests/api/test_c008_clip_delete.py`，与本项两文件矩阵全部通过后提交并进入T43；无需Astra代写实现。
@@ -384,9 +386,9 @@
   - 追溯行：C012 生成提交与入队及编辑锁顺序。
 
 - [x] T43 交付缓存与模板级联验收分支（B6前置）
-  - 依赖：T42。交付：仅扩展既有 `.work/c012/acceptance.py cascade --case cache`，支持同一隔离app中先生成并建立缓存，再经正式设置API改变风格/对应模板，随后调用生产四类生成handler，采集真实外部请求次数/内容、payload、缓存和下游前后行/文件。仅外部stub和释放屏障受控。
+  - 依赖：T42。交付：仅扩展既有 `backend/scripts/c012_acceptance.py cascade --case cache`，支持同一隔离app中先生成并建立缓存，再经正式设置API改变风格/对应模板，随后调用生产四类生成handler，采集真实外部请求次数/内容、payload、缓存和下游前后行/文件。仅外部stub和释放屏障受控。
   - R：R2、R3、R4、R11；PRD §3.2、§3.3、§6.2、§7；AC-02/20。
-  - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py cascade --case cache`；图/视频第一次缓存、命中、失配有实际请求/存储证据；提取模板有渲染后请求及null hash；故意子进程失败非零，无假passed、无资源残留。交付后才进入T44。
+  - 验收：R `python -m py_compile backend/scripts/c012_acceptance.py`、`python -X utf8 backend/scripts/c012_acceptance.py cascade --case cache`；图/视频第一次缓存、命中、失配有实际请求/存储证据；提取模板有渲染后请求及null hash；故意子进程失败非零，无假passed、无资源残留。交付后才进入T44。
   - 2026-09-11完成：受测提交 `5afff508d586af0923a608fa28dcebc9ee38c27d` 上 py_compile 与 cascade 均 exit 0；隔离库 `ai_drama_studio_c012_t43_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t43-data-20260911` 的任务 #80/#81/#84 为图 miss/hit/失配、#82/#83/#85 为视频 miss/hit/失配、#86/#87 为 script2assets/script2shots，外部 schema 次数 `zimage=2,minimaxh3=2,script2assets=1,script2shots=1`，图片行 `1→4`、视频行 `0→3`；故意子进程 returncode=17，生产进程退出且临时目录删除。原始 `.work/c012/T43-pycompile.*`、`.work/c012/T43-cascade-cache.*` 与 `.work/c012/cascade-acceptance.json`，此前 placeholder/output-node/video-duration/timeout/采集类型失败证据均保留。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 M6 全级联矩阵。
@@ -394,28 +396,28 @@
 - [x] T44 补齐 R4 与在途快照、不追溯矩阵（B6）
   - 依赖：T43。交付：新增 `backend/tests/task_system/test_c012_template_cascade.py`，风格/zimage/minimax分别触发图/视频的确切hash变化和单次重建、命中无chat；script2assets/script2shots新正文与null hash；四类在途payload固定、已有下游行/文件不追溯。补齐T27后恢复其checkbox，不改既有弱断言来换绿。
   - R：R2、R3、R4、R11；PRD §3.2、§3.3、§6.2、§7；AC-20。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py`；R `python -X utf8 .work/c012/acceptance.py cascade --case cache`；完整前后值、请求次数/内容及持久化快照，禁止startswith/非空代替；同时逐格核查T27其余子分支证据，缺项如实报告。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py`；R `python -X utf8 backend/scripts/c012_acceptance.py cascade --case cache`；完整前后值、请求次数/内容及持久化快照，禁止startswith/非空代替；同时逐格核查T27其余子分支证据，缺项如实报告。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 M6 全级联矩阵（同时回填原§3.3风格/模板编辑行）。
 
-  - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_template_cascade.py`，覆盖 style/zimage/minimaxh3 的精确 hash 变化与单次重建、命中零 chat、script2assets/script2shots changed 正文与 `input_hash=null`，以及四类在途 payload 冻结和既有下游行/文件不追溯；并复用了已完成 T27 的九格回归与原始失败证据。隔离库 `ai_drama_studio_c012_t44_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py` 为 `14 passed in 10.12s`、exit 0，日志 `.work/c012/T44-test-targeted-final.log`；R 在 T43 受测库 `ai_drama_studio_c012_t43_20260911`/DATA_DIR `D:\ai_drama_studio\.work\c012\t43-data-20260911` 重用同一生产入口，`python -X utf8 .work/c012/acceptance.py cascade --case cache` 输出 `status=passed`、exit 0，原始 `.work/c012/T44-cascade-cache.log` 与 `.work/c012/T44-cascade-acceptance.json`，T43 原始快照另存 `.work/c012/T43-cascade-cache-before-T44.json`。首轮错误日志（日志落点、DATABASE_URL、旧库迁移约束、测试基线）均保留；未改生产代码、模板、剧本或既有测试。
+  - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_template_cascade.py`，覆盖 style/zimage/minimaxh3 的精确 hash 变化与单次重建、命中零 chat、script2assets/script2shots changed 正文与 `input_hash=null`，以及四类在途 payload 冻结和既有下游行/文件不追溯；并复用了已完成 T27 的九格回归与原始失败证据。隔离库 `ai_drama_studio_c012_t44_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_template_cascade.py tests/task_system/test_c012_cascade.py` 为 `14 passed in 10.12s`、exit 0，日志 `.work/c012/T44-test-targeted-final.log`；R 在 T43 受测库 `ai_drama_studio_c012_t43_20260911`/DATA_DIR `D:\ai_drama_studio\.work\c012\t43-data-20260911` 重用同一生产入口，`python -X utf8 backend/scripts/c012_acceptance.py cascade --case cache` 输出 `status=passed`、exit 0，原始 `.work/c012/T44-cascade-cache.log` 与 `.work/c012/T44-cascade-acceptance.json`，T43 原始快照另存 `.work/c012/T43-cascade-cache-before-T44.json`。首轮错误日志（日志落点、DATABASE_URL、旧库迁移约束、测试基线）均保留；未改生产代码、模板、剧本或既有测试。
 
 - [x] T45 交付进程恢复与心跳故障验收装置（B6前置）
-  - 依赖：T44。交付：扩展现有 `.work/c012/acceptance.py recovery --case lifecycle`；隔离真实后端/队列/handler先形成running+合法queued，终止/重启后释放queued完成真实业务产物；外部stub账本与独立DB/文件核对次数；生产worker监督中的数据库连接故障，handler及资源退出，恢复连通后重启恢复原running。不得用空payload或始终锁住queued代替。
+  - 依赖：T44。交付：扩展现有 `backend/scripts/c012_acceptance.py recovery --case lifecycle`；隔离真实后端/队列/handler先形成running+合法queued，终止/重启后释放queued完成真实业务产物；外部stub账本与独立DB/文件核对次数；生产worker监督中的数据库连接故障，handler及资源退出，恢复连通后重启恢复原running。不得用空payload或始终锁住queued代替。
   - R：无；PRD §6.1、§6.4、§11 M6；AC-02/22。
-  - 验收：R `python -m py_compile .work/c012/acceptance.py`、`python -X utf8 .work/c012/acceptance.py recovery --case lifecycle`；两个进程实际互斥、running→failed/server restarted、queued→done且副作用1、heartbeat失败真实非零/原因和资源清理；隔离故障不能影响用户数据库或GPU，清理本轮owned连接/端口。
+  - 验收：R `python -m py_compile backend/scripts/c012_acceptance.py`、`python -X utf8 backend/scripts/c012_acceptance.py recovery --case lifecycle`；两个进程实际互斥、running→failed/server restarted、queued→done且副作用1、heartbeat失败真实非零/原因和资源清理；隔离故障不能影响用户数据库或GPU，清理本轮owned连接/端口。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 验收装置生产通路与生命周期；C012 取消心跳失败与重启资源恢复。
-  - 2026-09-11完成：仅扩展 `.work/c012/acceptance.py`。隔离库 `ai_drama_studio_c012_t45_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t45-data-20260911` 上，`python -m py_compile .work/c012/acceptance.py` 与 `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle` 均 exit 0；`recovery-acceptance.json` 记录真实 running task #7 与 queued task #8，第二进程自然 returncode=3、未请求终止，输出 `AdvisoryLockNotAcquired`/`task worker advisory lock is already held`；首进程终止后 running/queued 保持，重启后 #7 为 `failed/server restarted`、#8 为 `done` 且仅 1 条 `source=generated` 资产。第三任务的数据库 `default_transaction_read_only=on` 故障记录 heartbeat 不变、任务仍 running、handler=0、无新增资产；恢复 off 后再次重启为 `failed/server restarted`。最终 owned 进程/连接/HTTP handler 清理，临时目录不存在。原始日志 `.work/c012/T45-acceptance-pycompile.*`、`.work/c012/T45-recovery-lifecycle.*`、`.work/c012/recovery-acceptance.json`；CLI、JSONB读取、PostgreSQL诊断兼容性与目录证据修正前失败分别保留在 `T45-recovery-lifecycle-failure-01.*` 至 `failure-04.*` 与 `pass-01.*`。
+  - 2026-09-11完成：仅扩展 `backend/scripts/c012_acceptance.py`。隔离库 `ai_drama_studio_c012_t45_20260911`、DATA_DIR `D:\ai_drama_studio\.work\c012\t45-data-20260911` 上，`python -m py_compile backend/scripts/c012_acceptance.py` 与 `python -X utf8 backend/scripts/c012_acceptance.py recovery --case lifecycle` 均 exit 0；`recovery-acceptance.json` 记录真实 running task #7 与 queued task #8，第二进程自然 returncode=3、未请求终止，输出 `AdvisoryLockNotAcquired`/`task worker advisory lock is already held`；首进程终止后 running/queued 保持，重启后 #7 为 `failed/server restarted`、#8 为 `done` 且仅 1 条 `source=generated` 资产。第三任务的数据库 `default_transaction_read_only=on` 故障记录 heartbeat 不变、任务仍 running、handler=0、无新增资产；恢复 off 后再次重启为 `failed/server restarted`。最终 owned 进程/连接/HTTP handler 清理，临时目录不存在。原始日志 `.work/c012/T45-acceptance-pycompile.*`、`.work/c012/T45-recovery-lifecycle.*`、`.work/c012/recovery-acceptance.json`；CLI、JSONB读取、PostgreSQL诊断兼容性与目录证据修正前失败分别保留在 `T45-recovery-lifecycle-failure-01.*` 至 `failure-04.*` 与 `pass-01.*`。
   - 证据归属：`recovery-acceptance.json` 是共享固定输出名，后续 T46 已另存 `.work/c012/T46-recovery-acceptance.json` 并覆盖该共享路径；T45 的当批 stdout/exit 与所有 failure/pass 快照保留，T45 具体结构化状态以后续 T46 同一装置重验为补充，不把 T46 文件倒写成 T45 独立原始 JSON。
 
 - [x] T46 补齐重启副作用及心跳监督回归（B6）
   - 依赖：T45。交付：新增 `backend/tests/task_system/test_c012_worker_recovery.py`，精确覆盖queued/完成先胜取消、真实进程重启后queued完成一次、心跳异常不吞/handler取消/DB不可达不假报failed/恢复后重启；保留原四个C012恢复测试。完成后复核恢复T29。
   - R：无；PRD §3.2、§6.1、§6.4；AC-22。
-  - 验收：B `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py`；R `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle`；不只断言状态集合，要分别精确单赢家、产物数量/内容与请求次数，退出无泄漏。生产根因超授权范围则报告。
+  - 验收：B `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py`；R `python -X utf8 backend/scripts/c012_acceptance.py recovery --case lifecycle`；不只断言状态集合，要分别精确单赢家、产物数量/内容与请求次数，退出无泄漏。生产根因超授权范围则报告。
   - 计划测试层级：跨进程/资源生命周期。
   - 追溯行：C012 取消心跳失败与重启资源恢复。
-  - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_worker_recovery.py` 四个独立用例，分别覆盖 queued 取消与完成先胜、取消安全点单赢家、重启后 queued 恰一次 handler/资产副作用、heartbeat 异常传播与 handler 取消，以及 DB 不可达时 running 不伪报 failed、恢复后 `server restarted` 收口。全新隔离库 `ai_drama_studio_c012_t46_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py` 为 `11 passed in 1.42s`、exit 0，stderr 为空，日志 `.work/c012/T46-test-targeted.stdout.log`、`.work/c012/T46-test-targeted.stderr.log`、`.work/c012/T46-test-targeted.exit-code.txt`；R `python -X utf8 .work/c012/acceptance.py recovery --case lifecycle` 为 status passed、exit 0，完整事件 `.work/c012/T46-recovery-acceptance.json`，DATA_DIR `D:\ai_drama_studio\.work\c012\t46-data-20260911`，库/DATA_DIR及运行状态与 T45 证据一致，最终临时目录不存在、stub handler=0。未修改既有测试、生产代码、模板或剧本。
+  - 2026-09-11完成：新增 `backend/tests/task_system/test_c012_worker_recovery.py` 四个独立用例，分别覆盖 queued 取消与完成先胜、取消安全点单赢家、重启后 queued 恰一次 handler/资产副作用、heartbeat 异常传播与 handler 取消，以及 DB 不可达时 running 不伪报 failed、恢复后 `server restarted` 收口。全新隔离库 `ai_drama_studio_c012_t46_20260911` 经 Alembic head 后，B 命令 `python -m pytest -q tests/task_system/test_c012_worker_recovery.py tests/task_system/test_c012_recovery.py tests/task_system/test_task_queue.py` 为 `11 passed in 1.42s`、exit 0，stderr 为空，日志 `.work/c012/T46-test-targeted.stdout.log`、`.work/c012/T46-test-targeted.stderr.log`、`.work/c012/T46-test-targeted.exit-code.txt`；R `python -X utf8 backend/scripts/c012_acceptance.py recovery --case lifecycle` 为 status passed、exit 0，完整事件 `.work/c012/T46-recovery-acceptance.json`，DATA_DIR `D:\ai_drama_studio\.work\c012\t46-data-20260911`，库/DATA_DIR及运行状态与 T45 证据一致，最终临时目录不存在、stub handler=0。未修改既有测试、生产代码、模板或剧本。
 
 - [x] T47 关闭最终交付模板与部署门槛（B4）
   - 2026-09-13 最新裁决：需求方于 2026-09-13 明确“确定为最终正文”：批准 `.work/c012/T47-deployment-proposal.txt` 的 10,756-byte、86 行正文作为历史批准基线。该正文从 `T26C-clip2-20260911_122039/request.json` 的实际请求恢复，只把 ACTUAL INPUT 的五项输入值还原为既有占位符；生产 renderer 使用该批冻结输入回放与原请求逐字相等。该批 `input-snapshot.json.template_content` 是历史旧模板，不能用它替换本次批准文件。其他三个模板保持原文；不改变五变量、schema、设置 API、R4 或不追溯语义。 本次解除最终正文批准门槛，按此正文继续 T47 正式安装与安装后/同库安全重启后逐字回读，不再要求与 C009 历史正文相同，也不重开模板优化循环。保留局部通用性限制及所有历史失败。T26/AC-19 已通过的需求方裁决保持，不为重新判定 T26 生成视频；本次批准不等于已安装、已重启核验或完整 AC-26 实际消费通过，未执行项仍须逐项取证，若剩余消费路径需改变则单独报告，不静默豁免。下列 2026-09-11 核对数据保留为历史，不表示本次正文仍待批准；随后授权的 T26C 修订及当前五点候选另行记录。

@@ -50,7 +50,7 @@ class AcceptanceFailure(RuntimeError):
     """A deterministic acceptance observation did not meet its contract."""
 
 
-C012_SPEC_PATH = ROOT / "openspec" / "changes" / "c012" / "spec.md"
+C012_SPEC_PATH = ROOT / "openspec" / "archive" / "c012" / "spec.md"
 M6_SCRIPT_PATH = BACKEND / "deployment" / "m6-script.txt"
 M6_APPEND_SENTENCE = "球馆内，工作人员陈宁走到芳嘉蔓身边递给她一张入场券。"
 M6_CLIP_TARGETS = (
@@ -6733,7 +6733,7 @@ asyncio.run(trash.run_trash_cleanup_loop(Path(os.environ["DATA_DIR"]), 1))
 
 def parser() -> argparse.ArgumentParser:
     argument_parser = argparse.ArgumentParser(
-        prog="python -X utf8 .work/c012/acceptance.py"
+        prog="python -X utf8 backend/scripts/c012_acceptance.py"
     )
     subparsers = argument_parser.add_subparsers(dest="command", required=True)
     selfcheck = subparsers.add_parser("selfcheck")

@@ -1,5 +1,7 @@
 # 测试追溯表
 
+**验收文件路径整理（2026-09-14）：** 原 `.work/c012/acceptance.py` 迁至 `backend/scripts/c012_acceptance.py`；原 `.work/c012/lock-order.md` 迁至 `openspec/archive/c012/lock-order.md`。历史记录保留原执行路径，当前入口见归档 spec/tasks 与部署说明。脚本仅更新帮助入口和归档 spec 路径，输出仍写本地 `.work/c012/`；`py_compile`、`--help`、`verify-inputs` 均 exit 0，后者实际返回 `status=passed`。未改正式测试或重跑模型/数据库验收，不替代既有 AC 专项证据。
+
 **C012 当前归档状态（2026-09-14）：** 55/55 项任务完成，Astra 对受审提交 `bf7e0b2fee2aae6a37c1aedc0d615fdb437b43eb` 的独立复审结论为 PASS。归档见 [spec](archive/c012/spec.md)、[tasks](archive/c012/tasks.md)、[审查报告](archive/c012/review.md) 与 [完成报告](archive/c012/completion.md)。以下历次失败与诊断记录保留其发生时的事实，不代表当前仍阻塞；最终验收边界与质量限制以归档报告为准。
 
 **C012 T26C 新候选 Clip1 单次诊断失败（2026-09-13，对应 AC-15/16/26）：** 以 `5446972a5695652a595e44a2696ea29e451202e4` 基线重建的 12,043-byte/87 行候选完成输入校验与 renderer/selfcheck 后，仅执行一次 `python -X utf8 .work/c012/prompt_diagnostic.py run --clip 1`，wrapper exit 0；结构检查 `headings_exact/shot_labels_exact/time_labels_exact/time_axis_valid/english_non_dialogue/empty_dialogue_clean` 全为 true，观察起点为 `[0,2.0,4.5]`。人工逐镜核对发现输入 Shot1 的完整对白 `芳嘉蔓:喂，我的彦茜小姐，你就不能吃快点吗？球赛就要开始了，看不到我的偶像为你是问！` 未出现在对应 `[Shot 1]`，仅 Shot2 对白逐字出现，判定模型漏提；Shot1动作与 Subject/Picture 映射有输入依据，未见错误 existing_id/asset_id/image_id复用。本批未进入平台 Task、Comfy 或合并路径，不能归因后端丢弃。原始请求/响应/解析正文/模板/结构证据在 `.work/c012/T26C-clip1-20260913_161430`，人工 review 同目录 `review.md`；终态只读观察 `.work/c012/T26C-candidate-clip1-postobserve-20260913.*`。按失败即停，Clip2、重新部署/重启回读及正式视频未执行，T26C/T26D/T47/T50及T34–T36保持未勾选，旧 T22/T23/T26 证据保留。

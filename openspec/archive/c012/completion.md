@@ -1,5 +1,7 @@
 # C012 完成报告
 
+> 验收文件整理（2026-09-14）：下文历史 `.work/c012/acceptance.py` 的当前入口为 `backend/scripts/c012_acceptance.py`，锁顺序记录归档为 `openspec/archive/c012/lock-order.md`；原始执行记录中的路径保留。
+
 > 归档说明（2026-09-14）：以下保留执行者完成报告。文中 `openspec/changes/c012/` 为原执行路径，现迁至 `openspec/archive/c012/`；最终独立审查结论见同目录 `review.md`。`.work/c012/` 原始证据与媒体保留在本地，未随报告批量上传。
 
 ## 1. 改动文件清单与 commit hash

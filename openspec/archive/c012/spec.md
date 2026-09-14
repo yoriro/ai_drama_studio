@@ -1,5 +1,7 @@
 # C012 M6 E2E 与发布验收
 
+> 路径整理（2026-09-14）：验收驱动现位于 `backend/scripts/c012_acceptance.py`，锁顺序记录现位于 `openspec/archive/c012/lock-order.md`。下文相应入口已更新；历史原始日志中的旧路径不改写，证据输出仍位于本地 `.work/c012/`。
+
 ## 目标与边界
 
 ### 目标
@@ -73,7 +75,7 @@
 - PRD（含本轮批准的 R2 补充）优先；遵守 DECISIONS D-001–D-015。复用既有依赖清单、同源 API/media/WS、显式事务、Task 三成员 payload、全局 request_id、REST 权威重建、事务后事件、原子 done 与同步文件补偿。
 - C012 只新增资产名称约束所需 migration；不改两条历史 migration 的 seed/正文，不做模板版本化。旧 C005 插入语义仅在本轮新 R2 覆盖的名称冲突分支演进。
 - 正式回归文件保留；没有修改既有测试的授权。新增用例先登记追溯。若现有断言与新 PRD 确实冲突，保留失败并上报具体用例，不改弱、不特判测试输入。
-- 本地 `.work/c012/acceptance.py` 是计划交付的唯一验收 CLI；不复用 C011 库/fixture，不再建第二套 PowerShell 启动器。应用不增加验收 endpoint、debug mutation 或 production-only bypass。
+- 本地 `backend/scripts/c012_acceptance.py` 是计划交付的唯一验收 CLI；不复用 C011 库/fixture，不再建第二套 PowerShell 启动器。应用不增加验收 endpoint、debug mutation 或 production-only bypass。
 - 命令默认根目录 `D:\ai_drama_studio`；pytest/Alembic 在 `backend`。环境由 T01 明确提供 DATABASE_URL/DATA_DIR，日志不打印凭据。本文列出的新命令/测试路径均为计划交付，当前不存在不算实施通过。
 - 每个 task 只跑受影响检查；阶段 G1 与最终 G2 才跑完整前端 test/build、隔离完整 pytest、Alembic。同输入证据按 AGENTS 复用；若中途广泛修改 DB/队列/lifespan/公共协议，提前完整回归并记录理由。失败保留 raw stdout/stderr/真实 exit；修复装置根因后可另批运行相关检查，不把 stderr 非空当失败，不静默过滤、不重放失败生成。
 
@@ -290,7 +292,7 @@ marker 必须按 `script_revision / assets_generated_script_revision / shots_gen
 三个入口必须实际运行下表既定生产通路，记录非空操作/观测、数据库/进程/文件身份及真实exit；不能仅返回passed、把9 passed重新包装成独立验收，或以自检失败证明功能交付。此补交不增加新的产品要求或AC，不修改原矩阵、失败语义和证据门槛。
 
 
-T02 交付 `.work/c012/acceptance.py` 的 `selfcheck`、`locks --case L1|L2|L3|L4|L5|all`、`migration`、`names`、`ws`、`cascade`、`recovery`、`trash`。T19 扩展同一文件的 `preflight --real`、`verify-inputs`、`observe --real`，不创建第二个runner。各命令失败非零、成功0，证据写 `.work/c012/<task>-<batch>.*`；保存 command/cwd/实际受测commit/显式非敏感环境/子进程PID/原始stdout/stderr/exit及资源结束状态，不新增hash或审计注册系统。
+T02 交付 `backend/scripts/c012_acceptance.py` 的 `selfcheck`、`locks --case L1|L2|L3|L4|L5|all`、`migration`、`names`、`ws`、`cascade`、`recovery`、`trash`。T19 扩展同一文件的 `preflight --real`、`verify-inputs`、`observe --real`，不创建第二个runner。各命令失败非零、成功0，证据写 `.work/c012/<task>-<batch>.*`；保存 command/cwd/实际受测commit/显式非敏感环境/子进程PID/原始stdout/stderr/exit及资源结束状态，不新增hash或审计注册系统。
 
 | 装置 | 事件/存储/进程通路 | 与生产的差异及证明边界 |
 |---|---|---|
