@@ -1,6 +1,8 @@
 # ROADMAP
 
-C011 已于 2026-09-10 完成验收并归档至 `openspec/archive/c011/`；最终审查基线为 `2acf32a`，导航决定已纳入 DECISIONS D-015。C012 尚未开始。
+C011 已于 2026-09-10 完成验收并归档至 `openspec/archive/c011/`；最终审查基线为 `2acf32a`，导航决定已纳入 DECISIONS D-015。
+
+C012 已于 2026-09-13 完成 55/55 项任务并通过 Astra 独立复审（受审 HEAD `bf7e0b2`），于 2026-09-14 按需求方授权归档至 [openspec/archive/c012](archive/c012/)。M0–M6 本轮 v1 范围开发与验收完成；[审查报告](archive/c012/review.md) 与 [完成报告](archive/c012/completion.md) 保留全部验收边界和质量限制，不代表未来版本能力或任意剧本生成质量已验证。
 
 | 编号 | 名称 | 一句话范围 | 依赖的前序 change | 对应 PRD 章节与 R 规则编号 | 需要的外部依赖（PRD §12） |
 |---|---|---|---|---|---|

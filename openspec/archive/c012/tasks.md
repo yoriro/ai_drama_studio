@@ -483,7 +483,7 @@
 - [x] change 文档与 commit 状态一致
   - 标识：T36；依赖：T35。仅在本表前置全部完成、26条AC都有真假证据、外部依赖门槛解除后收口；保留失败记录/限制，不顺手archive/push或纳入AGENTS用户改动。
   - R：无；PRD §0、§11 M6；AC-01/25。
-  - 验收：R `git status --short`、`git diff --check`、`git show --stat HEAD`、`git ls-tree -r --name-only HEAD openspec/changes/c012`；逐项核对PRD/spec/tasks/trace与受测commit，确保非文档输入变化都有相关新证据，完成报告明确提交状态。
+  - 验收：R `git status --short`、`git diff --check`、`git show --stat HEAD`、`git ls-tree -r --name-only HEAD openspec/archive/c012`（2026-09-14归档后路径；原验收时为`openspec/changes/c012`）；逐项核对PRD/spec/tasks/trace与受测commit，确保非文档输入变化都有相关新证据，完成报告明确提交状态。
   - 计划测试层级：不新增自动测试。
   - 追溯行：C012 范围与阶段回归及交付一致性。
   - 2026-09-13完成：复核 `AGENTS.md`、PRD、spec、tasks、TRACEABILITY、当前受测commit与工作树边界；`tasks.md` 无未勾选项，`git status --short --untracked-files=no` 仅保留用户既有 `AGENTS.md` 与 `docs/PRD-v1.2.md`，`git diff --check` exit 0，未archive/push或清理 `.work/c012/` 证据。

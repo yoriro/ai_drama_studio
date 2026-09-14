@@ -275,3 +275,4 @@ wsl.exe -d Ubuntu -- env VLLM_SERVER_DEV_MODE=1 VLLM_USE_FLASHINFER_SAMPLER=0 /r
 - 2026-09-13 C012：Clip2 formal rendered request 与诊断 request 逐字相等；Clip1 仅差既存 T31 尾注 `（T31生成中编辑）` 十字，exact=false；两段 raw vLLM response 未单独持久化。
 - 2026-09-13 C012：当前 task #17/#18 回读目标库 `ai_drama_studio_c012_m6_20260910`、DATA_DIR `D:\ai_drama_studio\.work\c012\t21-m6-data`，项目资产4项未变、active task=0、Comfy queue=0/0、vLLM sleeping=true。
 - 2026-09-13 C012：Clip2 未回切 Shot3、Clip1 出现局部环境细节幻觉及非核心服装措辞；按 Astra 裁决作为质量限制记录，不追加验收门槛。
+- 2026-09-14 C012：按需求方授权归档至 `openspec/archive/c012/`，保留 spec、tasks、独立审查报告及完成报告；受审提交为 `bf7e0b2fee2aae6a37c1aedc0d615fdb437b43eb`，55/55 项完成、复审 PASS。归档只改文档，复用已记录的最终回归，不重复运行测试；`.work/c012/` 原始证据、媒体与正式回归测试均保留。
